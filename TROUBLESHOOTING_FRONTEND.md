@@ -299,3 +299,83 @@ El schema Pydantic `PQRMetrics` estaba definido con tipo `Decimal` para los camp
 - ✅ GET /pqr/metrics - 200 OK
 - ✅ tiempo_promedio_resolucion_horas: 0.0 (número, no string)
 - ✅ tasa_resolucion_24h: 0.0 (número, no string)
+
+
+## Problema 12: Admin Endpoints - Missing User/Role Management APIs
+
+**Error:**
+```
+GET /admin/usuarios 404 (Not Found)
+GET /admin/roles 404 (Not Found)
+GET /admin/permisos 404 (Not Found)
+```
+
+**Causa:**
+Los endpoints de gestión de usuarios, roles y permisos no existían en el backend. El frontend esperaba estos endpoints para la funcionalidad de Configuración.
+
+**Solución:**
+Agregados nuevos endpoints en `/admin`:
+- GET /admin/usuarios - Lista todos los usuarios
+- POST /admin/usuarios - Crea nuevo usuario
+- PUT /admin/usuarios/{id} - Actualiza usuario
+- DELETE /admin/usuarios/{id} - Elimina usuario
+- GET /admin/roles - Lista roles con permisos
+- GET /admin/permisos - Lista permisos disponibles
+
+**Archivos modificados:**
+- `services/core-api/routers/admin.py` (agregados 6 nuevos endpoints)
+
+**Estado:** ✅ Resuelto - Todos los endpoints funcionando
+
+---
+
+## Problema 13: GestionUsuarios - Missing nombre_completo field
+
+**Error:**
+```
+TypeError: Cannot read properties of undefined (reading 'toLowerCase')
+at GestionUsuarios.tsx:41
+```
+
+**Causa:**
+El componente `GestionUsuarios` esperaba un campo `nombre_completo` en los datos de usuario, pero el backend solo devolvía `nombre` y `apellido` por separado.
+
+**Solución:**
+Agregado campo `nombre_completo` en las respuestas de los endpoints de usuarios:
+```python
+"nombre_completo": f"{usuario.nombre} {usuario.apellido}"
+```
+
+**Archivos modificados:**
+- `services/core-api/routers/admin.py` (endpoints GET, POST, PUT de usuarios)
+
+**Estado:** ✅ Resuelto - Gestión de Usuarios funcionando correctamente
+
+---
+
+## Resumen Final Actualizado
+
+**13 problemas críticos resueltos:**
+
+1. ✅ PQR Service - baseURL y autenticación
+2. ✅ Analytics Service - Formato de fechas ISO
+3. ✅ SelectItem - Valores vacíos a "all"
+4. ✅ Auth Endpoints - UUID a string
+5. ✅ Asesores Endpoints - Queries ORM simplificadas
+6. ✅ AsesoresFilters - Loop infinito
+7. ✅ PQR Service - Campo telefono
+8. ✅ Asesores KPIs - Missing .all()
+9. ✅ Asesores Router - Route conflict
+10. ✅ PQR Metrics - Tortoise ORM aggregate()
+11. ✅ PQR Metrics - Decimal serialization
+12. ✅ Admin Endpoints - User/Role Management APIs
+13. ✅ GestionUsuarios - nombre_completo field
+
+**Módulos completamente funcionales:**
+- ✅ Dashboard
+- ✅ Asesores
+- ✅ PQR
+- ✅ Configuración (Usuarios, Roles, Parámetros)
+- ✅ Reportes
+
+**Sistema estable y sin errores críticos** 🎉

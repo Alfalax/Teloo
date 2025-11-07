@@ -384,3 +384,199 @@ async def get_ofertas_proximas_expirar(
             status_code=500,
             detail=f"Error obteniendo ofertas próximas a expirar: {str(e)}"
         )
+
+
+
+# User Management Endpoints
+@router.get("/usuarios", summary="Obtener lista de usuarios")
+async def get_usuarios(
+    current_user: Usuario = Depends(get_current_admin_user)
+):
+    """Obtiene lista de todos los usuarios del sistema"""
+    try:
+        usuarios = await Usuario.all()
+        return {
+            "success": True,
+            "usuarios": [
+                {
+                    "id": str(usuario.id),
+                    "email": usuario.email,
+                    "nombre": usuario.nombre,
+                    "apellido": usuario.apellido,
+                    "nombre_completo": f"{usuario.nombre} {usuario.apellido}",
+                    "telefono": usuario.telefono,
+                    "rol": usuario.rol.value,
+                    "estado": usuario.estado.value,
+                    "ultimo_login": usuario.ultimo_login.isoformat() if usuario.ultimo_login else None,
+                    "created_at": usuario.created_at.isoformat(),
+                    "updated_at": usuario.updated_at.isoformat()
+                }
+                for usuario in usuarios
+            ]
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error obteniendo usuarios: {str(e)}")
+
+
+@router.post("/usuarios", summary="Crear nuevo usuario")
+async def create_usuario(
+    usuario_data: Dict[str, Any],
+    current_user: Usuario = Depends(get_current_admin_user)
+):
+    """Crea un nuevo usuario en el sistema"""
+    try:
+        from services.auth_service import AuthService
+        from models.enums import RolUsuario, EstadoUsuario
+        
+        # Verificar si el email ya existe
+        existing = await Usuario.get_or_none(email=usuario_data['email'])
+        if existing:
+            raise HTTPException(status_code=400, detail="El email ya está registrado")
+        
+        # Crear usuario
+        password_hash = AuthService.hash_password(usuario_data['password'])
+        usuario = await Usuario.create(
+            email=usuario_data['email'],
+            password_hash=password_hash,
+            nombre=usuario_data['nombre'],
+            apellido=usuario_data['apellido'],
+            telefono=usuario_data['telefono'],
+            rol=RolUsuario(usuario_data.get('rol', 'CLIENT')),
+            estado=EstadoUsuario(usuario_data.get('estado', 'ACTIVO'))
+        )
+        
+        return {
+            "success": True,
+            "usuario": {
+                "id": str(usuario.id),
+                "email": usuario.email,
+                "nombre": usuario.nombre,
+                "apellido": usuario.apellido,
+                "nombre_completo": f"{usuario.nombre} {usuario.apellido}",
+                "telefono": usuario.telefono,
+                "rol": usuario.rol.value,
+                "estado": usuario.estado.value,
+                "created_at": usuario.created_at.isoformat(),
+                "updated_at": usuario.updated_at.isoformat()
+            }
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error creando usuario: {str(e)}")
+
+
+@router.put("/usuarios/{usuario_id}", summary="Actualizar usuario")
+async def update_usuario(
+    usuario_id: str,
+    usuario_data: Dict[str, Any],
+    current_user: Usuario = Depends(get_current_admin_user)
+):
+    """Actualiza un usuario existente"""
+    try:
+        from models.enums import RolUsuario, EstadoUsuario
+        
+        usuario = await Usuario.get_or_none(id=usuario_id)
+        if not usuario:
+            raise HTTPException(status_code=404, detail="Usuario no encontrado")
+        
+        # Actualizar campos
+        if 'nombre' in usuario_data:
+            usuario.nombre = usuario_data['nombre']
+        if 'apellido' in usuario_data:
+            usuario.apellido = usuario_data['apellido']
+        if 'telefono' in usuario_data:
+            usuario.telefono = usuario_data['telefono']
+        if 'rol' in usuario_data:
+            usuario.rol = RolUsuario(usuario_data['rol'])
+        if 'estado' in usuario_data:
+            usuario.estado = EstadoUsuario(usuario_data['estado'])
+        if 'password' in usuario_data:
+            from services.auth_service import AuthService
+            usuario.password_hash = AuthService.hash_password(usuario_data['password'])
+        
+        await usuario.save()
+        
+        return {
+            "success": True,
+            "usuario": {
+                "id": str(usuario.id),
+                "email": usuario.email,
+                "nombre": usuario.nombre,
+                "apellido": usuario.apellido,
+                "nombre_completo": f"{usuario.nombre} {usuario.apellido}",
+                "telefono": usuario.telefono,
+                "rol": usuario.rol.value,
+                "estado": usuario.estado.value,
+                "updated_at": usuario.updated_at.isoformat()
+            }
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error actualizando usuario: {str(e)}")
+
+
+@router.delete("/usuarios/{usuario_id}", summary="Eliminar usuario")
+async def delete_usuario(
+    usuario_id: str,
+    current_user: Usuario = Depends(get_current_admin_user)
+):
+    """Elimina un usuario del sistema"""
+    try:
+        usuario = await Usuario.get_or_none(id=usuario_id)
+        if not usuario:
+            raise HTTPException(status_code=404, detail="Usuario no encontrado")
+        
+        # No permitir eliminar el propio usuario
+        if str(usuario.id) == str(current_user.id):
+            raise HTTPException(status_code=400, detail="No puedes eliminar tu propio usuario")
+        
+        await usuario.delete()
+        
+        return {"success": True, "message": "Usuario eliminado correctamente"}
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error eliminando usuario: {str(e)}")
+
+
+# Role Management Endpoints
+@router.get("/roles", summary="Obtener lista de roles")
+async def get_roles(
+    current_user: Usuario = Depends(get_current_admin_user)
+):
+    """Obtiene lista de roles disponibles en el sistema"""
+    try:
+        from models.enums import RolUsuario
+        from services.rbac_service import RBACService
+        
+        roles = []
+        for rol in RolUsuario:
+            permisos = RBACService.get_role_permissions(rol)
+            roles.append({
+                "id": rol.value,
+                "nombre": rol.value,
+                "descripcion": f"Rol {rol.value}",
+                "permisos": [p.value for p in permisos]
+            })
+        
+        return {"success": True, "roles": roles}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error obteniendo roles: {str(e)}")
+
+
+# Permissions Endpoints
+@router.get("/permisos", summary="Obtener permisos disponibles")
+async def get_permisos(
+    current_user: Usuario = Depends(get_current_admin_user)
+):
+    """Obtiene lista de permisos disponibles en el sistema"""
+    try:
+        from services.rbac_service import Permission
+        
+        permisos = [permiso.value for permiso in Permission]
+        
+        return {"success": True, "permisos": permisos}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error obteniendo permisos: {str(e)}")
