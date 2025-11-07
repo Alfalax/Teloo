@@ -41,11 +41,23 @@ async def login(login_data: LoginRequest):
     # Create token pair
     tokens = AuthService.create_token_pair(user)
     
+    # Create user info
+    user_info = UserInfo(
+        id=str(user.id),
+        email=user.email,
+        nombre=user.nombre,
+        apellido=user.apellido,
+        rol=user.rol,
+        estado=user.estado.value,
+        ultimo_login=user.ultimo_login.isoformat() if user.ultimo_login else None
+    )
+    
     return TokenResponse(
         access_token=tokens["access_token"],
         refresh_token=tokens["refresh_token"],
         token_type=tokens["token_type"],
-        expires_in=900  # 15 minutes
+        expires_in=900,  # 15 minutes
+        user=user_info
     )
 
 

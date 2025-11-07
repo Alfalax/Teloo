@@ -14,8 +14,8 @@ from fastapi import HTTPException, status
 from models.user import Usuario
 from models.enums import RolUsuario, EstadoUsuario
 
-# Password hashing context
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+# Password hashing context - simplified configuration
+pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto", bcrypt__rounds=12)
 
 # JWT Configuration
 SECRET_KEY = os.getenv("JWT_SECRET_KEY", "your-secret-key-change-in-production")
@@ -56,11 +56,24 @@ class AuthService:
     @staticmethod
     def verify_password(plain_password: str, hashed_password: str) -> bool:
         """Verify a plain password against its hash"""
-        return pwd_context.verify(plain_password, hashed_password)
+        # Check if it's a simple SHA256 hash (for initial admin user)
+        import hashlib
+        simple_hash = hashlib.sha256(plain_password.encode()).hexdigest()
+        if simple_hash == hashed_password:
+            return True
+        
+        # Otherwise use bcrypt
+        try:
+            return pwd_context.verify(plain_password, hashed_password)
+        except:
+            return False
     
     @staticmethod
     def get_password_hash(password: str) -> str:
         """Generate password hash"""
+        # Ensure password is not too long for bcrypt (max 72 bytes)
+        if len(password.encode('utf-8')) > 72:
+            password = password[:72]
         return pwd_context.hash(password)
     
     @staticmethod
@@ -157,13 +170,13 @@ class AuthService:
         """Create access and refresh token pair for user"""
         token_data = {
             "sub": user.email,
-            "user_id": user.id,
+            "user_id": str(user.id),  # Convert UUID to string
             "role": user.rol.value,
-            "name": user.nombre_completo
+            "name": f"{user.nombre} {user.apellido}"
         }
         
         access_token = AuthService.create_access_token(token_data)
-        refresh_token = AuthService.create_refresh_token({"sub": user.email, "user_id": user.id})
+        refresh_token = AuthService.create_refresh_token({"sub": user.email, "user_id": str(user.id)})
         
         return {
             "access_token": access_token,

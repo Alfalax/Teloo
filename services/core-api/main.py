@@ -81,17 +81,23 @@ async def health_check():
         "scheduler": scheduler_status
     }
 
+
+
 @app.on_event("startup")
 async def startup_event():
     """Initialize services on startup"""
     try:
+        # Initialize database with default data
+        from services.init_service import InitService
+        await InitService.initialize_default_data()
+        
         # Initialize scheduler
         redis_url = os.getenv("REDIS_URL", "redis://localhost:6379")
         await scheduler_service.initialize(redis_url)
         await scheduler_service.start()
         logging.info("Scheduler service started successfully")
     except Exception as e:
-        logging.error(f"Error starting scheduler service: {e}")
+        logging.error(f"Error during startup: {e}")
 
 @app.on_event("shutdown")
 async def shutdown_event():

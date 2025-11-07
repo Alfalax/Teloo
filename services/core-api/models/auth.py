@@ -14,22 +14,9 @@ class LoginRequest(BaseModel):
     password: str
 
 
-class TokenResponse(BaseModel):
-    """Token response model"""
-    access_token: str
-    refresh_token: str
-    token_type: str = "bearer"
-    expires_in: int = 900  # 15 minutes in seconds
-
-
-class RefreshTokenRequest(BaseModel):
-    """Refresh token request model"""
-    refresh_token: str
-
-
 class UserInfo(BaseModel):
     """User information model for token payload"""
-    id: int
+    id: str
     email: str
     nombre: str
     apellido: str
@@ -39,6 +26,20 @@ class UserInfo(BaseModel):
     
     class Config:
         from_attributes = True
+
+
+class TokenResponse(BaseModel):
+    """Token response model"""
+    access_token: str
+    refresh_token: str
+    token_type: str = "bearer"
+    expires_in: int = 900  # 15 minutes in seconds
+    user: UserInfo
+
+
+class RefreshTokenRequest(BaseModel):
+    """Refresh token request model"""
+    refresh_token: str
 
 
 class TokenPayload(BaseModel):
