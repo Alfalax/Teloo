@@ -1,13 +1,20 @@
+import { useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { TrendingUp, Users, ShoppingCart, DollarSign, RefreshCw, AlertCircle } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { TrendingUp, Users, ShoppingCart, DollarSign, RefreshCw, AlertCircle, BarChart3, Download } from 'lucide-react';
 import { KPICard } from '@/components/dashboard/KPICard';
 import { LineChart } from '@/components/charts/LineChart';
 import { TopSolicitudesTable } from '@/components/dashboard/TopSolicitudesTable';
+import { AnalyticsDashboard } from '@/components/dashboard/AnalyticsDashboard';
 import { useDashboardData } from '@/hooks/useDashboard';
+import { analyticsService } from '@/services/analytics';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
 
 export function DashboardPage() {
+  const [activeTab, setActiveTab] = useState('overview');
+  
   const {
     dashboardData,
     graficosData,
@@ -17,6 +24,17 @@ export function DashboardPage() {
     refetchDashboard,
     periodo,
   } = useDashboardData();
+
+  const handleExportDashboard = () => {
+    const exportData = {
+      dashboard_principal: dashboardData,
+      graficos_mes: graficosData,
+      top_solicitudes: topSolicitudes,
+      exported_at: new Date().toISOString()
+    };
+
+    analyticsService.exportToJSON(exportData, `dashboard-${new Date().toISOString().split('T')[0]}.json`);
+  };
 
   // Format KPI data for display
   const formatKPIValue = (value: number, type: 'currency' | 'number' | 'percentage') => {
@@ -92,18 +110,38 @@ export function DashboardPage() {
             Resumen general del marketplace TeLOO - {format(new Date(periodo.inicio), 'MMMM yyyy', { locale: es })}
           </p>
         </div>
-        <button
-          onClick={() => refetchDashboard()}
-          disabled={isLoading}
-          className="inline-flex items-center gap-2 px-3 py-2 text-sm border rounded-md hover:bg-accent"
-        >
-          <RefreshCw className={`h-4 w-4 ${isLoading ? 'animate-spin' : ''}`} />
-          Actualizar
-        </button>
+        <div className="flex gap-2">
+          <Button
+            onClick={() => refetchDashboard()}
+            disabled={isLoading}
+            variant="outline"
+            className="flex items-center gap-2"
+          >
+            <RefreshCw className={`h-4 w-4 ${isLoading ? 'animate-spin' : ''}`} />
+            Actualizar
+          </Button>
+          <Button onClick={handleExportDashboard} variant="outline" className="flex items-center gap-2">
+            <Download className="h-4 w-4" />
+            Exportar
+          </Button>
+        </div>
       </div>
 
-      {/* KPIs Grid */}
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
+        <TabsList>
+          <TabsTrigger value="overview" className="flex items-center gap-2">
+            <TrendingUp className="h-4 w-4" />
+            Resumen
+          </TabsTrigger>
+          <TabsTrigger value="analytics" className="flex items-center gap-2">
+            <BarChart3 className="h-4 w-4" />
+            Analytics Completo
+          </TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="overview" className="space-y-6">
+          {/* KPIs Grid */}
+          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
         <KPICard
           title="Ofertas Totales Asignadas"
           value={dashboardData?.kpis?.ofertas_totales_asignadas?.valor 
@@ -251,6 +289,12 @@ export function DashboardPage() {
           )}
         </CardContent>
       </Card>
+        </TabsContent>
+
+        <TabsContent value="analytics">
+          <AnalyticsDashboard />
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }

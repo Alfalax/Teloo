@@ -1,12 +1,15 @@
 """
 Dashboard endpoints for Analytics Service
 """
+import logging
 from fastapi import APIRouter, Query, HTTPException
 from datetime import datetime, timedelta
 from typing import Optional, Dict, Any
 from app.services.metrics_calculator import MetricsCalculator
 from app.services.batch_jobs import batch_jobs_service
 from app.services.scheduler import analytics_scheduler
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/v1/dashboards", tags=["dashboards"])
 
@@ -456,3 +459,315 @@ async def get_calculated_metrics(
     except Exception as e:
         logger.error(f"Error obteniendo métricas calculadas: {e}")
         raise HTTPException(status_code=500, detail=str(e))
+
+# Export endpoints
+@router.get("/embudo-operativo/export")
+async def export_embudo_operativo(
+    format: str = Query("json", description="Formato de exportación: json o csv"),
+    fecha_inicio: Optional[datetime] = Query(None, description="Fecha inicio (ISO format)"),
+    fecha_fin: Optional[datetime] = Query(None, description="Fecha fin (ISO format)")
+):
+    """
+    Exportar datos del embudo operativo
+    """
+    try:
+        if not fecha_inicio:
+            fecha_inicio = datetime.utcnow() - timedelta(days=30)
+        if not fecha_fin:
+            fecha_fin = datetime.utcnow()
+            
+        data = await metrics_calculator.get_embudo_operativo(fecha_inicio, fecha_fin)
+        
+        if format.lower() == "csv":
+            import csv
+            import io
+            
+            output = io.StringIO()
+            writer = csv.writer(output)
+            
+            # Headers
+            writer.writerow(["Métrica", "Valor", "Período Inicio", "Período Fin"])
+            
+            # Data rows
+            for key, value in data.items():
+                writer.writerow([
+                    key.replace('_', ' ').title(),
+                    str(value),
+                    fecha_inicio.isoformat(),
+                    fecha_fin.isoformat()
+                ])
+            
+            csv_content = output.getvalue()
+            output.close()
+            
+            from fastapi.responses import Response
+            return Response(
+                content=csv_content,
+                media_type="text/csv",
+                headers={"Content-Disposition": f"attachment; filename=embudo-operativo-{fecha_inicio.date()}-{fecha_fin.date()}.csv"}
+            )
+        else:
+            # JSON format
+            return {
+                "dashboard": "embudo_operativo",
+                "periodo": {
+                    "inicio": fecha_inicio.isoformat(),
+                    "fin": fecha_fin.isoformat()
+                },
+                "metricas": data,
+                "generado_en": datetime.utcnow().isoformat()
+            }
+            
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error exportando embudo operativo: {str(e)}")
+
+@router.get("/salud-marketplace/export")
+async def export_salud_marketplace(
+    format: str = Query("json", description="Formato de exportación: json o csv"),
+    fecha_inicio: Optional[datetime] = Query(None, description="Fecha inicio (ISO format)"),
+    fecha_fin: Optional[datetime] = Query(None, description="Fecha fin (ISO format)")
+):
+    """
+    Exportar datos de salud del marketplace
+    """
+    try:
+        if not fecha_inicio:
+            fecha_inicio = datetime.utcnow() - timedelta(days=7)
+        if not fecha_fin:
+            fecha_fin = datetime.utcnow()
+            
+        data = await metrics_calculator.get_salud_marketplace(fecha_inicio, fecha_fin)
+        
+        if format.lower() == "csv":
+            import csv
+            import io
+            
+            output = io.StringIO()
+            writer = csv.writer(output)
+            
+            # Headers
+            writer.writerow(["Métrica", "Valor", "Unidad", "Período Inicio", "Período Fin"])
+            
+            # Data rows
+            for key, value in data.items():
+                unit = ""
+                if "porcentaje" in key or "tasa" in key:
+                    unit = "%"
+                elif "tiempo" in key or "latencia" in key:
+                    unit = "ms"
+                elif "disponibilidad" in key:
+                    unit = "%"
+                    
+                writer.writerow([
+                    key.replace('_', ' ').title(),
+                    str(value),
+                    unit,
+                    fecha_inicio.isoformat(),
+                    fecha_fin.isoformat()
+                ])
+            
+            csv_content = output.getvalue()
+            output.close()
+            
+            from fastapi.responses import Response
+            return Response(
+                content=csv_content,
+                media_type="text/csv",
+                headers={"Content-Disposition": f"attachment; filename=salud-marketplace-{fecha_inicio.date()}-{fecha_fin.date()}.csv"}
+            )
+        else:
+            # JSON format
+            return {
+                "dashboard": "salud_marketplace",
+                "periodo": {
+                    "inicio": fecha_inicio.isoformat(),
+                    "fin": fecha_fin.isoformat()
+                },
+                "metricas": data,
+                "generado_en": datetime.utcnow().isoformat()
+            }
+            
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error exportando salud del marketplace: {str(e)}")
+
+@router.get("/financiero/export")
+async def export_dashboard_financiero(
+    format: str = Query("json", description="Formato de exportación: json o csv"),
+    fecha_inicio: Optional[datetime] = Query(None, description="Fecha inicio (ISO format)"),
+    fecha_fin: Optional[datetime] = Query(None, description="Fecha fin (ISO format)")
+):
+    """
+    Exportar datos del dashboard financiero
+    """
+    try:
+        if not fecha_inicio:
+            fecha_inicio = datetime.utcnow() - timedelta(days=30)
+        if not fecha_fin:
+            fecha_fin = datetime.utcnow()
+            
+        # Mock data for now - implement real calculation later
+        data = {
+            "ingresos_totales": 45200000,
+            "comisiones_generadas": 2260000,
+            "valor_promedio_transaccion": 850000,
+            "transacciones_completadas": 156,
+            "crecimiento_mensual": 12.5
+        }
+        
+        if format.lower() == "csv":
+            import csv
+            import io
+            
+            output = io.StringIO()
+            writer = csv.writer(output)
+            
+            # Headers
+            writer.writerow(["Métrica", "Valor", "Unidad", "Período Inicio", "Período Fin"])
+            
+            # Data rows
+            for key, value in data.items():
+                unit = ""
+                if "ingresos" in key or "comisiones" in key or "valor" in key:
+                    unit = "COP"
+                elif "crecimiento" in key:
+                    unit = "%"
+                elif "transacciones" in key:
+                    unit = "unidades"
+                    
+                writer.writerow([
+                    key.replace('_', ' ').title(),
+                    str(value),
+                    unit,
+                    fecha_inicio.isoformat(),
+                    fecha_fin.isoformat()
+                ])
+            
+            csv_content = output.getvalue()
+            output.close()
+            
+            from fastapi.responses import Response
+            return Response(
+                content=csv_content,
+                media_type="text/csv",
+                headers={"Content-Disposition": f"attachment; filename=dashboard-financiero-{fecha_inicio.date()}-{fecha_fin.date()}.csv"}
+            )
+        else:
+            # JSON format
+            return {
+                "dashboard": "financiero",
+                "periodo": {
+                    "inicio": fecha_inicio.isoformat(),
+                    "fin": fecha_fin.isoformat()
+                },
+                "metricas": data,
+                "generado_en": datetime.utcnow().isoformat()
+            }
+            
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error exportando dashboard financiero: {str(e)}")
+
+@router.get("/asesores/export")
+async def export_analisis_asesores(
+    format: str = Query("json", description="Formato de exportación: json o csv"),
+    fecha_inicio: Optional[datetime] = Query(None, description="Fecha inicio (ISO format)"),
+    fecha_fin: Optional[datetime] = Query(None, description="Fecha fin (ISO format)"),
+    ciudad: Optional[str] = Query(None, description="Filtrar por ciudad")
+):
+    """
+    Exportar datos del análisis de asesores
+    """
+    try:
+        if not fecha_inicio:
+            fecha_inicio = datetime.utcnow() - timedelta(days=30)
+        if not fecha_fin:
+            fecha_fin = datetime.utcnow()
+            
+        # Mock data for now - implement real calculation later
+        data = {
+            "total_asesores": 245,
+            "asesores_activos": 189,
+            "tasa_respuesta_promedio": 78.5,
+            "tiempo_respuesta_promedio": 25.3,
+            "ofertas_por_asesor": 12.8,
+            "tasa_adjudicacion": 34.2,
+            "ranking_top_10": [
+                {"nombre": "Asesor Premium 1", "puntaje": 4.8, "ciudad": "BOGOTA"},
+                {"nombre": "Asesor Premium 2", "puntaje": 4.7, "ciudad": "MEDELLIN"},
+                {"nombre": "Asesor Premium 3", "puntaje": 4.6, "ciudad": "CALI"}
+            ],
+            "nivel_confianza_promedio": 4.2,
+            "retension_asesores": 92.1,
+            "satisfaccion_cliente": 4.3
+        }
+        
+        if format.lower() == "csv":
+            import csv
+            import io
+            
+            output = io.StringIO()
+            writer = csv.writer(output)
+            
+            # Headers for main metrics
+            writer.writerow(["Métrica", "Valor", "Unidad", "Período Inicio", "Período Fin"])
+            
+            # Main metrics
+            for key, value in data.items():
+                if key != "ranking_top_10":  # Skip complex nested data for CSV
+                    unit = ""
+                    if "tasa" in key or "retension" in key:
+                        unit = "%"
+                    elif "tiempo" in key:
+                        unit = "minutos"
+                    elif "total" in key or "ofertas" in key:
+                        unit = "unidades"
+                    elif "nivel" in key or "satisfaccion" in key:
+                        unit = "escala 1-5"
+                        
+                    writer.writerow([
+                        key.replace('_', ' ').title(),
+                        str(value),
+                        unit,
+                        fecha_inicio.isoformat(),
+                        fecha_fin.isoformat()
+                    ])
+            
+            # Add ranking section
+            writer.writerow([])  # Empty row
+            writer.writerow(["Ranking Top Asesores", "", "", "", ""])
+            writer.writerow(["Nombre", "Puntaje", "Ciudad", "", ""])
+            
+            for asesor in data.get("ranking_top_10", []):
+                writer.writerow([
+                    asesor.get("nombre", ""),
+                    str(asesor.get("puntaje", "")),
+                    asesor.get("ciudad", ""),
+                    "",
+                    ""
+                ])
+            
+            csv_content = output.getvalue()
+            output.close()
+            
+            from fastapi.responses import Response
+            return Response(
+                content=csv_content,
+                media_type="text/csv",
+                headers={"Content-Disposition": f"attachment; filename=analisis-asesores-{fecha_inicio.date()}-{fecha_fin.date()}.csv"}
+            )
+        else:
+            # JSON format
+            return {
+                "dashboard": "asesores",
+                "periodo": {
+                    "inicio": fecha_inicio.isoformat(),
+                    "fin": fecha_fin.isoformat()
+                },
+                "filtros": {
+                    "ciudad": ciudad
+                },
+                "metricas": data,
+                "generado_en": datetime.utcnow().isoformat()
+            }
+            
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error exportando análisis de asesores: {str(e)}")

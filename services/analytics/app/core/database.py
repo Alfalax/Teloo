@@ -29,7 +29,7 @@ async def init_db():
     await Tortoise.init(config=DATABASE_CONFIG)
     
     # Generate schemas (create tables if they don't exist)
-    await Tortoise.generate_schemas(safe=False)
+    await Tortoise.generate_schemas(safe=True)
 
 async def close_db():
     """Close database connection"""
