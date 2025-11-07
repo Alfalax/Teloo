@@ -113,7 +113,7 @@ services:
       dockerfile: Dockerfile
     container_name: teloo-analytics
     environment:
-      - DATABASE_URL=postgresql://teloo_user:teloo_password@postgres:5432/teloo_v3
+      - DATABASE_URL=postgres://teloo_user:teloo_password@postgres:5432/teloo_v3
       - REDIS_URL=redis://redis:6379
       - ENVIRONMENT=development
     ports:

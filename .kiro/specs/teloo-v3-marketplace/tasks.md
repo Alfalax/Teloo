@@ -573,22 +573,22 @@ Este plan de implementación convierte el diseño de TeLOO V3 en tareas específ
   - _Requirements: 1.1, 1.2, 1.3, 1.6_
 
 - [ ] 8. Implementar Analytics Service
-- [ ] 8.1 Crear capturador de eventos
+- [x] 8.1 Crear capturador de eventos
   - Implementar EventCollector que consume Redis pub/sub
   - Suscribirse a eventos: solicitud.*, oferta.*, evaluacion.*, cliente.*
   - Almacenar eventos en EventoSistema para auditoría
   - Procesar eventos en tiempo real para métricas
   - _Requirements: 8.1_
 
-- [ ] 8.2 Implementar calculadora de métricas básicas
+- [x] 8.2 Implementar calculadora de métricas básicas
   - Crear MetricsCalculator con funciones para KPIs simples
   - Implementar cálculo de KPIs en tiempo real (4 KPIs críticos)
   - Implementar cache de KPIs frecuentes con TTL configurable
   - Usar réplica de lectura de PostgreSQL para consultas
   - _Requirements: 8.3_
 
-- [ ] 8.3 Implementar generador de dashboards
-  - Crear DashboardGenerator para los 4 dashboards principales
+- [x] 8.3 Implementar generador de dashboards
+  - Crear DashboardGenerator para los 5 dashboards principales
   - Dashboard Principal: 4 KPIs superiores + gráficos del mes
   - Embudo Operativo: 11 KPIs de proceso
   - Salud del Marketplace: 5 KPIs de sistema
@@ -596,28 +596,52 @@ Este plan de implementación convierte el diseño de TeLOO V3 en tareas específ
   - Análisis de Asesores: 13 KPIs de performance
   - _Requirements: 8.2, 8.3_
 
-- [ ] 8.4 Implementar jobs batch para métricas complejas
+- [x] 8.4 Implementar jobs batch para métricas complejas
+
+
+
+
+
+
   - Crear jobs programados para KPIs que requieren cálculos pesados
   - Job diario (2 AM): ranking de asesores, especialización por repuesto
   - Job semanal: evolución temporal, análisis de tendencias
   - Almacenar resultados en MetricaCalculada
   - _Requirements: 8.3_
 
-- [ ] 8.5 Implementar vistas materializadas para KPIs históricos
+- [x] 8.5 Implementar vistas materializadas para KPIs históricos
+
+
+
+
+
+
   - Crear vista materializada mv_metricas_mensuales para datos históricos
   - Crear vista materializada mv_ranking_asesores para rankings por ciudad
   - Implementar job de refresh automático (1 AM diario) con pg_cron
   - Crear función refresh_all_mv() en PostgreSQL
   - _Requirements: 8.3_
 
-- [ ] 8.6 Implementar sistema de alertas
+- [x] 8.6 Implementar sistema de alertas
+
+
+
+
+
   - Crear AlertManager para umbrales configurables
   - Monitorear KPIs críticos y generar alertas automáticas
   - Enviar notificaciones por email/Slack cuando se superen umbrales
   - Configurar alertas por: error rate, latencia, conversión baja
   - _Requirements: 8.4_
 
-- [ ]* 8.7 Escribir tests del Analytics Service
+- [x] 8.7 Escribir tests del Analytics Service
+
+
+
+
+
+
+
   - Tests de captura y procesamiento de eventos
   - Tests de cálculo de KPIs individuales
   - Tests de generación de dashboards
