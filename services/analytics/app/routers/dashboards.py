@@ -29,18 +29,92 @@ async def get_dashboard_principal(
             
         kpis = await metrics_calculator.get_kpis_principales(fecha_inicio, fecha_fin)
         
+        # Estructura de respuesta compatible con el frontend
+        dashboard_data = {
+            "kpis": {
+                "ofertas_totales_asignadas": {
+                    "valor": kpis.get("ofertas_totales", 0),
+                    "cambio_porcentual": kpis.get("ofertas_cambio", 0),
+                    "periodo": "mes_actual"
+                },
+                "monto_total_aceptado": {
+                    "valor": kpis.get("monto_total", 0),
+                    "cambio_porcentual": kpis.get("monto_cambio", 0),
+                    "periodo": "mes_actual"
+                },
+                "solicitudes_abiertas": {
+                    "valor": kpis.get("solicitudes_abiertas", 0),
+                    "cambio_porcentual": kpis.get("solicitudes_cambio", 0),
+                    "periodo": "actual"
+                },
+                "tasa_conversion": {
+                    "valor": kpis.get("tasa_conversion", 0),
+                    "cambio_porcentual": kpis.get("conversion_cambio", 0),
+                    "periodo": "promedio_mensual"
+                }
+            }
+        }
+        
         return {
-            "dashboard": "principal",
+            "success": True,
+            "data": dashboard_data,
             "periodo": {
                 "inicio": fecha_inicio.isoformat(),
                 "fin": fecha_fin.isoformat()
             },
-            "kpis": kpis,
-            "generado_en": datetime.utcnow().isoformat()
+            "timestamp": datetime.utcnow().isoformat()
         }
         
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error obteniendo dashboard principal: {str(e)}")
+
+@router.get("/graficos-mes")
+async def get_graficos_mes(
+    fecha_inicio: Optional[datetime] = Query(None, description="Fecha inicio (ISO format)"),
+    fecha_fin: Optional[datetime] = Query(None, description="Fecha fin (ISO format)")
+) -> Dict[str, Any]:
+    """
+    Obtener datos para gráficos de líneas del mes
+    """
+    try:
+        if not fecha_inicio:
+            fecha_inicio = datetime.utcnow() - timedelta(days=30)
+        if not fecha_fin:
+            fecha_fin = datetime.utcnow()
+            
+        graficos_data = await metrics_calculator.get_graficos_mes(fecha_inicio, fecha_fin)
+        
+        return {
+            "success": True,
+            "data": graficos_data,
+            "periodo": {
+                "inicio": fecha_inicio.isoformat(),
+                "fin": fecha_fin.isoformat()
+            },
+            "timestamp": datetime.utcnow().isoformat()
+        }
+        
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error obteniendo gráficos del mes: {str(e)}")
+
+@router.get("/top-solicitudes-abiertas")
+async def get_top_solicitudes_abiertas(
+    limit: int = Query(15, description="Número de solicitudes a retornar")
+) -> Dict[str, Any]:
+    """
+    Obtener top solicitudes abiertas con mayor tiempo en proceso
+    """
+    try:
+        solicitudes = await metrics_calculator.get_top_solicitudes_abiertas(limit)
+        
+        return {
+            "success": True,
+            "data": solicitudes,
+            "timestamp": datetime.utcnow().isoformat()
+        }
+        
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error obteniendo top solicitudes abiertas: {str(e)}")
 
 @router.get("/embudo-operativo")
 async def get_embudo_operativo(

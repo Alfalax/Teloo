@@ -15,6 +15,7 @@ from database import init_db
 from routers import admin_router
 from routers.auth import router as auth_router
 from routers.ofertas import router as ofertas_router
+from routers.asesores import router as asesores_router
 from services.scheduler_service import scheduler_service
 
 # Load environment variables
@@ -55,6 +56,7 @@ init_db(app)
 app.include_router(auth_router)
 app.include_router(admin_router)
 app.include_router(ofertas_router)
+app.include_router(asesores_router)
 
 @app.get("/")
 async def root():

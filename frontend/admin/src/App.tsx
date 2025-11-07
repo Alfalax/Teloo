@@ -1,31 +1,64 @@
-import { useState } from 'react'
+import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { AuthProvider } from '@/contexts/AuthContext';
+import { ProtectedRoute } from '@/components/ProtectedRoute';
+import { Layout } from '@/components/layout/Layout';
+import { LoginPage } from '@/pages/LoginPage';
+import { DashboardPage } from '@/pages/DashboardPage';
+import { AsesoresPage } from '@/pages/AsesoresPage';
+import { ReportesPage } from '@/pages/ReportesPage';
+import { PQRPage } from '@/pages/PQRPage';
+import { ConfiguracionPage } from '@/pages/ConfiguracionPage';
+
+// Create a client for React Query
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      retry: 1,
+      refetchOnWindowFocus: false,
+    },
+  },
+});
 
 function App() {
-  const [count, setCount] = useState(0)
-
   return (
-    <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-      <div className="text-center">
-        <h1 className="text-4xl font-bold text-gray-900 mb-4">
-          TeLOO Admin V3
-        </h1>
-        <p className="text-lg text-gray-600 mb-8">
-          Marketplace Inteligente de Repuestos Automotrices
-        </p>
-        <div className="bg-white p-6 rounded-lg shadow-md">
-          <button
-            className="bg-amber-500 hover:bg-amber-600 text-white font-bold py-2 px-4 rounded"
-            onClick={() => setCount((count) => count + 1)}
-          >
-            Count is {count}
-          </button>
-          <p className="mt-4 text-sm text-gray-500">
-            Panel administrativo en desarrollo
-          </p>
-        </div>
-      </div>
-    </div>
-  )
+    <QueryClientProvider client={queryClient}>
+      <AuthProvider>
+        <Router>
+          <Routes>
+            {/* Public routes */}
+            <Route path="/login" element={<LoginPage />} />
+            
+            {/* Protected routes */}
+            <Route
+              path="/"
+              element={
+                <ProtectedRoute requiredRoles={['ADMIN', 'ANALYST', 'SUPPORT']}>
+                  <Layout />
+                </ProtectedRoute>
+              }
+            >
+              <Route index element={<DashboardPage />} />
+              <Route path="asesores" element={<AsesoresPage />} />
+              <Route path="reportes" element={<ReportesPage />} />
+              <Route path="pqr" element={<PQRPage />} />
+              <Route
+                path="configuracion"
+                element={
+                  <ProtectedRoute requiredRoles={['ADMIN']}>
+                    <ConfiguracionPage />
+                  </ProtectedRoute>
+                }
+              />
+            </Route>
+
+            {/* Catch all route */}
+            <Route path="*" element={<Navigate to="/" replace />} />
+          </Routes>
+        </Router>
+      </AuthProvider>
+    </QueryClientProvider>
+  );
 }
 
-export default App
+export default App;
