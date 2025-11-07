@@ -704,7 +704,15 @@ Este plan de implementación convierte el diseño de TeLOO V3 en tareas específ
   - Conectar con Analytics Service para datos en tiempo real
   - _Requirements: 12.4, 8.2, 8.5_
 
-- [ ] 9.5 Implementar módulo de PQR
+- [x] 9.5 Implementar módulo de PQR
+
+
+
+
+
+
+
+
   - Crear lista de PQR por estado (Abiertas, En proceso, Cerradas)
   - Implementar formulario de respuesta y seguimiento
   - Mostrar métricas de tiempo de resolución
@@ -713,14 +721,65 @@ Este plan de implementación convierte el diseño de TeLOO V3 en tareas específ
   - Crear notificaciones automáticas para PQR de alta prioridad
   - _Requirements: 12.4_
 
-- [ ] 9.6 Implementar módulo de configuración
-  - Crear interfaz para modificar parámetros del sistema
-  - Organizar por categorías: pesos, umbrales, tiempos, canales
-  - Implementar validaciones (pesos suman 1.0, umbrales decrecientes)
-  - Crear gestión de roles y permisos
-  - _Requirements: 7.1, 7.2, 7.3, 7.4, 7.5, 7.6, 12.5_
+- [x] 9.6 Implementar módulo de configuración
+- [x] 9.6.1 Crear servicio de configuración frontend
+  - Implementar configuracionService con API client para backend
+  - Crear tipos TypeScript para todas las categorías de configuración
+  - Implementar validaciones de pesos (suman 1.0) y umbrales (decrecientes)
+  - Crear hooks useConfiguracion, useUsuarios, useRoles para gestión de estado
+  - _Requirements: 7.1, 7.2, 7.3, 7.4, 7.5, 7.6_
 
-- [ ]* 9.7 Escribir tests del Admin Frontend
+- [x] 9.6.2 Implementar página principal de configuración
+  - Crear ConfiguracionPage con 3 tabs: Sistema, Usuarios, Roles
+  - Implementar indicadores de validación en tiempo real
+  - Crear botón de reset completo con confirmación
+  - Mostrar estadísticas de configuración (categorías, parámetros, última modificación)
+  - _Requirements: 12.5_
+
+- [x] 9.6.3 Implementar formularios de parámetros del sistema
+  - Crear PesosEscalamientoForm con validación de suma 1.0 y progress bar
+  - Crear UmbralesNivelesForm con validación de orden decreciente
+  - Crear TiemposEsperaForm para configurar tiempos por nivel (1-5)
+  - Crear CanalesNotificacionForm para seleccionar canales por nivel
+  - Crear PesosEvaluacionForm para pesos de evaluación de ofertas
+  - Crear ParametrosGeneralesForm para parámetros operativos
+  - Implementar validación en tiempo real y feedback visual
+  - _Requirements: 7.1, 7.2, 7.3, 7.4, 7.5, 7.6_
+
+- [x] 9.6.4 Implementar gestión de usuarios
+  - Crear GestionUsuarios con tabla completa de usuarios del sistema
+  - Implementar CRUD completo: crear, editar, eliminar, activar/desactivar
+  - Crear UsuarioForm con validaciones de email y roles
+  - Implementar filtros por rol y estado con búsqueda por nombre/email
+  - Mostrar estadísticas de usuarios por estado (activos, inactivos, suspendidos)
+  - _Requirements: 12.5_
+
+- [x] 9.6.5 Implementar gestión de roles y permisos
+  - Crear GestionRoles con tabla de roles del sistema
+  - Implementar CRUD de roles con asignación de permisos
+  - Crear RolForm con selección múltiple de permisos por categoría
+  - Implementar activación/desactivación de roles
+  - Organizar permisos por categorías (admin, solicitudes, ofertas, etc.)
+  - Crear funcionalidad de seleccionar/deseleccionar todos los permisos
+  - _Requirements: 12.5_
+
+- [x] 9.6.6 Implementar componentes UI faltantes
+  - Crear componente Progress para barras de progreso de validación
+  - Crear componente Alert para mensajes de error y éxito
+  - Crear componente Checkbox para selección de permisos
+  - Crear componente Switch para activar/desactivar elementos
+  - Integrar todos los componentes con el tema Amber Minimal
+  - _Requirements: 12.5_
+
+- [x] 9.7 Escribir tests del Admin Frontend
+
+
+
+
+
+
+
+
   - Tests de componentes principales (Dashboard, AsesoresTable)
   - Tests de autenticación y rutas protegidas
   - Tests de formularios de configuración
