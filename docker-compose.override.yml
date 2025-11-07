@@ -1,0 +1,59 @@
+# Development overrides for hot reload and debugging
+version: '3.8'
+
+services:
+  core-api:
+    volumes:
+      - ./services/core-api:/app
+    environment:
+      - DEBUG=true
+      - LOG_LEVEL=DEBUG
+    command: uvicorn main:app --host 0.0.0.0 --port 8000 --reload --log-level debug
+
+  agent-ia:
+    volumes:
+      - ./services/agent-ia:/app
+    environment:
+      - DEBUG=true
+      - LOG_LEVEL=DEBUG
+    command: uvicorn main:app --host 0.0.0.0 --port 8001 --reload --log-level debug
+
+  analytics:
+    volumes:
+      - ./services/analytics:/app
+    environment:
+      - DEBUG=true
+      - LOG_LEVEL=DEBUG
+    command: uvicorn main:app --host 0.0.0.0 --port 8002 --reload --log-level debug
+
+  realtime-gateway:
+    volumes:
+      - ./services/realtime-gateway:/app
+    environment:
+      - DEBUG=true
+      - LOG_LEVEL=DEBUG
+    command: uvicorn main:app --host 0.0.0.0 --port 8003 --reload --log-level debug
+
+  files:
+    volumes:
+      - ./services/files:/app
+    environment:
+      - DEBUG=true
+      - LOG_LEVEL=DEBUG
+    command: uvicorn main:app --host 0.0.0.0 --port 8004 --reload --log-level debug
+
+  admin-frontend:
+    volumes:
+      - ./frontend/admin:/app
+      - /app/node_modules
+    environment:
+      - VITE_DEBUG=true
+    command: npm run dev -- --host 0.0.0.0
+
+  advisor-frontend:
+    volumes:
+      - ./frontend/advisor:/app
+      - /app/node_modules
+    environment:
+      - VITE_DEBUG=true
+    command: npm run dev -- --host 0.0.0.0 --port 3001

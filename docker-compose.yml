@@ -1,0 +1,217 @@
+version: '3.8'
+
+services:
+  # Database Services
+  postgres:
+    image: postgres:15-alpine
+    container_name: teloo-postgres
+    environment:
+      POSTGRES_DB: teloo_v3
+      POSTGRES_USER: teloo_user
+      POSTGRES_PASSWORD: teloo_password
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./scripts/init-db.sql:/docker-entrypoint-initdb.d/init-db.sql
+    networks:
+      - teloo-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U teloo_user -d teloo_v3"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  redis:
+    image: redis:7-alpine
+    container_name: teloo-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - teloo-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  minio:
+    image: minio/minio:latest
+    container_name: teloo-minio
+    environment:
+      MINIO_ROOT_USER: teloo_minio
+      MINIO_ROOT_PASSWORD: teloo_minio_password
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    volumes:
+      - minio_data:/data
+    networks:
+      - teloo-network
+    command: server /data --console-address ":9001"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Core Services
+  core-api:
+    build:
+      context: ./services/core-api
+      dockerfile: Dockerfile
+    container_name: teloo-core-api
+    environment:
+      - DATABASE_URL=postgres://teloo_user:teloo_password@postgres:5432/teloo_v3
+      - REDIS_URL=redis://redis:6379
+      - MINIO_ENDPOINT=minio:9000
+      - MINIO_ACCESS_KEY=teloo_minio
+      - MINIO_SECRET_KEY=teloo_minio_password
+      - JWT_SECRET_KEY=your-super-secret-jwt-key-change-in-production
+      - ENVIRONMENT=development
+    ports:
+      - "8000:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - teloo-network
+    volumes:
+      - ./services/core-api:/app
+    command: uvicorn main:app --host 0.0.0.0 --port 8000 --reload
+
+  agent-ia:
+    build:
+      context: ./services/agent-ia
+      dockerfile: Dockerfile
+    container_name: teloo-agent-ia
+    environment:
+      - CORE_API_URL=http://core-api:8000
+      - REDIS_URL=redis://redis:6379
+      - WHATSAPP_WEBHOOK_TOKEN=your-whatsapp-webhook-token
+      - OPENAI_API_KEY=your-openai-api-key
+      - ANTHROPIC_API_KEY=your-anthropic-api-key
+      - ENVIRONMENT=development
+    ports:
+      - "8001:8001"
+    depends_on:
+      - core-api
+      - redis
+    networks:
+      - teloo-network
+    volumes:
+      - ./services/agent-ia:/app
+    command: uvicorn main:app --host 0.0.0.0 --port 8001 --reload
+
+  analytics:
+    build:
+      context: ./services/analytics
+      dockerfile: Dockerfile
+    container_name: teloo-analytics
+    environment:
+      - DATABASE_URL=postgresql://teloo_user:teloo_password@postgres:5432/teloo_v3
+      - REDIS_URL=redis://redis:6379
+      - ENVIRONMENT=development
+    ports:
+      - "8002:8002"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - teloo-network
+    volumes:
+      - ./services/analytics:/app
+    command: uvicorn main:app --host 0.0.0.0 --port 8002 --reload
+
+  realtime-gateway:
+    build:
+      context: ./services/realtime-gateway
+      dockerfile: Dockerfile
+    container_name: teloo-realtime-gateway
+    environment:
+      - REDIS_URL=redis://redis:6379
+      - JWT_SECRET_KEY=your-super-secret-jwt-key-change-in-production
+      - ENVIRONMENT=development
+    ports:
+      - "8003:8003"
+    depends_on:
+      - redis
+    networks:
+      - teloo-network
+    volumes:
+      - ./services/realtime-gateway:/app
+    command: uvicorn main:app --host 0.0.0.0 --port 8003 --reload
+
+  files:
+    build:
+      context: ./services/files
+      dockerfile: Dockerfile
+    container_name: teloo-files
+    environment:
+      - MINIO_ENDPOINT=minio:9000
+      - MINIO_ACCESS_KEY=teloo_minio
+      - MINIO_SECRET_KEY=teloo_minio_password
+      - REDIS_URL=redis://redis:6379
+      - ENVIRONMENT=development
+    ports:
+      - "8004:8004"
+    depends_on:
+      - minio
+      - redis
+    networks:
+      - teloo-network
+    volumes:
+      - ./services/files:/app
+    command: uvicorn main:app --host 0.0.0.0 --port 8004 --reload
+
+  # Frontend Services
+  admin-frontend:
+    build:
+      context: ./frontend/admin
+      dockerfile: Dockerfile
+    container_name: teloo-admin-frontend
+    environment:
+      - VITE_API_URL=http://localhost:8000
+      - VITE_REALTIME_URL=http://localhost:8003
+      - VITE_ENVIRONMENT=development
+    ports:
+      - "3000:3000"
+    networks:
+      - teloo-network
+    volumes:
+      - ./frontend/admin:/app
+      - /app/node_modules
+    command: npm run dev -- --host 0.0.0.0
+
+  advisor-frontend:
+    build:
+      context: ./frontend/advisor
+      dockerfile: Dockerfile
+    container_name: teloo-advisor-frontend
+    environment:
+      - VITE_API_URL=http://localhost:8000
+      - VITE_REALTIME_URL=http://localhost:8003
+      - VITE_ENVIRONMENT=development
+    ports:
+      - "3001:3001"
+    networks:
+      - teloo-network
+    volumes:
+      - ./frontend/advisor:/app
+      - /app/node_modules
+    command: npm run dev -- --host 0.0.0.0 --port 3001
+
+volumes:
+  postgres_data:
+  redis_data:
+  minio_data:
+
+networks:
+  teloo-network:
+    driver: bridge

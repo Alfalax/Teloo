@@ -1,0 +1,386 @@
+"""
+Configuration Service for TeLOO V3
+Manages system parameters with validation and Redis caching
+"""
+
+from typing import Dict, Any, Optional
+from decimal import Decimal
+import logging
+from fastapi import HTTPException
+from models.analytics import ParametroConfig
+from models.user import Usuario
+
+logger = logging.getLogger(__name__)
+
+
+class ConfiguracionService:
+    """
+    Service for managing system configuration parameters
+    """
+    
+    # Default configuration values
+    DEFAULT_CONFIG = {
+        'pesos_escalamiento': {
+            'proximidad': 0.40,
+            'actividad': 0.25,
+            'desempeno': 0.20,
+            'confianza': 0.15
+        },
+        'umbrales_niveles': {
+            'nivel1_min': 4.5,
+            'nivel2_min': 4.0,
+            'nivel3_min': 3.5,
+            'nivel4_min': 3.0
+        },
+        'tiempos_espera_nivel': {
+            1: 15,  # minutos
+            2: 20,
+            3: 25,
+            4: 30,
+            5: 35
+        },
+        'canales_por_nivel': {
+            1: 'WHATSAPP',
+            2: 'WHATSAPP',
+            3: 'PUSH',
+            4: 'PUSH',
+            5: 'PUSH'
+        },
+        'pesos_evaluacion_ofertas': {
+            'precio': 0.50,
+            'tiempo_entrega': 0.35,
+            'garantia': 0.15
+        },
+        'parametros_generales': {
+            'ofertas_minimas_deseadas': 2,
+            'timeout_evaluacion_seg': 5,
+            'vigencia_auditoria_dias': 30,
+            'periodo_actividad_dias': 30,
+            'periodo_desempeno_meses': 6,
+            'confianza_minima_operar': 2.0,
+            'cobertura_minima_pct': 50.0,
+            'timeout_ofertas_horas': 20,
+            'notificacion_expiracion_horas_antes': 2
+        }
+    }
+    
+    @staticmethod
+    async def get_config(categoria: Optional[str] = None) -> Dict[str, Any]:
+        """
+        Obtiene configuración del sistema
+        
+        Args:
+            categoria: Categoría específica (opcional)
+            
+        Returns:
+            Dict: Configuración completa o de categoría específica
+        """
+        
+        if categoria:
+            # Obtener configuración específica
+            config = await ParametroConfig.get_valor(
+                categoria, 
+                ConfiguracionService.DEFAULT_CONFIG.get(categoria, {})
+            )
+            return config
+        else:
+            # Obtener toda la configuración
+            config_completa = {}
+            for cat, default_val in ConfiguracionService.DEFAULT_CONFIG.items():
+                config_completa[cat] = await ParametroConfig.get_valor(cat, default_val)
+            
+            return config_completa
+    
+    @staticmethod
+    async def update_config(
+        categoria: str,
+        nuevos_valores: Dict[str, Any],
+        usuario: Optional[Usuario] = None
+    ) -> Dict[str, Any]:
+        """
+        Actualiza configuración del sistema con validaciones
+        
+        Args:
+            categoria: Categoría de configuración
+            nuevos_valores: Nuevos valores a establecer
+            usuario: Usuario que realiza el cambio
+            
+        Returns:
+            Dict: Configuración actualizada
+            
+        Raises:
+            HTTPException: Si la validación falla
+        """
+        
+        # Validar categoría
+        if categoria not in ConfiguracionService.DEFAULT_CONFIG:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Categoría '{categoria}' no válida"
+            )
+        
+        # Validar según categoría
+        if categoria == 'pesos_escalamiento':
+            ConfiguracionService._validar_pesos_escalamiento(nuevos_valores)
+        elif categoria == 'umbrales_niveles':
+            ConfiguracionService._validar_umbrales_niveles(nuevos_valores)
+        elif categoria == 'pesos_evaluacion_ofertas':
+            ConfiguracionService._validar_pesos_evaluacion(nuevos_valores)
+        elif categoria == 'tiempos_espera_nivel':
+            ConfiguracionService._validar_tiempos_espera(nuevos_valores)
+        elif categoria == 'canales_por_nivel':
+            ConfiguracionService._validar_canales_nivel(nuevos_valores)
+        elif categoria == 'parametros_generales':
+            ConfiguracionService._validar_parametros_generales(nuevos_valores)
+        
+        # Guardar configuración
+        await ParametroConfig.set_valor(
+            categoria,
+            nuevos_valores,
+            usuario,
+            f"Configuración de {categoria} actualizada"
+        )
+        
+        # TODO: Invalidar cache en Redis
+        # await redis_client.delete(f"config:{categoria}")
+        
+        logger.info(f"Configuración '{categoria}' actualizada por {usuario.nombre_completo if usuario else 'Sistema'}")
+        
+        return nuevos_valores
+    
+    @staticmethod
+    def _validar_pesos_escalamiento(pesos: Dict[str, float]) -> None:
+        """Valida pesos de escalamiento"""
+        
+        required_keys = {'proximidad', 'actividad', 'desempeno', 'confianza'}
+        if set(pesos.keys()) != required_keys:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Pesos deben incluir exactamente: {required_keys}"
+            )
+        
+        # Validar que todos sean números positivos
+        for key, value in pesos.items():
+            if not isinstance(value, (int, float)) or value < 0:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Peso '{key}' debe ser un número positivo"
+                )
+        
+        # Validar que sumen 1.0 con tolerancia
+        suma = sum(pesos.values())
+        if abs(suma - 1.0) > 1e-6:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Los pesos deben sumar 1.0 (suma actual: {suma:.6f})"
+            )
+    
+    @staticmethod
+    def _validar_umbrales_niveles(umbrales: Dict[str, float]) -> None:
+        """Valida umbrales de niveles"""
+        
+        required_keys = {'nivel1_min', 'nivel2_min', 'nivel3_min', 'nivel4_min'}
+        if set(umbrales.keys()) != required_keys:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Umbrales deben incluir exactamente: {required_keys}"
+            )
+        
+        # Validar rangos (1.0 - 5.0)
+        for key, value in umbrales.items():
+            if not isinstance(value, (int, float)) or not (1.0 <= value <= 5.0):
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Umbral '{key}' debe estar entre 1.0 y 5.0"
+                )
+        
+        # Validar que sean decrecientes
+        valores = [
+            umbrales['nivel1_min'],
+            umbrales['nivel2_min'],
+            umbrales['nivel3_min'],
+            umbrales['nivel4_min']
+        ]
+        
+        for i in range(len(valores) - 1):
+            if valores[i] <= valores[i + 1]:
+                raise HTTPException(
+                    status_code=400,
+                    detail="Los umbrales deben ser decrecientes (nivel1_min > nivel2_min > nivel3_min > nivel4_min)"
+                )
+    
+    @staticmethod
+    def _validar_pesos_evaluacion(pesos: Dict[str, float]) -> None:
+        """Valida pesos de evaluación de ofertas"""
+        
+        required_keys = {'precio', 'tiempo_entrega', 'garantia'}
+        if set(pesos.keys()) != required_keys:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Pesos deben incluir exactamente: {required_keys}"
+            )
+        
+        # Validar que todos sean números positivos
+        for key, value in pesos.items():
+            if not isinstance(value, (int, float)) or value < 0:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Peso '{key}' debe ser un número positivo"
+                )
+        
+        # Validar que sumen 1.0 con tolerancia
+        suma = sum(pesos.values())
+        if abs(suma - 1.0) > 1e-6:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Los pesos deben sumar 1.0 (suma actual: {suma:.6f})"
+            )
+    
+    @staticmethod
+    def _validar_tiempos_espera(tiempos: Dict[int, int]) -> None:
+        """Valida tiempos de espera por nivel"""
+        
+        required_keys = {1, 2, 3, 4, 5}
+        if set(tiempos.keys()) != required_keys:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Tiempos deben incluir niveles: {required_keys}"
+            )
+        
+        # Validar que todos sean números positivos
+        for nivel, tiempo in tiempos.items():
+            if not isinstance(tiempo, int) or tiempo <= 0:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Tiempo para nivel {nivel} debe ser un entero positivo (minutos)"
+                )
+            
+            if tiempo > 120:  # Máximo 2 horas
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Tiempo para nivel {nivel} no puede exceder 120 minutos"
+                )
+    
+    @staticmethod
+    def _validar_canales_nivel(canales: Dict[int, str]) -> None:
+        """Valida canales de notificación por nivel"""
+        
+        required_keys = {1, 2, 3, 4, 5}
+        if set(canales.keys()) != required_keys:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Canales deben incluir niveles: {required_keys}"
+            )
+        
+        valid_channels = {'WHATSAPP', 'PUSH', 'EMAIL', 'SMS'}
+        
+        for nivel, canal in canales.items():
+            if canal not in valid_channels:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Canal '{canal}' para nivel {nivel} no es válido. Opciones: {valid_channels}"
+                )
+    
+    @staticmethod
+    def _validar_parametros_generales(params: Dict[str, Any]) -> None:
+        """Valida parámetros generales del sistema"""
+        
+        # Validaciones específicas por parámetro
+        validaciones = {
+            'ofertas_minimas_deseadas': lambda x: isinstance(x, int) and 1 <= x <= 10,
+            'timeout_evaluacion_seg': lambda x: isinstance(x, int) and 1 <= x <= 30,
+            'vigencia_auditoria_dias': lambda x: isinstance(x, int) and 1 <= x <= 365,
+            'periodo_actividad_dias': lambda x: isinstance(x, int) and 1 <= x <= 90,
+            'periodo_desempeno_meses': lambda x: isinstance(x, int) and 1 <= x <= 24,
+            'confianza_minima_operar': lambda x: isinstance(x, (int, float)) and 1.0 <= x <= 5.0,
+            'cobertura_minima_pct': lambda x: isinstance(x, (int, float)) and 0 <= x <= 100,
+            'timeout_ofertas_horas': lambda x: isinstance(x, int) and 1 <= x <= 168,
+            'notificacion_expiracion_horas_antes': lambda x: isinstance(x, int) and 1 <= x <= 12
+        }
+        
+        for key, value in params.items():
+            if key in validaciones:
+                if not validaciones[key](value):
+                    raise HTTPException(
+                        status_code=400,
+                        detail=f"Valor inválido para '{key}': {value}"
+                    )
+    
+    @staticmethod
+    async def reset_to_defaults(categoria: Optional[str] = None, usuario: Optional[Usuario] = None) -> Dict:
+        """
+        Resetea configuración a valores por defecto
+        
+        Args:
+            categoria: Categoría específica (opcional, si no se especifica resetea todo)
+            usuario: Usuario que realiza el reset
+            
+        Returns:
+            Dict: Configuración reseteada
+        """
+        
+        if categoria:
+            if categoria not in ConfiguracionService.DEFAULT_CONFIG:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Categoría '{categoria}' no válida"
+                )
+            
+            default_value = ConfiguracionService.DEFAULT_CONFIG[categoria]
+            await ParametroConfig.set_valor(
+                categoria,
+                default_value,
+                usuario,
+                f"Reset a valores por defecto: {categoria}"
+            )
+            
+            logger.info(f"Configuración '{categoria}' reseteada a valores por defecto")
+            return {categoria: default_value}
+        
+        else:
+            # Reset completo
+            result = {}
+            for cat, default_val in ConfiguracionService.DEFAULT_CONFIG.items():
+                await ParametroConfig.set_valor(
+                    cat,
+                    default_val,
+                    usuario,
+                    f"Reset completo a valores por defecto"
+                )
+                result[cat] = default_val
+            
+            logger.info("Configuración completa reseteada a valores por defecto")
+            return result
+    
+    @staticmethod
+    async def get_config_summary() -> Dict[str, Any]:
+        """
+        Obtiene resumen de configuración actual
+        
+        Returns:
+            Dict: Resumen de configuración con metadatos
+        """
+        
+        config = await ConfiguracionService.get_config()
+        
+        # Calcular estadísticas
+        total_params = sum(len(cat_config) if isinstance(cat_config, dict) else 1 
+                          for cat_config in config.values())
+        
+        # Obtener última modificación
+        ultimo_cambio = await ParametroConfig.all().order_by('-updated_at').first()
+        
+        return {
+            'configuracion_actual': config,
+            'estadisticas': {
+                'total_categorias': len(config),
+                'total_parametros': total_params,
+                'ultima_modificacion': ultimo_cambio.updated_at if ultimo_cambio else None,
+                'modificado_por': ultimo_cambio.modificado_por.nombre_completo if ultimo_cambio and ultimo_cambio.modificado_por else None
+            },
+            'validaciones_activas': {
+                'pesos_suman_1': True,
+                'umbrales_decrecientes': True,
+                'rangos_validos': True
+            }
+        }

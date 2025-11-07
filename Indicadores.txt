@@ -1,0 +1,185 @@
+### 1. EL DASHBOARD DEL EMBUDO OPERATIVO
+**Objetivo**: Monitoreo del flujo operacional desde solicitud hasta aceptación
+
+**Indicadores (11)**:
+1. **Tasa de Entrada de Solicitudes**
+   - Métrica: Número de nuevas solicitudes creadas por hora, día y semana
+   - Cálculo: COUNT(solicitudes.created_at) GROUP BY período
+   - Insight: Permite identificar patrones de demanda y horas pico
+
+2. **Tasas de Conversión del Embudo - ABIERTA → EN_EVALUACION**
+   - Métrica: Porcentaje de solicitudes que reciben al menos una oferta
+   - Cálculo: (Solicitudes EN_EVALUACION / Solicitudes ABIERTA) × 100
+   - Insight: Mide la capacidad inicial de la plataforma para generar interés de los asesores
+
+3. **Tasas de Conversión del Embudo - EN_EVALUACION → ADJUDICADA**
+   - Métrica: Porcentaje de solicitudes con ofertas que resultan en la selección de un ganador
+   - Cálculo: (Solicitudes ADJUDICADA / Solicitudes EN_EVALUACION) × 100
+   - Insight: Mide la eficacia del algoritmo de evaluación
+
+4. **Tasas de Conversión del Embudo - ADJUDICADA → ACEPTADA**
+   - Métrica: Porcentaje de ofertas ganadoras que son aceptadas por el cliente
+   - Cálculo: (Solicitudes ACEPTADA / Solicitudes ADJUDICADA) × 100
+   - Insight: Mide la competitividad final de la oferta presentada
+
+5. **Tasa de Conversión General**
+   - Métrica: (Total de Solicitudes ACEPTADA / Total de Solicitudes Creadas)
+   - Cálculo: (Solicitudes ACEPTADA / Total solicitudes) × 100
+   - Insight: Versión más granular y completa del KPI ya definido para el dashboard de administrador
+
+6. **Tiempo hasta la Primera Oferta (TTFO)**
+   - Métrica: Mediana del tiempo transcurrido desde solicitudes.fecha_creacion hasta la creación de la primera oferta asociada
+   - Cálculo: MEDIAN(primera_oferta.created_at - solicitud.created_at)
+   - Insight: Indicador crítico de la reactividad de la red de asesores
+
+7. **Tiempo hasta la Adjudicación (TTA)**
+   - Métrica: Mediana del tiempo desde la creación de la solicitud hasta que su estado cambia a ADJUDICADA
+   - Cálculo: MEDIAN(adjudicacion.created_at - solicitud.created_at)
+   - Insight: Mide la velocidad de todo el ciclo de oferta y evaluación
+
+8. **Tiempo hasta la Decisión del Cliente (TTCD)**
+   - Métrica: Mediana del tiempo desde que la oferta ganadora se presenta al cliente hasta que el cliente responde
+   - Cálculo: MEDIAN(decision_cliente.created_at - adjudicacion.created_at)
+   - Insight: Mide el tiempo de decisión del cliente
+
+9. **Tasa de Llenado de Solicitudes**
+   - Métrica: 100% - Tasa de CERRADA_SIN_OFERTAS
+   - Cálculo: (1 - (Solicitudes CERRADA_SIN_OFERTAS / Total solicitudes)) × 100
+   - Insight: Porcentaje de solicitudes que reciben al menos una oferta
+
+10. **Tasa de Escalamiento**
+    - Métrica: Porcentaje de solicitudes que necesitan escalar más allá del Nivel 1
+    - Cálculo: (Solicitudes escaladas > Nivel 1 / Total solicitudes) × 100
+    - Insight: Indica si el primer anillo de asesores es suficiente
+
+11. **Tasa de Fallo por Nivel**
+    - Métrica: Porcentaje de solicitudes que no reciben ofertas en un nivel específico (1, 2, 3, 4 o 5)
+    - Cálculo: (Solicitudes sin ofertas por nivel / Solicitudes asignadas por nivel) × 100
+    - Insight: Permite diagnosticar problemas en segmentos específicos de la red de asesores
+
+### 2. EL DASHBOARD DE SALUD DEL MARKETPLACE
+**Objetivo**: Medir el equilibrio, la liquidez y la competitividad del ecosistema de TeLo
+
+**Indicadores (5)**:
+1. **Ratio Oferta/Demanda**
+   - Métrica: (Número de Asesores Activos / Número de Solicitudes Diarias)
+   - Cálculo: COUNT(DISTINCT asesores activos) / COUNT(solicitudes diarias)
+   - Insight: Ofrece una visión de alto nivel de la capacidad de la oferta para satisfacer la demanda
+
+2. **Densidad de Ofertas**
+   - Métrica: Número promedio de ofertas recibidas por cada solicitud que fue llenada
+   - Cálculo: AVG(COUNT(ofertas) GROUP BY solicitud_id) para solicitudes con al menos una oferta
+   - Insight: Una alta densidad sugiere un entorno competitivo que beneficia al cliente final
+
+3. **Tasa de Participación de Asesores (Advisor Engagement Rate)**
+   - Métrica: Porcentaje de asesores habilitados que han enviado al menos una oferta en un período determinado
+   - Cálculo: (Asesores con ofertas en período / Total asesores habilitados) × 100
+   - Insight: Mide qué tan activa es la base de proveedores
+
+4. **Tasa de Adjudicación (Win Rate) del Asesor Promedio**
+   - Métrica: Para un asesor típico, qué porcentaje de las ofertas que envía resultan ADJUDICADA
+   - Cálculo: AVG(ofertas ADJUDICADA / total ofertas por asesor) × 100
+   - Insight: Un valor muy bajo a nivel de plataforma puede ser desmotivador para la red de asesores
+
+5. **Tasa de Aceptación del Cliente**
+   - Métrica: Del total de ofertas ADJUDICADA, qué porcentaje son finalmente ACEPTADA por el cliente
+   - Cálculo: (Ofertas ACEPTADA / Ofertas ADJUDICADA) × 100
+   - Insight: Una tasa baja puede indicar que las ofertas ganadoras no son lo suficientemente atractivas para el mercado
+
+### 3. EL DASHBOARD FINANCIERO
+**Objetivo**: Análisis del valor monetario y rendimiento financiero de la plataforma
+
+**Indicadores (5)**:
+1. **Valor Bruto Ofertado (GOV)**
+   - Métrica: Suma monetaria del valor total de todas las ofertas enviadas en la plataforma
+   - Cálculo: SUM(ofertas.precio_unitario * ofertas.cantidad)
+   - Insight: Representa el valor potencial total de la oferta disponible
+
+2. **Valor Bruto Adjudicado (GAV_adj)**
+   - Métrica: Suma monetaria del valor de todas las ofertas que han sido seleccionadas como ADJUDICADA
+   - Cálculo: SUM(ofertas.precio_unitario * ofertas.cantidad WHERE estado = 'ADJUDICADA')
+   - Insight: Representa el valor que la plataforma ha seleccionado como óptimo
+
+3. **Valor Bruto Aceptado (GAV_acc)**
+   - Métrica: Suma monetaria del valor de todas las ofertas que han sido ACEPTADA por los clientes
+   - Cálculo: SUM(ofertas.precio_unitario * ofertas.cantidad WHERE estado = 'ACEPTADA')
+   - Insight: Indicador financiero más importante, representa el volumen de negocio facilitado con éxito
+
+4. **Valor Promedio de Oferta Aceptada**
+   - Métrica: GAV_acc / Número de solicitudes ACEPTADA
+   - Cálculo: AVG(ofertas.precio_unitario * ofertas.cantidad WHERE estado = 'ACEPTADA')
+   - Insight: Permite entender el "ticket promedio" de las transacciones exitosas
+
+5. **Tasa de Fuga de Valor**
+   - Métrica: ((GAV_adj - GAV_acc) / GAV_adj)
+   - Cálculo: ((Valor Adjudicado - Valor Aceptado) / Valor Adjudicado) × 100
+   - Insight: Mide el porcentaje de valor que, habiendo sido identificado como "ganador", es rechazado por el cliente
+
+### 4. ANÁLISIS PROFUNDO DEL ECOSISTEMA DE ASESORES
+**Objetivo**: Evaluación individual y comparativa de asesores con segmentación dinámica
+
+**Indicadores (13)**:
+1. **Asesores Estrella (R5-F5-M5)**
+   - Métrica: Asesores con máxima recencia, frecuencia y valor monetario
+   - Cálculo: Activos últimos 7 días, >10 ofertas/mes, >$2M COP/mes
+   - Insight: Identificar y retener a los asesores más valiosos del ecosistema
+
+2. **Gigantes Dormidos (R1-F5-M5)**
+   - Métrica: Asesores de alto valor histórico pero inactivos recientemente
+   - Cálculo: Sin actividad >30 días pero con historial de alto valor
+   - Insight: Oportunidad de reactivación de asesores valiosos
+
+3. **Nuevos Prometedores (R5-F2-M3)**
+   - Métrica: Asesores recientes con potencial de crecimiento
+   - Cálculo: Activos últimos 7 días, 2-5 ofertas, valor medio
+   - Insight: Identificar talento emergente para programas de desarrollo
+
+4. **En Riesgo (R2-F3-M4)**
+   - Métrica: Asesores con señales de abandono
+   - Cálculo: Actividad decreciente pero con valor histórico alto
+   - Insight: Prevenir la pérdida de asesores valiosos
+
+5. **Consistentes (R4-F4-M3)**
+   - Métrica: Asesores con comportamiento estable y predecible
+   - Cálculo: Actividad regular, valor medio-alto sostenido
+   - Insight: Base sólida del ecosistema que requiere crecimiento gradual
+
+6. **Ocasionales (R3-F2-M2)**
+   - Métrica: Asesores con participación esporádica
+   - Cálculo: Actividad irregular, valor bajo-medio
+   - Insight: Segmento que requiere estrategias de engagement
+
+7. **Análisis de Migración entre Segmentos**
+   - Métrica: Flujo de asesores entre categorías RFM a lo largo del tiempo
+   - Cálculo: Matriz de transición mensual entre segmentos
+   - Insight: Identifica tendencias de mejora o deterioro en el comportamiento
+
+8. **Valor de Vida del Asesor (CLV)**
+   - Métrica: Valor económico proyectado de cada asesor
+   - Cálculo: Basado en histórico de transacciones y tendencias de comportamiento
+   - Insight: Prioriza inversión en retención según el valor potencial
+
+9. **Densidad de Asesores por Región**
+   - Métrica: Número de asesores activos por 100k habitantes por región
+   - Cálculo: (Asesores activos / Población) × 100,000
+   - Insight: Identifica regiones sub-atendidas y oportunidades de expansión
+
+10. **Ratio Demanda/Oferta Regional**
+    - Métrica: Equilibrio entre solicitudes y ofertas disponibles por región
+    - Cálculo: COUNT(solicitudes) / COUNT(ofertas) GROUP BY región
+    - Insight: Detecta desbalances regionales y oportunidades de crecimiento
+
+11. **Tiempo de Respuesta Regional**
+    - Métrica: Tiempo promedio de primera oferta por región
+    - Cálculo: AVG(tiempo_primera_oferta) GROUP BY región
+    - Insight: Evalúa la eficiencia operativa por territorio
+
+12. **Análisis de Penetración de Mercado**
+    - Métrica: Participación de TeLo vs mercado total estimado por región
+    - Cálculo: Basado en datos de industria automotriz y estimaciones de mercado
+    - Insight: Identifica oportunidades de expansión con mayor ROI potencial
+
+13. **Tasa de Retención de Asesores**
+    - Métrica: Porcentaje de asesores que permanecen activos mes a mes
+    - Cálculo: (Asesores activos mes actual que estaban activos mes anterior) / Total asesores mes anterior
+    - Insight: Mide la salud del ecosistema y efectividad de estrategias de retención
