@@ -14,7 +14,7 @@ from models.user import Usuario
 
 logger = logging.getLogger(__name__)
 
-router = APIRouter(prefix="/v1/evaluaciones", tags=["evaluaciones"])
+router = APIRouter(prefix="/evaluaciones", tags=["evaluaciones"])
 
 
 @router.post("/{solicitud_id}/run")

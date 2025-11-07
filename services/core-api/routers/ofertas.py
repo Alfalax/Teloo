@@ -19,7 +19,7 @@ from models.enums import EstadoSolicitud, EstadoOferta
 
 logger = logging.getLogger(__name__)
 
-router = APIRouter(prefix="/v1/ofertas", tags=["ofertas"])
+router = APIRouter(prefix="/ofertas", tags=["ofertas"])
 
 
 # Pydantic models for request/response

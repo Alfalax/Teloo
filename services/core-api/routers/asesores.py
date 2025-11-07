@@ -16,7 +16,7 @@ from models.enums import EstadoAsesor, EstadoUsuario, RolUsuario
 from middleware.auth_middleware import RequireAdmin, get_current_active_user
 from services.auth_service import AuthService
 
-router = APIRouter(prefix="/v1/asesores", tags=["Asesores"])
+router = APIRouter(prefix="/asesores", tags=["Asesores"])
 
 # Pydantic models for request/response
 class AsesorCreate(BaseModel):
@@ -152,53 +152,7 @@ async def get_asesores(
         raise HTTPException(status_code=500, detail=f"Error obteniendo asesores: {str(e)}")
 
 
-@router.get("/{asesor_id}", summary="Obtener asesor por ID")
-async def get_asesor(
-    asesor_id: str,
-    current_user: Usuario = Depends(get_current_active_user)
-):
-    """
-    Obtiene un asesor específico por ID
-    """
-    try:
-        asesor = await Asesor.get_or_none(id=asesor_id).prefetch_related('usuario')
-        
-        if not asesor:
-            raise HTTPException(status_code=404, detail="Asesor no encontrado")
-        
-        return {
-            "success": True,
-            "data": {
-                "id": str(asesor.id),
-                "usuario": {
-                    "id": str(asesor.usuario.id),
-                    "nombre": asesor.usuario.nombre,
-                    "apellido": asesor.usuario.apellido,
-                    "email": asesor.usuario.email,
-                    "telefono": asesor.usuario.telefono,
-                    "estado": asesor.usuario.estado.value
-                },
-                "ciudad": asesor.ciudad,
-                "departamento": asesor.departamento,
-                "punto_venta": asesor.punto_venta,
-                "direccion_punto_venta": asesor.direccion_punto_venta,
-                "confianza": float(asesor.confianza),
-                "nivel_actual": asesor.nivel_actual,
-                "actividad_reciente_pct": float(asesor.actividad_reciente_pct),
-                "desempeno_historico_pct": float(asesor.desempeno_historico_pct),
-                "estado": asesor.estado.value,
-                "total_ofertas": asesor.total_ofertas,
-                "ofertas_ganadoras": asesor.ofertas_ganadoras,
-                "monto_total_ventas": float(asesor.monto_total_ventas),
-                "created_at": asesor.created_at.isoformat(),
-                "updated_at": asesor.updated_at.isoformat()
-            }
-        }
-        
-    except HTTPException:
-        raise
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Error obteniendo asesor: {str(e)}")
+# Moved to end of file to avoid route conflicts with specific paths like /kpis, /ciudades, etc.
 
 
 @router.post("", summary="Crear nuevo asesor")
@@ -433,7 +387,8 @@ async def get_asesores_kpis(
         total_puntos_venta = await Asesor.filter(estado=EstadoAsesor.ACTIVO).count()  # Same as asesores for now
         
         # Calculate coverage (unique cities/departments)
-        unique_cities = await Asesor.filter(estado=EstadoAsesor.ACTIVO).distinct().values_list('ciudad', flat=True)
+        asesores_activos = await Asesor.filter(estado=EstadoAsesor.ACTIVO).all()
+        unique_cities = set(asesor.ciudad for asesor in asesores_activos if asesor.ciudad)
         cobertura_nacional = len(unique_cities)
         
         # Previous period metrics for comparison
@@ -479,10 +434,11 @@ async def get_ciudades(current_user: Usuario = Depends(get_current_active_user))
     Obtiene lista única de ciudades de asesores
     """
     try:
-        ciudades = await Asesor.all().distinct().values_list('ciudad', flat=True)
+        asesores = await Asesor.all()
+        ciudades = set(asesor.ciudad for asesor in asesores if asesor.ciudad)
         return {
             "success": True,
-            "data": sorted([ciudad for ciudad in ciudades if ciudad])
+            "data": sorted(list(ciudades))
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error obteniendo ciudades: {str(e)}")
@@ -494,10 +450,11 @@ async def get_departamentos(current_user: Usuario = Depends(get_current_active_u
     Obtiene lista única de departamentos de asesores
     """
     try:
-        departamentos = await Asesor.all().distinct().values_list('departamento', flat=True)
+        asesores = await Asesor.all()
+        departamentos = set(asesor.departamento for asesor in asesores if asesor.departamento)
         return {
             "success": True,
-            "data": sorted([dept for dept in departamentos if dept])
+            "data": sorted(list(departamentos))
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error obteniendo departamentos: {str(e)}")
@@ -675,3 +632,53 @@ async def get_asesor_metrics(
         raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error obteniendo métricas: {str(e)}")
+
+
+# Dynamic route - must be at the end to avoid conflicts with specific paths
+@router.get("/{asesor_id}", summary="Obtener asesor por ID")
+async def get_asesor(
+    asesor_id: str,
+    current_user: Usuario = Depends(get_current_active_user)
+):
+    """
+    Obtiene un asesor específico por ID
+    """
+    try:
+        asesor = await Asesor.get_or_none(id=asesor_id).prefetch_related('usuario')
+        
+        if not asesor:
+            raise HTTPException(status_code=404, detail="Asesor no encontrado")
+        
+        return {
+            "success": True,
+            "data": {
+                "id": str(asesor.id),
+                "usuario": {
+                    "id": str(asesor.usuario.id),
+                    "nombre": asesor.usuario.nombre,
+                    "apellido": asesor.usuario.apellido,
+                    "email": asesor.usuario.email,
+                    "telefono": asesor.usuario.telefono,
+                    "estado": asesor.usuario.estado.value
+                },
+                "ciudad": asesor.ciudad,
+                "departamento": asesor.departamento,
+                "punto_venta": asesor.punto_venta,
+                "direccion_punto_venta": asesor.direccion_punto_venta,
+                "confianza": float(asesor.confianza),
+                "nivel_actual": asesor.nivel_actual,
+                "actividad_reciente_pct": float(asesor.actividad_reciente_pct),
+                "desempeno_historico_pct": float(asesor.desempeno_historico_pct),
+                "estado": asesor.estado.value,
+                "total_ofertas": asesor.total_ofertas,
+                "ofertas_ganadoras": asesor.ofertas_ganadoras,
+                "monto_total_ventas": float(asesor.monto_total_ventas),
+                "created_at": asesor.created_at.isoformat(),
+                "updated_at": asesor.updated_at.isoformat()
+            }
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error obteniendo asesor: {str(e)}")

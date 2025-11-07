@@ -1,11 +1,11 @@
 import { useQuery } from '@tanstack/react-query';
 import { analyticsService } from '@/services/analytics';
-import { format, startOfMonth, endOfMonth } from 'date-fns';
+import { startOfMonth, endOfMonth } from 'date-fns';
 
 export function useDashboardData() {
   const currentMonth = new Date();
-  const fechaInicio = format(startOfMonth(currentMonth), 'yyyy-MM-dd');
-  const fechaFin = format(endOfMonth(currentMonth), 'yyyy-MM-dd');
+  const fechaInicio = startOfMonth(currentMonth).toISOString();
+  const fechaFin = endOfMonth(currentMonth).toISOString();
 
   const {
     data: dashboardData,

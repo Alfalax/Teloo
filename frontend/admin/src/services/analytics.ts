@@ -1,7 +1,7 @@
 import axios from 'axios';
 import { DashboardData, AnalyticsResponse } from '@/types/dashboard';
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8001';
+const API_BASE_URL = import.meta.env.VITE_ANALYTICS_API_URL || 'http://localhost:8002';
 
 const analyticsApi = axios.create({
   baseURL: `${API_BASE_URL}/v1`,
@@ -35,13 +35,25 @@ analyticsApi.interceptors.response.use(
 );
 
 export const analyticsService = {
+  // Helper para convertir fecha a ISO si es necesario
+  _toISOString(fecha?: string): string | undefined {
+    if (!fecha) return undefined;
+    // Si ya es ISO (contiene 'T'), retornar tal cual
+    if (fecha.includes('T')) return fecha;
+    // Si es formato YYYY-MM-DD, convertir a ISO
+    return new Date(fecha + 'T00:00:00Z').toISOString();
+  },
+
   async getDashboardPrincipal(
     fechaInicio?: string,
     fechaFin?: string
   ): Promise<DashboardData> {
     const params = new URLSearchParams();
-    if (fechaInicio) params.append('fecha_inicio', fechaInicio);
-    if (fechaFin) params.append('fecha_fin', fechaFin);
+    const inicio = this._toISOString(fechaInicio);
+    const fin = this._toISOString(fechaFin);
+    
+    if (inicio) params.append('fecha_inicio', inicio);
+    if (fin) params.append('fecha_fin', fin);
 
     const response = await analyticsApi.get<AnalyticsResponse<DashboardData>>(
       `/dashboards/principal?${params.toString()}`
@@ -55,8 +67,11 @@ export const analyticsService = {
     fechaFin?: string
   ): Promise<any[]> {
     const params = new URLSearchParams();
-    if (fechaInicio) params.append('fecha_inicio', fechaInicio);
-    if (fechaFin) params.append('fecha_fin', fechaFin);
+    const inicio = this._toISOString(fechaInicio);
+    const fin = this._toISOString(fechaFin);
+    
+    if (inicio) params.append('fecha_inicio', inicio);
+    if (fin) params.append('fecha_fin', fin);
 
     const response = await analyticsApi.get(
       `/dashboards/graficos-mes?${params.toString()}`
@@ -78,8 +93,11 @@ export const analyticsService = {
     fechaFin?: string
   ): Promise<any> {
     const params = new URLSearchParams();
-    if (fechaInicio) params.append('fecha_inicio', fechaInicio);
-    if (fechaFin) params.append('fecha_fin', fechaFin);
+    const inicio = this._toISOString(fechaInicio);
+    const fin = this._toISOString(fechaFin);
+    
+    if (inicio) params.append('fecha_inicio', inicio);
+    if (fin) params.append('fecha_fin', fin);
 
     const response = await analyticsApi.get(
       `/dashboards/embudo-operativo?${params.toString()}`
@@ -93,8 +111,11 @@ export const analyticsService = {
     fechaFin?: string
   ): Promise<any> {
     const params = new URLSearchParams();
-    if (fechaInicio) params.append('fecha_inicio', fechaInicio);
-    if (fechaFin) params.append('fecha_fin', fechaFin);
+    const inicio = this._toISOString(fechaInicio);
+    const fin = this._toISOString(fechaFin);
+    
+    if (inicio) params.append('fecha_inicio', inicio);
+    if (fin) params.append('fecha_fin', fin);
 
     const response = await analyticsApi.get(
       `/dashboards/salud-marketplace?${params.toString()}`
@@ -108,8 +129,11 @@ export const analyticsService = {
     fechaFin?: string
   ): Promise<any> {
     const params = new URLSearchParams();
-    if (fechaInicio) params.append('fecha_inicio', fechaInicio);
-    if (fechaFin) params.append('fecha_fin', fechaFin);
+    const inicio = this._toISOString(fechaInicio);
+    const fin = this._toISOString(fechaFin);
+    
+    if (inicio) params.append('fecha_inicio', inicio);
+    if (fin) params.append('fecha_fin', fin);
 
     const response = await analyticsApi.get(
       `/dashboards/financiero?${params.toString()}`
@@ -124,8 +148,11 @@ export const analyticsService = {
     ciudad?: string
   ): Promise<any> {
     const params = new URLSearchParams();
-    if (fechaInicio) params.append('fecha_inicio', fechaInicio);
-    if (fechaFin) params.append('fecha_fin', fechaFin);
+    const inicio = this._toISOString(fechaInicio);
+    const fin = this._toISOString(fechaFin);
+    
+    if (inicio) params.append('fecha_inicio', inicio);
+    if (fin) params.append('fecha_fin', fin);
     if (ciudad) params.append('ciudad', ciudad);
 
     const response = await analyticsApi.get(
@@ -144,8 +171,11 @@ export const analyticsService = {
     ciudad?: string
   ): Promise<Blob> {
     const params = new URLSearchParams();
-    if (fechaInicio) params.append('fecha_inicio', fechaInicio);
-    if (fechaFin) params.append('fecha_fin', fechaFin);
+    const inicio = this._toISOString(fechaInicio);
+    const fin = this._toISOString(fechaFin);
+    
+    if (inicio) params.append('fecha_inicio', inicio);
+    if (fin) params.append('fecha_fin', fin);
     if (ciudad) params.append('ciudad', ciudad);
     params.append('format', format);
 
@@ -237,9 +267,12 @@ export const analyticsService = {
     limit: number = 100
   ): Promise<any> {
     const params = new URLSearchParams();
+    const inicio = this._toISOString(fechaInicio);
+    const fin = this._toISOString(fechaFin);
+    
     if (nombreMetrica) params.append('nombre_metrica', nombreMetrica);
-    if (fechaInicio) params.append('fecha_inicio', fechaInicio);
-    if (fechaFin) params.append('fecha_fin', fechaFin);
+    if (inicio) params.append('fecha_inicio', inicio);
+    if (fin) params.append('fecha_fin', fin);
     params.append('limit', limit.toString());
 
     const response = await analyticsApi.get(

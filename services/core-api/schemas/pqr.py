@@ -70,10 +70,10 @@ class PQRMetrics(BaseModel):
     total_abiertas: int
     total_en_proceso: int
     total_cerradas: int
-    tiempo_promedio_resolucion_horas: Decimal
+    tiempo_promedio_resolucion_horas: float
     pqrs_alta_prioridad: int
     pqrs_criticas: int
-    tasa_resolucion_24h: Decimal  # Porcentaje de PQRs resueltas en menos de 24h
+    tasa_resolucion_24h: float  # Porcentaje de PQRs resueltas en menos de 24h
     distribucion_por_tipo: dict  # {"PETICION": 10, "QUEJA": 5, "RECLAMO": 3}
     distribucion_por_prioridad: dict  # {"BAJA": 8, "MEDIA": 7, "ALTA": 2, "CRITICA": 1}
 

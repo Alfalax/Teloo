@@ -75,15 +75,15 @@ export function PQRFilters({ onFiltersChange, isLoading }: PQRFiltersProps) {
           <div className="space-y-2">
             <Label>Estado</Label>
             <Select
-              value={filters.estado || ''}
-              onValueChange={(value) => handleFilterChange('estado', value)}
+              value={filters.estado || 'all'}
+              onValueChange={(value) => handleFilterChange('estado', value === 'all' ? undefined : value)}
               disabled={isLoading}
             >
               <SelectTrigger>
                 <SelectValue placeholder="Todos los estados" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="">Todos los estados</SelectItem>
+                <SelectItem value="all">Todos los estados</SelectItem>
                 <SelectItem value="ABIERTA">Abierta</SelectItem>
                 <SelectItem value="EN_PROCESO">En Proceso</SelectItem>
                 <SelectItem value="CERRADA">Cerrada</SelectItem>
@@ -95,15 +95,15 @@ export function PQRFilters({ onFiltersChange, isLoading }: PQRFiltersProps) {
           <div className="space-y-2">
             <Label>Tipo</Label>
             <Select
-              value={filters.tipo || ''}
-              onValueChange={(value) => handleFilterChange('tipo', value)}
+              value={filters.tipo || 'all'}
+              onValueChange={(value) => handleFilterChange('tipo', value === 'all' ? undefined : value)}
               disabled={isLoading}
             >
               <SelectTrigger>
                 <SelectValue placeholder="Todos los tipos" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="">Todos los tipos</SelectItem>
+                <SelectItem value="all">Todos los tipos</SelectItem>
                 <SelectItem value="PETICION">Petición</SelectItem>
                 <SelectItem value="QUEJA">Queja</SelectItem>
                 <SelectItem value="RECLAMO">Reclamo</SelectItem>
@@ -115,15 +115,15 @@ export function PQRFilters({ onFiltersChange, isLoading }: PQRFiltersProps) {
           <div className="space-y-2">
             <Label>Prioridad</Label>
             <Select
-              value={filters.prioridad || ''}
-              onValueChange={(value) => handleFilterChange('prioridad', value)}
+              value={filters.prioridad || 'all'}
+              onValueChange={(value) => handleFilterChange('prioridad', value === 'all' ? undefined : value)}
               disabled={isLoading}
             >
               <SelectTrigger>
                 <SelectValue placeholder="Todas las prioridades" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="">Todas las prioridades</SelectItem>
+                <SelectItem value="all">Todas las prioridades</SelectItem>
                 <SelectItem value="BAJA">Baja</SelectItem>
                 <SelectItem value="MEDIA">Media</SelectItem>
                 <SelectItem value="ALTA">Alta</SelectItem>

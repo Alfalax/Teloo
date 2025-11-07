@@ -119,7 +119,7 @@ async def get_current_user_info(credentials: HTTPAuthorizationCredentials = Depe
     user = await AuthService.get_current_user(token)
     
     return UserInfo(
-        id=user.id,
+        id=str(user.id),
         email=user.email,
         nombre=user.nombre,
         apellido=user.apellido,

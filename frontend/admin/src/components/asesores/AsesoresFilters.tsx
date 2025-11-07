@@ -40,7 +40,8 @@ export function AsesoresFilters({ onFiltersChange, isLoading = false }: Asesores
     }, 300); // Debounce search
 
     return () => clearTimeout(timeoutId);
-  }, [search, estado, ciudad, departamento, onFiltersChange]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [search, estado, ciudad, departamento]);
 
   const loadFilterOptions = async () => {
     setLoadingOptions(true);
@@ -83,12 +84,12 @@ export function AsesoresFilters({ onFiltersChange, isLoading = false }: Asesores
         </div>
 
         {/* Estado Filter */}
-        <Select value={estado} onValueChange={setEstado} disabled={isLoading}>
+        <Select value={estado || "all"} onValueChange={(val) => setEstado(val === "all" ? "" : val)} disabled={isLoading}>
           <SelectTrigger className="w-[140px]">
             <SelectValue placeholder="Estado" />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="">Todos los estados</SelectItem>
+            <SelectItem value="all">Todos los estados</SelectItem>
             <SelectItem value="ACTIVO">Activo</SelectItem>
             <SelectItem value="INACTIVO">Inactivo</SelectItem>
             <SelectItem value="SUSPENDIDO">Suspendido</SelectItem>
@@ -97,15 +98,15 @@ export function AsesoresFilters({ onFiltersChange, isLoading = false }: Asesores
 
         {/* Departamento Filter */}
         <Select 
-          value={departamento} 
-          onValueChange={setDepartamento} 
+          value={departamento || "all"} 
+          onValueChange={(val) => setDepartamento(val === "all" ? "" : val)} 
           disabled={isLoading || loadingOptions}
         >
           <SelectTrigger className="w-[160px]">
             <SelectValue placeholder="Departamento" />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="">Todos los departamentos</SelectItem>
+            <SelectItem value="all">Todos los departamentos</SelectItem>
             {departamentos.map((dept) => (
               <SelectItem key={dept} value={dept}>
                 {dept}
@@ -116,15 +117,15 @@ export function AsesoresFilters({ onFiltersChange, isLoading = false }: Asesores
 
         {/* Ciudad Filter */}
         <Select 
-          value={ciudad} 
-          onValueChange={setCiudad} 
+          value={ciudad || "all"} 
+          onValueChange={(val) => setCiudad(val === "all" ? "" : val)} 
           disabled={isLoading || loadingOptions}
         >
           <SelectTrigger className="w-[140px]">
             <SelectValue placeholder="Ciudad" />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="">Todas las ciudades</SelectItem>
+            <SelectItem value="all">Todas las ciudades</SelectItem>
             {ciudades.map((city) => (
               <SelectItem key={city} value={city}>
                 {city}

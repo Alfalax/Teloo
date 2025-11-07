@@ -18,7 +18,7 @@ async def get_current_admin_user(current_user: Usuario = Depends(get_current_act
         raise HTTPException(status_code=403, detail="Acceso denegado: Se requieren permisos de administrador")
     return current_user
 
-router = APIRouter(prefix="/v1/admin", tags=["admin"])
+router = APIRouter(prefix="/admin", tags=["admin"])
 
 
 @router.post("/import/areas-metropolitanas")

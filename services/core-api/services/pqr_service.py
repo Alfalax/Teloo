@@ -9,7 +9,6 @@ from decimal import Decimal
 import math
 
 from tortoise.expressions import Q
-from tortoise.functions import Count, Avg
 
 from models.analytics import PQR, Notificacion
 from models.user import Usuario, Cliente
@@ -48,7 +47,7 @@ class PQRService:
                 Q(resumen__icontains=search) |
                 Q(detalle__icontains=search) |
                 Q(cliente__usuario__nombre_completo__icontains=search) |
-                Q(cliente__telefono__icontains=search)
+                Q(cliente__usuario__telefono__icontains=search)
             )
         
         # Contar total
@@ -64,7 +63,7 @@ class PQRService:
             cliente_info = ClienteInfo(
                 id=pqr.cliente.id,
                 nombre_completo=pqr.cliente.usuario.nombre_completo,
-                telefono=pqr.cliente.telefono,
+                telefono=pqr.cliente.usuario.telefono,
                 email=pqr.cliente.usuario.email
             )
             
@@ -117,13 +116,17 @@ class PQRService:
         pqrs_alta_prioridad = await PQR.filter(prioridad=PrioridadPQR.ALTA).count()
         pqrs_criticas = await PQR.filter(prioridad=PrioridadPQR.CRITICA).count()
         
-        # Tiempo promedio de resolución
-        avg_resolution = await PQR.filter(
+        # Tiempo promedio de resolución - calcular manualmente
+        pqrs_cerradas = await PQR.filter(
             estado=EstadoPQR.CERRADA,
             tiempo_resolucion_horas__isnull=False
-        ).aggregate(avg_time=Avg('tiempo_resolucion_horas'))
+        ).all()
         
-        tiempo_promedio_resolucion = Decimal(str(avg_resolution['avg_time'] or 0))
+        if pqrs_cerradas:
+            total_tiempo = sum(pqr.tiempo_resolucion_horas for pqr in pqrs_cerradas if pqr.tiempo_resolucion_horas)
+            tiempo_promedio_resolucion = Decimal(str(total_tiempo / len(pqrs_cerradas)))
+        else:
+            tiempo_promedio_resolucion = Decimal('0')
         
         # Tasa de resolución en 24h
         pqrs_resueltas_24h = await PQR.filter(
@@ -136,22 +139,27 @@ class PQRService:
         if total_resueltas > 0:
             tasa_resolucion_24h = Decimal(str((pqrs_resueltas_24h / total_resueltas) * 100))
         
-        # Distribución por tipo
-        tipos_count = await PQR.all().group_by('tipo').annotate(count=Count('id')).values('tipo', 'count')
-        distribucion_por_tipo = {item['tipo']: item['count'] for item in tipos_count}
+        # Distribución por tipo - calcular manualmente
+        all_pqrs = await PQR.all()
+        distribucion_por_tipo = {}
+        for pqr in all_pqrs:
+            tipo_value = pqr.tipo.value
+            distribucion_por_tipo[tipo_value] = distribucion_por_tipo.get(tipo_value, 0) + 1
         
-        # Distribución por prioridad
-        prioridades_count = await PQR.all().group_by('prioridad').annotate(count=Count('id')).values('prioridad', 'count')
-        distribucion_por_prioridad = {item['prioridad']: item['count'] for item in prioridades_count}
+        # Distribución por prioridad - calcular manualmente
+        distribucion_por_prioridad = {}
+        for pqr in all_pqrs:
+            prioridad_value = pqr.prioridad.value
+            distribucion_por_prioridad[prioridad_value] = distribucion_por_prioridad.get(prioridad_value, 0) + 1
         
         return PQRMetrics(
             total_abiertas=total_abiertas,
             total_en_proceso=total_en_proceso,
             total_cerradas=total_cerradas,
-            tiempo_promedio_resolucion_horas=tiempo_promedio_resolucion,
+            tiempo_promedio_resolucion_horas=float(tiempo_promedio_resolucion),
             pqrs_alta_prioridad=pqrs_alta_prioridad,
             pqrs_criticas=pqrs_criticas,
-            tasa_resolucion_24h=tasa_resolucion_24h,
+            tasa_resolucion_24h=float(tasa_resolucion_24h),
             distribucion_por_tipo=distribucion_por_tipo,
             distribucion_por_prioridad=distribucion_por_prioridad
         )
@@ -168,7 +176,7 @@ class PQRService:
         cliente_info = ClienteInfo(
             id=pqr.cliente.id,
             nombre_completo=pqr.cliente.usuario.nombre_completo,
-            telefono=pqr.cliente.telefono,
+            telefono=pqr.cliente.usuario.telefono,
             email=pqr.cliente.usuario.email
         )
         
@@ -369,7 +377,7 @@ class PQRService:
             cliente_info = ClienteInfo(
                 id=pqr.cliente.id,
                 nombre_completo=pqr.cliente.usuario.nombre_completo,
-                telefono=pqr.cliente.telefono,
+                telefono=pqr.cliente.usuario.telefono,
                 email=pqr.cliente.usuario.email
             )
             

@@ -11,14 +11,16 @@ from datetime import datetime
 from models.analytics import PQR
 from models.user import Usuario
 from models.enums import TipoPQR, PrioridadPQR, EstadoPQR
-from middleware.auth_middleware import get_current_user
+from middleware.auth_middleware import get_current_active_user
 from services.pqr_service import PQRService
 from schemas.pqr import (
     PQRCreate, PQRUpdate, PQRResponse, PQRList, 
     PQRMetrics, PQRNotificationCreate
 )
 
-router = APIRouter(prefix="/v1/pqr", tags=["PQR"])
+router = APIRouter(prefix="/pqr", tags=["PQR"])
+
+
 
 
 @router.get("/", response_model=PQRList)
@@ -29,7 +31,7 @@ async def get_pqrs(
     tipo: Optional[TipoPQR] = None,
     prioridad: Optional[PrioridadPQR] = None,
     search: Optional[str] = None,
-    current_user: Usuario = Depends(get_current_user)
+    current_user: Usuario = Depends(get_current_active_user)
 ):
     """
     Obtener lista de PQRs con filtros y paginación
@@ -46,7 +48,7 @@ async def get_pqrs(
 
 @router.get("/metrics", response_model=PQRMetrics)
 async def get_pqr_metrics(
-    current_user: Usuario = Depends(get_current_user)
+    current_user: Usuario = Depends(get_current_active_user)
 ):
     """
     Obtener métricas de PQRs para el dashboard
@@ -57,7 +59,7 @@ async def get_pqr_metrics(
 @router.get("/{pqr_id}", response_model=PQRResponse)
 async def get_pqr(
     pqr_id: UUID,
-    current_user: Usuario = Depends(get_current_user)
+    current_user: Usuario = Depends(get_current_active_user)
 ):
     """
     Obtener una PQR específica por ID
@@ -71,7 +73,7 @@ async def get_pqr(
 @router.post("/", response_model=PQRResponse)
 async def create_pqr(
     pqr_data: PQRCreate,
-    current_user: Usuario = Depends(get_current_user)
+    current_user: Usuario = Depends(get_current_active_user)
 ):
     """
     Crear una nueva PQR
@@ -83,7 +85,7 @@ async def create_pqr(
 async def update_pqr(
     pqr_id: UUID,
     pqr_data: PQRUpdate,
-    current_user: Usuario = Depends(get_current_user)
+    current_user: Usuario = Depends(get_current_active_user)
 ):
     """
     Actualizar una PQR existente
@@ -98,7 +100,7 @@ async def update_pqr(
 async def responder_pqr(
     pqr_id: UUID,
     respuesta: str,
-    current_user: Usuario = Depends(get_current_user)
+    current_user: Usuario = Depends(get_current_active_user)
 ):
     """
     Responder a una PQR
@@ -113,7 +115,7 @@ async def responder_pqr(
 async def cambiar_estado_pqr(
     pqr_id: UUID,
     nuevo_estado: EstadoPQR,
-    current_user: Usuario = Depends(get_current_user)
+    current_user: Usuario = Depends(get_current_active_user)
 ):
     """
     Cambiar el estado de una PQR
@@ -128,7 +130,7 @@ async def cambiar_estado_pqr(
 async def cambiar_prioridad_pqr(
     pqr_id: UUID,
     nueva_prioridad: PrioridadPQR,
-    current_user: Usuario = Depends(get_current_user)
+    current_user: Usuario = Depends(get_current_active_user)
 ):
     """
     Cambiar la prioridad de una PQR
@@ -142,7 +144,7 @@ async def cambiar_prioridad_pqr(
 @router.delete("/{pqr_id}")
 async def delete_pqr(
     pqr_id: UUID,
-    current_user: Usuario = Depends(get_current_user)
+    current_user: Usuario = Depends(get_current_active_user)
 ):
     """
     Eliminar una PQR (soft delete)
@@ -156,7 +158,7 @@ async def delete_pqr(
 @router.get("/cliente/{cliente_id}", response_model=List[PQRResponse])
 async def get_pqrs_by_cliente(
     cliente_id: UUID,
-    current_user: Usuario = Depends(get_current_user)
+    current_user: Usuario = Depends(get_current_active_user)
 ):
     """
     Obtener todas las PQRs de un cliente específico
