@@ -14,7 +14,7 @@ import logging
 from database import init_db
 from routers import admin_router
 from routers.auth import router as auth_router
-# from routers.solicitudes import router as solicitudes_router  # TODO: Not available in this branch
+from routers.solicitudes import router as solicitudes_router
 from routers.ofertas import router as ofertas_router
 from routers.asesores import router as asesores_router
 from routers.pqr import router as pqr_router
@@ -57,7 +57,7 @@ init_db(app)
 # Include routers
 app.include_router(auth_router)
 app.include_router(admin_router)
-# app.include_router(solicitudes_router)  # TODO: Not available in this branch
+app.include_router(solicitudes_router)
 app.include_router(ofertas_router)
 app.include_router(asesores_router)
 app.include_router(pqr_router)
