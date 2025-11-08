@@ -3,7 +3,7 @@
 
 -- Create extensions
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
-CREATE EXTENSION IF NOT EXISTS "pg_cron";
+-- CREATE EXTENSION IF NOT EXISTS "pg_cron"; -- Commented out: not available in Alpine image
 
 -- Create schemas
 CREATE SCHEMA IF NOT EXISTS teloo;

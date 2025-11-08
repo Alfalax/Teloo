@@ -43,7 +43,6 @@
     "@radix-ui/react-checkbox": "^1.0.4",
     "@radix-ui/react-label": "^2.0.2",
     "@radix-ui/react-separator": "^1.0.3",
-    "@radix-ui/react-badge": "^0.2.3",
     "react-dropzone": "^14.2.3",
     "xlsx": "^0.18.5"
   },

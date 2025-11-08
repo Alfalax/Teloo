@@ -1,31 +1,31 @@
-import { useState } from 'react'
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { AuthProvider } from '@/contexts/AuthContext';
+import ProtectedRoute from '@/components/auth/ProtectedRoute';
+import MainLayout from '@/components/layout/MainLayout';
+import LoginPage from '@/pages/LoginPage';
+import DashboardPage from '@/pages/DashboardPage';
 
 function App() {
-  const [count, setCount] = useState(0)
-
   return (
-    <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-      <div className="text-center">
-        <h1 className="text-4xl font-bold text-gray-900 mb-4">
-          TeLOO Asesor V3
-        </h1>
-        <p className="text-lg text-gray-600 mb-8">
-          Portal para Asesores de Repuestos
-        </p>
-        <div className="bg-white p-6 rounded-lg shadow-md">
-          <button
-            className="bg-amber-500 hover:bg-amber-600 text-white font-bold py-2 px-4 rounded"
-            onClick={() => setCount((count) => count + 1)}
+    <BrowserRouter>
+      <AuthProvider>
+        <Routes>
+          <Route path="/login" element={<LoginPage />} />
+          <Route
+            path="/"
+            element={
+              <ProtectedRoute>
+                <MainLayout />
+              </ProtectedRoute>
+            }
           >
-            Count is {count}
-          </button>
-          <p className="mt-4 text-sm text-gray-500">
-            Portal de asesores en desarrollo
-          </p>
-        </div>
-      </div>
-    </div>
-  )
+            <Route index element={<DashboardPage />} />
+          </Route>
+          <Route path="*" element={<Navigate to="/" replace />} />
+        </Routes>
+      </AuthProvider>
+    </BrowserRouter>
+  );
 }
 
-export default App
+export default App;

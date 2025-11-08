@@ -786,41 +786,61 @@ Este plan de implementación convierte el diseño de TeLOO V3 en tareas específ
   - Tests E2E de flujos críticos
   - _Requirements: 12.1, 12.2, 12.3, 12.4, 12.5_
 
-- [ ] 10. Implementar Advisor Frontend
-- [ ] 10.1 Crear estructura base y autenticación de asesor
+- [x] 10. Implementar Advisor Frontend
+
+
+
+
+- [x] 10.1 Crear estructura base y autenticación de asesor
+
+
   - Configurar React + Vite + Tailwind + shadcn/ui con tema Amber Minimal
   - Implementar login específico para asesores
   - Crear layout con dashboard de KPIs y navegación por pestañas
   - _Requirements: 13.1, 13.2_
 
-- [ ] 10.2 Implementar pestaña de solicitudes abiertas
+- [x] 10.2 Implementar pestaña de solicitudes abiertas
+
+
   - Crear lista de solicitudes disponibles para ofertar
   - Mostrar información de vehículo y repuestos con tiempo restante
   - Implementar botón "Hacer Oferta" que abre modal de oferta individual
   - Implementar botón "Carga Masiva Excel" con upload component
   - _Requirements: 13.3, 13.4_
 
-- [ ] 10.3 Implementar modal de oferta individual
+- [x] 10.3 Implementar modal de oferta individual
+
+
   - Crear formulario por repuesto con precio y garantía
   - Permitir seleccionar qué repuestos incluir en la oferta
   - Campo de tiempo de entrega total del pedido
   - Validaciones en tiempo real de rangos permitidos
   - _Requirements: 13.3_
 
-- [ ] 10.4 Implementar carga masiva Excel
+- [x] 10.4 Implementar carga masiva Excel
+
+
   - Crear componente de drag & drop para archivos Excel
   - Implementar descarga de template Excel
   - Mostrar preview de datos antes de enviar
   - Mostrar errores de validación por fila
   - _Requirements: 13.4_
 
-- [ ] 10.5 Implementar pestañas de cerradas y ganadas
+- [x] 10.5 Implementar pestañas de cerradas y ganadas
+
+
   - Pestaña CERRADAS: historial de solicitudes no adjudicadas
   - Pestaña GANADAS: ofertas ganadoras con estado del cliente
   - Mostrar información de contacto si oferta fue aceptada
   - _Requirements: 13.2_
 
-- [ ]* 10.6 Escribir tests del Advisor Frontend
+- [ ] 10.6 Escribir tests del Advisor Frontend
+
+
+
+
+
+
   - Tests de componentes de ofertas (individual y masiva)
   - Tests de navegación entre pestañas
   - Tests de validaciones de formularios

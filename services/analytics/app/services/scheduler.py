@@ -194,14 +194,14 @@ class AnalyticsScheduler:
             
             cutoff_date = now - timedelta(days=30)
             
-            old_events_count = await EventoSistema.filter(timestamp__lt=cutoff_date).count()
+            old_events_count = await EventoSistema.filter(created_at__lt=cutoff_date).count()
             if old_events_count > 0:
-                await EventoSistema.filter(timestamp__lt=cutoff_date).delete()
+                await EventoSistema.filter(created_at__lt=cutoff_date).delete()
                 logger.info(f"Eliminados {old_events_count} eventos antiguos")
             
-            old_metric_events_count = await EventoMetrica.filter(timestamp__lt=cutoff_date).count()
+            old_metric_events_count = await EventoMetrica.filter(created_at__lt=cutoff_date).count()
             if old_metric_events_count > 0:
-                await EventoMetrica.filter(timestamp__lt=cutoff_date).delete()
+                await EventoMetrica.filter(created_at__lt=cutoff_date).delete()
                 logger.info(f"Eliminados {old_metric_events_count} eventos de métricas antiguos")
             
             logger.info("Limpieza de métricas completada")

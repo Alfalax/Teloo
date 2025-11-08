@@ -24,15 +24,15 @@ class EventoSistema(Model):
     
     # Auditoría
     usuario_id = fields.IntField(null=True)
-    timestamp = fields.DatetimeField(auto_now_add=True)
+    created_at = fields.DatetimeField(auto_now_add=True)
     
     # Índices para consultas rápidas
     class Meta:
         table = "eventos_sistema"
         indexes = [
-            ("tipo_evento", "timestamp"),
+            ("tipo_evento", "created_at"),
             ("entidad_tipo", "entidad_id"),
-            ("timestamp",),
+            ("created_at",),
         ]
     
     def __str__(self):
@@ -53,13 +53,13 @@ class EventoMetrica(Model):
     dimensiones = fields.JSONField(default=dict)  # {ciudad: "Bogotá", asesor_id: 123}
     
     # Timestamp
-    timestamp = fields.DatetimeField(auto_now_add=True)
+    created_at = fields.DatetimeField(auto_now_add=True)
     
     class Meta:
         table = "eventos_metricas"
         indexes = [
-            ("metrica_nombre", "timestamp"),
-            ("timestamp",),
+            ("metrica_nombre", "created_at"),
+            ("created_at",),
         ]
     
     def __str__(self):
