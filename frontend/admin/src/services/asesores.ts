@@ -1,4 +1,4 @@
-import axios from 'axios';
+import apiClient from '@/lib/axios';
 import { 
   AsesorCreate, 
   AsesorUpdate, 
@@ -8,39 +8,6 @@ import {
   AsesoresKPIsResponse,
   ExcelImportResult
 } from '@/types/asesores';
-
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000';
-
-const asesoresApi = axios.create({
-  baseURL: `${API_BASE_URL}`,
-  headers: {
-    'Content-Type': 'application/json',
-  },
-});
-
-// Request interceptor to add auth token
-asesoresApi.interceptors.request.use((config) => {
-  const token = localStorage.getItem('access_token');
-  if (token) {
-    config.headers.Authorization = `Bearer ${token}`;
-  }
-  return config;
-});
-
-// Response interceptor to handle errors
-asesoresApi.interceptors.response.use(
-  (response) => response,
-  async (error) => {
-    if (error.response?.status === 401) {
-      // Token expired, redirect to login
-      localStorage.removeItem('access_token');
-      localStorage.removeItem('refresh_token');
-      localStorage.removeItem('user');
-      window.location.href = '/login';
-    }
-    return Promise.reject(error);
-  }
-);
 
 export const asesoresService = {
   // Get all asesores with pagination and filters
@@ -61,7 +28,7 @@ export const asesoresService = {
     if (ciudad) params.append('ciudad', ciudad);
     if (departamento) params.append('departamento', departamento);
 
-    const response = await asesoresApi.get<AsesoresResponse>(
+    const response = await apiClient.get<AsesoresResponse>(
       `/asesores?${params.toString()}`
     );
     
@@ -70,31 +37,31 @@ export const asesoresService = {
 
   // Get asesor by ID
   async getAsesor(id: string): Promise<AsesorResponse> {
-    const response = await asesoresApi.get<AsesorResponse>(`/asesores/${id}`);
+    const response = await apiClient.get<AsesorResponse>(`/asesores/${id}`);
     return response.data;
   },
 
   // Create new asesor
   async createAsesor(asesorData: AsesorCreate): Promise<AsesorResponse> {
-    const response = await asesoresApi.post<AsesorResponse>('/asesores', asesorData);
+    const response = await apiClient.post<AsesorResponse>('/asesores', asesorData);
     return response.data;
   },
 
   // Update asesor
   async updateAsesor(id: string, asesorData: AsesorUpdate): Promise<AsesorResponse> {
-    const response = await asesoresApi.put<AsesorResponse>(`/asesores/${id}`, asesorData);
+    const response = await apiClient.put<AsesorResponse>(`/asesores/${id}`, asesorData);
     return response.data;
   },
 
   // Suspend/activate asesor
   async updateAsesorEstado(id: string, estado: 'ACTIVO' | 'INACTIVO' | 'SUSPENDIDO'): Promise<AsesorResponse> {
-    const response = await asesoresApi.patch<AsesorResponse>(`/asesores/${id}/estado`, { estado });
+    const response = await apiClient.patch<AsesorResponse>(`/asesores/${id}/estado`, { estado });
     return response.data;
   },
 
   // Delete asesor
   async deleteAsesor(id: string): Promise<{ success: boolean; message: string }> {
-    const response = await asesoresApi.delete(`/asesores/${id}`);
+    const response = await apiClient.delete(`/asesores/${id}`);
     return response.data;
   },
 
@@ -107,7 +74,7 @@ export const asesoresService = {
     if (fechaInicio) params.append('fecha_inicio', fechaInicio);
     if (fechaFin) params.append('fecha_fin', fechaFin);
 
-    const response = await asesoresApi.get<AsesoresKPIsResponse>(
+    const response = await apiClient.get<AsesoresKPIsResponse>(
       `/asesores/kpis?${params.toString()}`
     );
     
@@ -116,13 +83,13 @@ export const asesoresService = {
 
   // Get unique cities for filters
   async getCiudades(): Promise<string[]> {
-    const response = await asesoresApi.get<{ success: boolean; data: string[] }>('/asesores/ciudades');
+    const response = await apiClient.get<{ success: boolean; data: string[] }>('/asesores/ciudades');
     return response.data.data;
   },
 
   // Get unique departments for filters
   async getDepartamentos(): Promise<string[]> {
-    const response = await asesoresApi.get<{ success: boolean; data: string[] }>('/asesores/departamentos');
+    const response = await apiClient.get<{ success: boolean; data: string[] }>('/asesores/departamentos');
     return response.data.data;
   },
 
@@ -131,7 +98,7 @@ export const asesoresService = {
     const formData = new FormData();
     formData.append('file', file);
 
-    const response = await asesoresApi.post<ExcelImportResult>(
+    const response = await apiClient.post<ExcelImportResult>(
       '/asesores/import/excel',
       formData,
       {
@@ -157,7 +124,7 @@ export const asesoresService = {
     if (ciudad) params.append('ciudad', ciudad);
     if (departamento) params.append('departamento', departamento);
 
-    const response = await asesoresApi.get(
+    const response = await apiClient.get(
       `/asesores/export/excel?${params.toString()}`,
       {
         responseType: 'blob',
@@ -169,7 +136,7 @@ export const asesoresService = {
 
   // Download Excel template
   async downloadTemplate(): Promise<Blob> {
-    const response = await asesoresApi.get('/asesores/template/excel', {
+    const response = await apiClient.get('/asesores/template/excel', {
       responseType: 'blob',
     });
 
@@ -178,7 +145,7 @@ export const asesoresService = {
 
   // Get asesor metrics
   async getAsesorMetrics(id: string): Promise<any> {
-    const response = await asesoresApi.get(`/asesores/${id}/metrics`);
+    const response = await apiClient.get(`/asesores/${id}/metrics`);
     return response.data;
   },
 
@@ -187,7 +154,7 @@ export const asesoresService = {
     asesorIds: string[], 
     estado: 'ACTIVO' | 'INACTIVO' | 'SUSPENDIDO'
   ): Promise<{ success: boolean; message: string; updated: number }> {
-    const response = await asesoresApi.patch('/asesores/bulk/estado', {
+    const response = await apiClient.patch('/asesores/bulk/estado', {
       asesor_ids: asesorIds,
       estado
     });

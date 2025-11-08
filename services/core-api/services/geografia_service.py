@@ -246,6 +246,42 @@ class GeografiaService:
         }
     
     @staticmethod
+    async def validar_ciudad(ciudad: str, departamento: str = None) -> bool:
+        """
+        Valida si una ciudad existe en la base de datos geográfica
+        
+        Args:
+            ciudad: Nombre de la ciudad a validar
+            departamento: Departamento opcional para validación más específica
+            
+        Returns:
+            bool: True si la ciudad existe, False en caso contrario
+        """
+        if not ciudad:
+            return False
+            
+        # Normalizar ciudad para búsqueda
+        ciudad_norm = ciudad.strip().upper()
+        
+        # Buscar en áreas metropolitanas
+        query = AreaMetropolitana.filter(municipio_norm=ciudad_norm)
+        if departamento:
+            query = query.filter(departamento__icontains=departamento)
+        
+        existe_am = await query.exists()
+        if existe_am:
+            return True
+        
+        # Buscar en hubs logísticos
+        existe_hub = await HubLogistico.filter(municipio_norm=ciudad_norm).exists()
+        if existe_hub:
+            return True
+        
+        # Buscar como hub asignado
+        existe_como_hub = await HubLogistico.filter(hub_asignado_norm=ciudad_norm).exists()
+        return existe_como_hub
+    
+    @staticmethod
     async def get_estadisticas_geograficas() -> Dict:
         """
         Obtiene estadísticas generales de los datos geográficos

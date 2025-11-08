@@ -1,17 +1,19 @@
 import axios from 'axios';
 import { DashboardData, AnalyticsResponse } from '@/types/dashboard';
 
-const API_BASE_URL = import.meta.env.VITE_ANALYTICS_API_URL || 'http://localhost:8002';
+// Analytics API uses a different base URL (port 8002)
+const ANALYTICS_API_URL = import.meta.env.VITE_ANALYTICS_API_URL || 'http://localhost:8002';
 
-const analyticsApi = axios.create({
-  baseURL: `${API_BASE_URL}/v1`,
+// Create a separate axios instance for analytics with auth
+const analyticsClient = axios.create({
+  baseURL: `${ANALYTICS_API_URL}/v1`,
   headers: {
     'Content-Type': 'application/json',
   },
 });
 
-// Request interceptor to add auth token
-analyticsApi.interceptors.request.use((config) => {
+// Add auth token to requests
+analyticsClient.interceptors.request.use((config) => {
   const token = localStorage.getItem('access_token');
   if (token) {
     config.headers.Authorization = `Bearer ${token}`;
@@ -19,16 +21,16 @@ analyticsApi.interceptors.request.use((config) => {
   return config;
 });
 
-// Response interceptor to handle errors
-analyticsApi.interceptors.response.use(
+// Handle 401 errors
+analyticsClient.interceptors.response.use(
   (response) => response,
   async (error) => {
     if (error.response?.status === 401) {
-      // Token expired, redirect to login
-      localStorage.removeItem('access_token');
-      localStorage.removeItem('refresh_token');
-      localStorage.removeItem('user');
-      window.location.href = '/login';
+      // Dispatch logout event (handled by main apiClient)
+      const event = new CustomEvent('auth:logout', { 
+        detail: { reason: 'analytics_401' } 
+      });
+      window.dispatchEvent(event);
     }
     return Promise.reject(error);
   }
@@ -55,7 +57,7 @@ export const analyticsService = {
     if (inicio) params.append('fecha_inicio', inicio);
     if (fin) params.append('fecha_fin', fin);
 
-    const response = await analyticsApi.get<AnalyticsResponse<DashboardData>>(
+    const response = await analyticsClient.get<AnalyticsResponse<DashboardData>>(
       `/dashboards/principal?${params.toString()}`
     );
     
@@ -73,7 +75,7 @@ export const analyticsService = {
     if (inicio) params.append('fecha_inicio', inicio);
     if (fin) params.append('fecha_fin', fin);
 
-    const response = await analyticsApi.get(
+    const response = await analyticsClient.get(
       `/dashboards/graficos-mes?${params.toString()}`
     );
     
@@ -81,7 +83,7 @@ export const analyticsService = {
   },
 
   async getTopSolicitudesAbiertas(limit: number = 15): Promise<any[]> {
-    const response = await analyticsApi.get(
+    const response = await analyticsClient.get(
       `/dashboards/top-solicitudes-abiertas?limit=${limit}`
     );
     
@@ -99,7 +101,7 @@ export const analyticsService = {
     if (inicio) params.append('fecha_inicio', inicio);
     if (fin) params.append('fecha_fin', fin);
 
-    const response = await analyticsApi.get(
+    const response = await analyticsClient.get(
       `/dashboards/embudo-operativo?${params.toString()}`
     );
     
@@ -117,7 +119,7 @@ export const analyticsService = {
     if (inicio) params.append('fecha_inicio', inicio);
     if (fin) params.append('fecha_fin', fin);
 
-    const response = await analyticsApi.get(
+    const response = await analyticsClient.get(
       `/dashboards/salud-marketplace?${params.toString()}`
     );
     
@@ -135,7 +137,7 @@ export const analyticsService = {
     if (inicio) params.append('fecha_inicio', inicio);
     if (fin) params.append('fecha_fin', fin);
 
-    const response = await analyticsApi.get(
+    const response = await analyticsClient.get(
       `/dashboards/financiero?${params.toString()}`
     );
     
@@ -155,7 +157,7 @@ export const analyticsService = {
     if (fin) params.append('fecha_fin', fin);
     if (ciudad) params.append('ciudad', ciudad);
 
-    const response = await analyticsApi.get(
+    const response = await analyticsClient.get(
       `/dashboards/asesores?${params.toString()}`
     );
     
@@ -179,7 +181,7 @@ export const analyticsService = {
     if (ciudad) params.append('ciudad', ciudad);
     params.append('format', format);
 
-    const response = await analyticsApi.get(
+    const response = await analyticsClient.get(
       `/dashboards/${dashboard}/export?${params.toString()}`,
       { responseType: 'blob' }
     );
@@ -275,7 +277,7 @@ export const analyticsService = {
     if (fin) params.append('fecha_fin', fin);
     params.append('limit', limit.toString());
 
-    const response = await analyticsApi.get(
+    const response = await analyticsClient.get(
       `/dashboards/metrics/calculated?${params.toString()}`
     );
     
@@ -284,12 +286,12 @@ export const analyticsService = {
 
   // Funciones para batch jobs
   async getBatchJobsStatus(): Promise<any> {
-    const response = await analyticsApi.get('/dashboards/batch-jobs/status');
+    const response = await analyticsClient.get('/dashboards/batch-jobs/status');
     return response.data;
   },
 
   async triggerBatchJob(jobId: string): Promise<any> {
-    const response = await analyticsApi.post(`/dashboards/batch-jobs/trigger/${jobId}`);
+    const response = await analyticsClient.post(`/dashboards/batch-jobs/trigger/${jobId}`);
     return response.data;
   },
 
@@ -297,7 +299,7 @@ export const analyticsService = {
     const params = new URLSearchParams();
     if (fecha) params.append('fecha', fecha);
 
-    const response = await analyticsApi.post(
+    const response = await analyticsClient.post(
       `/dashboards/batch-jobs/daily?${params.toString()}`
     );
     return response.data;
@@ -307,9 +309,10 @@ export const analyticsService = {
     const params = new URLSearchParams();
     if (fechaFin) params.append('fecha_fin', fechaFin);
 
-    const response = await analyticsApi.post(
+    const response = await analyticsClient.post(
       `/dashboards/batch-jobs/weekly?${params.toString()}`
     );
     return response.data;
   }
 };
+

@@ -7,10 +7,15 @@ export interface Solicitud {
   nivel_actual: number;
   ciudad_origen: string;
   departamento_origen: string;
-  repuestos: RepuestoSolicitado[];
+  repuestos_solicitados: RepuestoSolicitado[];
+  // Alias for backward compatibility
+  repuestos?: RepuestoSolicitado[];
   tiempo_restante_horas?: number;
-  created_at: string;
-  updated_at: string;
+  // Backend returns fecha_creacion
+  fecha_creacion?: string;
+  // Alias for backward compatibility
+  created_at?: string;
+  updated_at?: string;
 }
 
 export interface RepuestoSolicitado {

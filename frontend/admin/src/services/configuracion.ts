@@ -3,25 +3,7 @@
  * Handles system configuration management
  */
 
-import axios from 'axios';
-
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000';
-
-const api = axios.create({
-  baseURL: API_BASE_URL,
-  headers: {
-    'Content-Type': 'application/json',
-  },
-});
-
-// Request interceptor to add auth token
-api.interceptors.request.use((config) => {
-  const token = localStorage.getItem('access_token');
-  if (token) {
-    config.headers.Authorization = `Bearer ${token}`;
-  }
-  return config;
-});
+import apiClient from '@/lib/axios';
 
 import type { 
   PesosEscalamiento,
@@ -46,7 +28,7 @@ class ConfiguracionService {
    * Obtiene la configuración completa del sistema
    */
   async getConfiguracion(): Promise<ConfiguracionCompleta> {
-    const response = await api.get('/admin/configuracion');
+    const response = await apiClient.get('/admin/configuracion');
     return response.data.configuracion_completa;
   }
 
@@ -54,7 +36,7 @@ class ConfiguracionService {
    * Obtiene configuración de una categoría específica
    */
   async getConfiguracionCategoria<T>(categoria: CategoriaConfiguracion): Promise<T> {
-    const response = await api.get(`/admin/configuracion?categoria=${categoria}`);
+    const response = await apiClient.get(`/admin/configuracion?categoria=${categoria}`);
     return response.data.configuracion;
   }
 
@@ -65,7 +47,7 @@ class ConfiguracionService {
     categoria: CategoriaConfiguracion,
     valores: any
   ): Promise<{ success: boolean; message: string; configuracion: any }> {
-    const response = await api.put(`/admin/configuracion/${categoria}`, valores);
+    const response = await apiClient.put(`/admin/configuracion/${categoria}`, valores);
     return response.data;
   }
 
@@ -78,7 +60,7 @@ class ConfiguracionService {
     configuracion: any;
   }> {
     const params = categoria ? `?categoria=${categoria}` : '';
-    const response = await api.post(`/admin/configuracion/reset${params}`);
+    const response = await apiClient.post(`/admin/configuracion/reset${params}`);
     return response.data;
   }
 
@@ -86,7 +68,7 @@ class ConfiguracionService {
    * Obtiene resumen de configuración con metadatos
    */
   async getConfiguracionSummary(): Promise<ConfiguracionSummary> {
-    const response = await api.get('/admin/configuracion/summary');
+    const response = await apiClient.get('/admin/configuracion/summary');
     return response.data;
   }
 
@@ -134,7 +116,7 @@ class ConfiguracionService {
    * Obtiene lista de usuarios del sistema
    */
   async getUsuarios(): Promise<Usuario[]> {
-    const response = await api.get('/admin/usuarios');
+    const response = await apiClient.get('/admin/usuarios');
     return response.data.usuarios;
   }
 
@@ -142,7 +124,7 @@ class ConfiguracionService {
    * Crea nuevo usuario
    */
   async createUsuario(usuario: Omit<Usuario, 'id' | 'created_at' | 'updated_at'>): Promise<Usuario> {
-    const response = await api.post('/admin/usuarios', usuario);
+    const response = await apiClient.post('/admin/usuarios', usuario);
     return response.data.usuario;
   }
 
@@ -150,7 +132,7 @@ class ConfiguracionService {
    * Actualiza usuario existente
    */
   async updateUsuario(id: string, usuario: Partial<Usuario>): Promise<Usuario> {
-    const response = await api.put(`/admin/usuarios/${id}`, usuario);
+    const response = await apiClient.put(`/admin/usuarios/${id}`, usuario);
     return response.data.usuario;
   }
 
@@ -158,14 +140,14 @@ class ConfiguracionService {
    * Elimina usuario
    */
   async deleteUsuario(id: string): Promise<void> {
-    await api.delete(`/admin/usuarios/${id}`);
+    await apiClient.delete(`/admin/usuarios/${id}`);
   }
 
   /**
    * Obtiene lista de roles del sistema
    */
   async getRoles(): Promise<Rol[]> {
-    const response = await api.get('/admin/roles');
+    const response = await apiClient.get('/admin/roles');
     return response.data.roles;
   }
 
@@ -173,7 +155,7 @@ class ConfiguracionService {
    * Crea nuevo rol
    */
   async createRol(rol: Omit<Rol, 'id' | 'created_at' | 'updated_at'>): Promise<Rol> {
-    const response = await api.post('/admin/roles', rol);
+    const response = await apiClient.post('/admin/roles', rol);
     return response.data.rol;
   }
 
@@ -181,7 +163,7 @@ class ConfiguracionService {
    * Actualiza rol existente
    */
   async updateRol(id: string, rol: Partial<Rol>): Promise<Rol> {
-    const response = await api.put(`/admin/roles/${id}`, rol);
+    const response = await apiClient.put(`/admin/roles/${id}`, rol);
     return response.data.rol;
   }
 
@@ -189,14 +171,14 @@ class ConfiguracionService {
    * Elimina rol
    */
   async deleteRol(id: string): Promise<void> {
-    await api.delete(`/admin/roles/${id}`);
+    await apiClient.delete(`/admin/roles/${id}`);
   }
 
   /**
    * Obtiene permisos disponibles en el sistema
    */
   async getPermisosDisponibles(): Promise<string[]> {
-    const response = await api.get('/admin/permisos');
+    const response = await apiClient.get('/admin/permisos');
     return response.data.permisos;
   }
 }

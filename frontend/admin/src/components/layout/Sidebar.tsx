@@ -6,6 +6,7 @@ import {
   BarChart3,
   MessageSquare,
   Settings,
+  FileText,
   ChevronLeft,
   ChevronRight,
 } from 'lucide-react';
@@ -21,6 +22,12 @@ const navigation = [
     href: '/',
     icon: Home,
     description: 'Dashboard principal',
+  },
+  {
+    name: 'Solicitudes',
+    href: '/solicitudes',
+    icon: FileText,
+    description: 'Gestión de solicitudes',
   },
   {
     name: 'Asesores',

@@ -21,26 +21,26 @@ solicitudesApi.interceptors.request.use((config) => {
 
 export const solicitudesService = {
   async getSolicitudesAbiertas(): Promise<Solicitud[]> {
-    const response = await solicitudesApi.get<Solicitud[]>('/solicitudes', {
-      params: { estado: 'ABIERTA' },
+    const response = await solicitudesApi.get<{ items: Solicitud[] }>('/solicitudes', {
+      params: { estado: 'ABIERTA', page: 1, page_size: 100 },
     });
-    return response.data;
+    return response.data.items || [];
   },
 
   async getSolicitudesCerradas(): Promise<SolicitudConOferta[]> {
     // Cerradas son las rechazadas, expiradas o cerradas sin ofertas
-    const response = await solicitudesApi.get<SolicitudConOferta[]>('/solicitudes', {
-      params: { estado: 'RECHAZADA' },
+    const response = await solicitudesApi.get<{ items: SolicitudConOferta[] }>('/solicitudes', {
+      params: { estado: 'RECHAZADA', page: 1, page_size: 100 },
     });
-    return response.data;
+    return response.data.items || [];
   },
 
   async getSolicitudesGanadas(): Promise<SolicitudConOferta[]> {
     // Ganadas son las aceptadas
-    const response = await solicitudesApi.get<SolicitudConOferta[]>('/solicitudes', {
-      params: { estado: 'ACEPTADA' },
+    const response = await solicitudesApi.get<{ items: SolicitudConOferta[] }>('/solicitudes', {
+      params: { estado: 'ACEPTADA', page: 1, page_size: 100 },
     });
-    return response.data;
+    return response.data.items || [];
   },
 
   async getSolicitudById(id: string): Promise<Solicitud> {

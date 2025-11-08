@@ -1,38 +1,5 @@
-import axios from 'axios';
+import apiClient from '@/lib/axios';
 import { PQR, PQRCreate, PQRUpdate, PQRList, PQRMetrics, PQRFilters } from '@/types/pqr';
-
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000';
-
-const pqrApi = axios.create({
-  baseURL: `${API_BASE_URL}`,
-  headers: {
-    'Content-Type': 'application/json',
-  },
-});
-
-// Request interceptor to add auth token
-pqrApi.interceptors.request.use((config) => {
-  const token = localStorage.getItem('access_token');
-  if (token) {
-    config.headers.Authorization = `Bearer ${token}`;
-  }
-  return config;
-});
-
-// Response interceptor to handle errors
-pqrApi.interceptors.response.use(
-  (response) => response,
-  async (error) => {
-    if (error.response?.status === 401) {
-      // Token expired, redirect to login
-      localStorage.removeItem('access_token');
-      localStorage.removeItem('refresh_token');
-      localStorage.removeItem('user');
-      window.location.href = '/login';
-    }
-    return Promise.reject(error);
-  }
-);
 
 export const pqrService = {
   // Obtener lista de PQRs con filtros
@@ -51,37 +18,37 @@ export const pqrService = {
     if (filters?.tipo) params.append('tipo', filters.tipo);
     if (filters?.prioridad) params.append('prioridad', filters.prioridad);
 
-    const response = await pqrApi.get(`/pqr?${params.toString()}`);
+    const response = await apiClient.get(`/pqr?${params.toString()}`);
     return response.data;
   },
 
   // Obtener métricas de PQRs
   async getPQRMetrics(): Promise<PQRMetrics> {
-    const response = await pqrApi.get('/pqr/metrics');
+    const response = await apiClient.get('/pqr/metrics');
     return response.data;
   },
 
   // Obtener una PQR específica
   async getPQR(id: string): Promise<PQR> {
-    const response = await pqrApi.get(`/pqr/${id}`);
+    const response = await apiClient.get(`/pqr/${id}`);
     return response.data;
   },
 
   // Crear nueva PQR
   async createPQR(data: PQRCreate): Promise<PQR> {
-    const response = await pqrApi.post('/pqr', data);
+    const response = await apiClient.post('/pqr', data);
     return response.data;
   },
 
   // Actualizar PQR
   async updatePQR(id: string, data: PQRUpdate): Promise<PQR> {
-    const response = await pqrApi.put(`/pqr/${id}`, data);
+    const response = await apiClient.put(`/pqr/${id}`, data);
     return response.data;
   },
 
   // Responder a una PQR
   async responderPQR(id: string, respuesta: string): Promise<PQR> {
-    const response = await pqrApi.post(`/pqr/${id}/responder`, { respuesta });
+    const response = await apiClient.post(`/pqr/${id}/responder`, { respuesta });
     return response.data;
   },
 
@@ -90,7 +57,7 @@ export const pqrService = {
     id: string, 
     nuevo_estado: 'ABIERTA' | 'EN_PROCESO' | 'CERRADA'
   ): Promise<PQR> {
-    const response = await pqrApi.post(`/pqr/${id}/cambiar-estado`, { nuevo_estado });
+    const response = await apiClient.post(`/pqr/${id}/cambiar-estado`, { nuevo_estado });
     return response.data;
   },
 
@@ -99,18 +66,18 @@ export const pqrService = {
     id: string, 
     nueva_prioridad: 'BAJA' | 'MEDIA' | 'ALTA' | 'CRITICA'
   ): Promise<PQR> {
-    const response = await pqrApi.post(`/pqr/${id}/cambiar-prioridad`, { nueva_prioridad });
+    const response = await apiClient.post(`/pqr/${id}/cambiar-prioridad`, { nueva_prioridad });
     return response.data;
   },
 
   // Eliminar PQR
   async deletePQR(id: string): Promise<void> {
-    await pqrApi.delete(`/pqr/${id}`);
+    await apiClient.delete(`/pqr/${id}`);
   },
 
   // Obtener PQRs de un cliente específico
   async getPQRsByCliente(clienteId: string): Promise<PQR[]> {
-    const response = await pqrApi.get(`/pqr/cliente/${clienteId}`);
+    const response = await apiClient.get(`/pqr/cliente/${clienteId}`);
     return response.data;
   },
 };

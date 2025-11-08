@@ -5,6 +5,7 @@ import { ProtectedRoute } from '@/components/ProtectedRoute';
 import { Layout } from '@/components/layout/Layout';
 import { LoginPage } from '@/pages/LoginPage';
 import { DashboardPage } from '@/pages/DashboardPage';
+import SolicitudesPage from '@/pages/SolicitudesPage';
 import { AsesoresPage } from '@/pages/AsesoresPage';
 import { ReportesPage } from '@/pages/ReportesPage';
 import { PQRPage } from '@/pages/PQRPage';
@@ -39,6 +40,7 @@ function App() {
               }
             >
               <Route index element={<DashboardPage />} />
+              <Route path="solicitudes" element={<SolicitudesPage />} />
               <Route path="asesores" element={<AsesoresPage />} />
               <Route path="reportes" element={<ReportesPage />} />
               <Route path="pqr" element={<PQRPage />} />

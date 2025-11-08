@@ -103,6 +103,21 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     };
 
     initAuth();
+
+    // Listen for logout events from axios interceptor
+    const handleAuthLogout = (event: Event) => {
+      const customEvent = event as CustomEvent;
+      console.log('Auth logout event received:', customEvent.detail);
+      dispatch({ type: 'CLEAR_AUTH' });
+      // Force navigation to login
+      window.location.href = '/login';
+    };
+
+    window.addEventListener('auth:logout', handleAuthLogout);
+
+    return () => {
+      window.removeEventListener('auth:logout', handleAuthLogout);
+    };
   }, []);
 
   const login = async (credentials: LoginRequest) => {

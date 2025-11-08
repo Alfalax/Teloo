@@ -13,6 +13,7 @@ interface SolicitudCardProps {
 export default function SolicitudCard({ solicitud, onHacerOferta }: SolicitudCardProps) {
   const tiempoRestante = solicitud.tiempo_restante_horas || 0;
   const isUrgente = tiempoRestante < 4;
+  const repuestos = solicitud.repuestos_solicitados || solicitud.repuestos || [];
 
   return (
     <Card className="hover:shadow-md transition-shadow">
@@ -33,7 +34,7 @@ export default function SolicitudCard({ solicitud, onHacerOferta }: SolicitudCar
               </div>
               <div className="flex items-center gap-1">
                 <Package className="h-4 w-4" />
-                {solicitud.repuestos.length} repuesto{solicitud.repuestos.length !== 1 ? 's' : ''}
+                {repuestos.length} repuesto{repuestos.length !== 1 ? 's' : ''}
               </div>
             </div>
           </div>
@@ -41,16 +42,16 @@ export default function SolicitudCard({ solicitud, onHacerOferta }: SolicitudCar
       </CardHeader>
 
       <CardContent className="space-y-3">
-        {solicitud.repuestos.length > 0 && (
+        {repuestos.length > 0 && (
           <div className="space-y-2">
             <div className="flex items-center gap-2 text-sm font-medium">
               <Car className="h-4 w-4 text-primary" />
               <span>
-                {solicitud.repuestos[0].marca_vehiculo} {solicitud.repuestos[0].linea_vehiculo} {solicitud.repuestos[0].anio_vehiculo}
+                {repuestos[0].marca_vehiculo} {repuestos[0].linea_vehiculo} {repuestos[0].anio_vehiculo}
               </span>
             </div>
             <div className="space-y-1.5">
-              {solicitud.repuestos.map((repuesto, index) => (
+              {repuestos.map((repuesto, index) => (
                 <div key={repuesto.id} className="flex items-start gap-2 text-sm">
                   <span className="text-muted-foreground">{index + 1}.</span>
                   <div className="flex-1">
@@ -67,7 +68,7 @@ export default function SolicitudCard({ solicitud, onHacerOferta }: SolicitudCar
         )}
 
         <div className="text-xs text-muted-foreground pt-2 border-t">
-          Creada {formatRelativeTime(solicitud.created_at)}
+          Creada {formatRelativeTime(solicitud.fecha_creacion || solicitud.created_at || new Date().toISOString())}
         </div>
       </CardContent>
 
