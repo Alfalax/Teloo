@@ -3,7 +3,7 @@
  */
 
 import { useState } from "react";
-import { Plus, Upload, Trash2, FileSpreadsheet } from "lucide-react";
+import { Plus, Upload, Trash2, FileSpreadsheet, CheckCircle2, AlertCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -19,6 +19,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import * as XLSX from 'xlsx';
 import type { RepuestoSolicitado } from "@/types/solicitudes";
 
 interface RepuestosStepProps {
@@ -53,6 +54,8 @@ export function RepuestosStep({
   const [currentRepuesto, setCurrentRepuesto] = useState<Omit<RepuestoSolicitado, "id">>(initialRepuesto);
   const [activeTab, setActiveTab] = useState("manual");
   const [excelError, setExcelError] = useState<string | null>(null);
+  const [excelSuccess, setExcelSuccess] = useState<string | null>(null);
+  const [isProcessing, setIsProcessing] = useState(false);
 
   const handleAddRepuesto = () => {
     if (!currentRepuesto.nombre.trim() || !currentRepuesto.marca_vehiculo.trim()) {
@@ -73,12 +76,103 @@ export function RepuestosStep({
     if (!file) return;
 
     setExcelError(null);
+    setExcelSuccess(null);
+    setIsProcessing(true);
 
     try {
-      // TODO: Implement Excel parsing with xlsx library
-      setExcelError("Funcionalidad de Excel en desarrollo. Use entrada manual por ahora.");
+      const data = await file.arrayBuffer();
+      const workbook = XLSX.read(data);
+      const sheetName = workbook.SheetNames[0];
+      const worksheet = workbook.Sheets[sheetName];
+      const jsonData = XLSX.utils.sheet_to_json(worksheet);
+
+      if (jsonData.length === 0) {
+        setExcelError("El archivo Excel está vacío");
+        setIsProcessing(false);
+        return;
+      }
+
+      const parsedRepuestos: Omit<RepuestoSolicitado, "id">[] = [];
+      const errors: string[] = [];
+
+      jsonData.forEach((row: any, index: number) => {
+        const rowNum = index + 2; // +2 porque Excel empieza en 1 y tiene header
+
+        // Validar campos requeridos
+        if (!row.Nombre && !row.nombre) {
+          errors.push(`Fila ${rowNum}: Falta el nombre del repuesto`);
+          return;
+        }
+
+        if (!row["Marca Vehiculo"] && !row["Marca Vehículo"] && !row.marca_vehiculo) {
+          errors.push(`Fila ${rowNum}: Falta la marca del vehículo`);
+          return;
+        }
+
+        // Extraer y validar datos
+        const nombre = (row.Nombre || row.nombre || "").toString().trim();
+        const codigo = (row.Codigo || row.Código || row.codigo || "").toString().trim();
+        const marcaVehiculo = (row["Marca Vehiculo"] || row["Marca Vehículo"] || row.marca_vehiculo || "").toString().trim();
+        const lineaVehiculo = (row.Linea || row.Línea || row.linea || row.linea_vehiculo || "").toString().trim();
+        const anioVehiculo = parseInt(row.Año || row.Anio || row.año || row.anio || row.anio_vehiculo || new Date().getFullYear());
+        const cantidad = parseInt(row.Cantidad || row.cantidad || "1");
+        const observaciones = (row.Observaciones || row.observaciones || "").toString().trim();
+        const esUrgente = row.Urgente === "SI" || row.Urgente === "Sí" || row.urgente === "SI" || row.es_urgente === true;
+
+        // Validar año
+        if (anioVehiculo < 1980 || anioVehiculo > new Date().getFullYear() + 1) {
+          errors.push(`Fila ${rowNum}: Año inválido (${anioVehiculo}). Debe estar entre 1980 y ${new Date().getFullYear() + 1}`);
+          return;
+        }
+
+        // Validar cantidad
+        if (isNaN(cantidad) || cantidad < 1) {
+          errors.push(`Fila ${rowNum}: Cantidad inválida. Debe ser mayor a 0`);
+          return;
+        }
+
+        parsedRepuestos.push({
+          nombre,
+          codigo: codigo || undefined,
+          descripcion: observaciones || undefined,
+          cantidad,
+          marca_vehiculo: marcaVehiculo,
+          linea_vehiculo: lineaVehiculo || undefined,
+          anio_vehiculo: anioVehiculo,
+          observaciones: observaciones || undefined,
+          es_urgente: esUrgente,
+        });
+      });
+
+      if (errors.length > 0) {
+        setExcelError(`Se encontraron ${errors.length} errores:\n${errors.slice(0, 5).join("\n")}${errors.length > 5 ? `\n... y ${errors.length - 5} más` : ""}`);
+        setIsProcessing(false);
+        return;
+      }
+
+      if (parsedRepuestos.length === 0) {
+        setExcelError("No se pudieron extraer repuestos válidos del archivo");
+        setIsProcessing(false);
+        return;
+      }
+
+      // Agregar los repuestos parseados a la lista existente
+      onChange([...repuestos, ...parsedRepuestos]);
+      setExcelSuccess(`✓ Se importaron ${parsedRepuestos.length} repuesto(s) exitosamente`);
+      
+      // Limpiar el input file
+      event.target.value = "";
+      
+      // Cambiar a tab manual para ver los resultados
+      setTimeout(() => {
+        setActiveTab("manual");
+      }, 1500);
+
     } catch (error) {
-      setExcelError("Error al procesar el archivo Excel");
+      console.error("Error al procesar Excel:", error);
+      setExcelError("Error al procesar el archivo Excel. Verifique que el formato sea correcto.");
+    } finally {
+      setIsProcessing(false);
     }
   };
 
@@ -217,30 +311,95 @@ export function RepuestosStep({
         {/* Excel Upload Tab */}
         <TabsContent value="excel" className="space-y-4">
           <div className="border rounded-lg p-6 text-center space-y-4">
-            <Upload className="h-12 w-12 mx-auto text-muted-foreground" />
+            {!isProcessing && !excelSuccess && (
+              <Upload className="h-12 w-12 mx-auto text-muted-foreground" />
+            )}
+            {isProcessing && (
+              <div className="h-12 w-12 mx-auto border-4 border-primary border-t-transparent rounded-full animate-spin" />
+            )}
+            {excelSuccess && (
+              <CheckCircle2 className="h-12 w-12 mx-auto text-green-500" />
+            )}
+            
             <div>
               <h4 className="font-medium">Cargar desde Excel</h4>
               <p className="text-sm text-muted-foreground">
-                Sube un archivo Excel con los repuestos. Formato esperado:
+                Sube un archivo Excel (.xlsx o .xls) con los repuestos
               </p>
             </div>
             
-            <div className="text-xs text-left bg-muted p-3 rounded">
-              <strong>Columnas requeridas:</strong><br />
-              Nombre | Marca Vehículo | Línea | Año | Cantidad | Observaciones
+            <div className="text-xs text-left bg-muted p-4 rounded space-y-2">
+              <strong>Columnas esperadas (pueden variar en mayúsculas/minúsculas):</strong>
+              <ul className="list-disc list-inside space-y-1 mt-2">
+                <li><strong>Nombre</strong> (requerido): Nombre del repuesto</li>
+                <li><strong>Marca Vehiculo</strong> (requerido): Marca del vehículo</li>
+                <li><strong>Linea</strong> (opcional): Línea del vehículo</li>
+                <li><strong>Año</strong> (opcional): Año del vehículo (1980-{new Date().getFullYear() + 1})</li>
+                <li><strong>Cantidad</strong> (opcional): Cantidad solicitada (default: 1)</li>
+                <li><strong>Codigo</strong> (opcional): Código del repuesto</li>
+                <li><strong>Observaciones</strong> (opcional): Notas adicionales</li>
+                <li><strong>Urgente</strong> (opcional): "SI" o "NO"</li>
+              </ul>
             </div>
 
-            <Input
-              type="file"
-              accept=".xlsx,.xls"
-              onChange={handleExcelUpload}
-              className="cursor-pointer"
-            />
+            <div className="space-y-2">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="w-full"
+                onClick={() => {
+                  // Crear un Excel de ejemplo programáticamente
+                  const wb = XLSX.utils.book_new();
+                  const wsData = [
+                    ["Nombre", "Marca Vehiculo", "Linea", "Año", "Cantidad", "Codigo", "Observaciones", "Urgente"],
+                    ["Pastillas de freno delanteras", "Toyota", "Corolla", "2015", "2", "BR-001", "Cerámicas", "NO"],
+                    ["Filtro de aceite", "Honda", "Civic", "2018", "1", "FO-123", "Original", "SI"],
+                    ["Amortiguadores traseros", "Chevrolet", "Spark", "2020", "2", "", "Par completo", "NO"],
+                  ];
+                  const ws = XLSX.utils.aoa_to_sheet(wsData);
+                  XLSX.utils.book_append_sheet(wb, ws, "Repuestos");
+                  XLSX.writeFile(wb, "template-repuestos.xlsx");
+                }}
+              >
+                <FileSpreadsheet className="h-4 w-4 mr-2" />
+                Descargar Template Excel
+              </Button>
+              
+              <Input
+                type="file"
+                accept=".xlsx,.xls"
+                onChange={handleExcelUpload}
+                className="cursor-pointer"
+                disabled={isProcessing}
+              />
+            </div>
 
             {excelError && (
-              <div className="bg-yellow-50 border border-yellow-200 rounded p-3">
-                <p className="text-sm text-yellow-800">{excelError}</p>
+              <div className="bg-red-50 border border-red-200 rounded p-3 text-left">
+                <div className="flex items-start gap-2">
+                  <AlertCircle className="h-5 w-5 text-red-500 flex-shrink-0 mt-0.5" />
+                  <div>
+                    <p className="text-sm font-medium text-red-800">Error al procesar el archivo</p>
+                    <p className="text-xs text-red-700 mt-1 whitespace-pre-line">{excelError}</p>
+                  </div>
+                </div>
               </div>
+            )}
+
+            {excelSuccess && (
+              <div className="bg-green-50 border border-green-200 rounded p-3">
+                <div className="flex items-center gap-2 justify-center">
+                  <CheckCircle2 className="h-5 w-5 text-green-500" />
+                  <p className="text-sm font-medium text-green-800">{excelSuccess}</p>
+                </div>
+              </div>
+            )}
+
+            {isProcessing && (
+              <p className="text-sm text-muted-foreground">
+                Procesando archivo Excel...
+              </p>
             )}
           </div>
         </TabsContent>

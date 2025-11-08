@@ -79,9 +79,8 @@ export const solicitudesService = {
     return new Promise((resolve, reject) => {
       const reader = new FileReader();
 
-      reader.onload = (e) => {
+      reader.onload = () => {
         try {
-          const data = e.target?.result;
           // TODO: Implement Excel parsing with xlsx library
           // For now, return empty array
           resolve([]);

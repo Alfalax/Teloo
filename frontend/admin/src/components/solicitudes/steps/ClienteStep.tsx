@@ -49,7 +49,7 @@ const ciudadesPorDepartamento: Record<string, string[]> = {
   "Santander": ["Bucaramanga", "Floridablanca", "Girón"],
 };
 
-export function ClienteStep({ data, onChange, onNext, isValid }: ClienteStepProps) {
+export function ClienteStep({ data, onChange }: ClienteStepProps) {
   const handleChange = (field: keyof ClienteData, value: string) => {
     const newData = { ...data, [field]: value };
     

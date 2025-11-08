@@ -5,7 +5,7 @@
  */
 
 import { useState } from "react";
-import { X, ArrowLeft, ArrowRight } from "lucide-react";
+import { ArrowLeft, ArrowRight } from "lucide-react";
 import {
   Dialog,
   DialogContent,
