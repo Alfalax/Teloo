@@ -1253,3 +1253,557 @@ class MetricsCalculator:
                 "tasa_fuga_porcentaje": float(result[0]['tasa_fuga_porcentaje'])
             }
         return {"valor_adjudicado": 0, "valor_aceptado": 0, "valor_fugado": 0, "tasa_fuga_porcentaje": 0.0}
+
+
+    async def get_analisis_asesores(self, fecha_inicio: datetime = None, fecha_fin: datetime = None, ciudad: str = None) -> Dict[str, Any]:
+        """
+        Obtener análisis de asesores (13 KPIs alineados con Indicadores.txt)
+        """
+        if not fecha_inicio:
+            fecha_inicio = datetime.utcnow() - timedelta(days=30)
+        if not fecha_fin:
+            fecha_fin = datetime.utcnow()
+            
+        cache_key = f"{self.cache_prefix}analisis_asesores:{fecha_inicio.date()}:{fecha_fin.date()}:{ciudad or 'all'}"
+        
+        try:
+            cached_data = await redis_manager.get_cache(cache_key)
+            if cached_data:
+                return cached_data
+        except Exception as e:
+            logger.warning(f"Error accediendo al cache: {e}")
+            
+        try:
+            asesores = {
+                "total_asesores_activos": await self._calcular_total_asesores_activos(fecha_inicio, fecha_fin, ciudad),
+                "tasa_respuesta_promedio": await self._calcular_tasa_respuesta_asesores(fecha_inicio, fecha_fin, ciudad),
+                "tiempo_respuesta_promedio": await self._calcular_tiempo_respuesta_asesores(fecha_inicio, fecha_fin, ciudad),
+                "ofertas_por_asesor": await self._calcular_ofertas_por_asesor(fecha_inicio, fecha_fin, ciudad),
+                "tasa_adjudicacion_por_asesor": await self._calcular_tasa_adjudicacion_asesor(fecha_inicio, fecha_fin, ciudad),
+                "ranking_top_10": await self._calcular_ranking_top_asesores(fecha_inicio, fecha_fin, ciudad),
+                "especializacion_repuestos": await self._calcular_especializacion_repuestos(fecha_inicio, fecha_fin, ciudad),
+                "distribucion_geografica": await self._calcular_distribucion_geografica(fecha_inicio, fecha_fin),
+                "nivel_confianza_promedio": await self._calcular_nivel_confianza_promedio(fecha_inicio, fecha_fin, ciudad),
+                "asesores_nuevos": await self._calcular_asesores_nuevos(fecha_inicio, fecha_fin, ciudad),
+                "tasa_retencion": await self._calcular_tasa_retencion_asesores(fecha_inicio, fecha_fin, ciudad),
+                "satisfaccion_cliente": await self._calcular_satisfaccion_cliente_asesores(fecha_inicio, fecha_fin, ciudad),
+                "valor_promedio_oferta": await self._calcular_valor_promedio_oferta_asesor(fecha_inicio, fecha_fin, ciudad)
+            }
+            
+            try:
+                await redis_manager.set_cache(cache_key, asesores, ttl=900)  # 15 minutos
+            except Exception as e:
+                logger.warning(f"Error guardando en cache: {e}")
+                
+            return asesores
+        except Exception as e:
+            logger.error(f"Error calculando análisis de asesores: {e}", exc_info=True)
+            return {
+                "total_asesores_activos": 0,
+                "tasa_respuesta_promedio": {"tasa_promedio": 0.0},
+                "tiempo_respuesta_promedio": {"tiempo_promedio_minutos": 0.0},
+                "ofertas_por_asesor": {"ofertas_promedio": 0.0},
+                "tasa_adjudicacion_por_asesor": {"tasa_promedio": 0.0},
+                "ranking_top_10": [],
+                "especializacion_repuestos": [],
+                "distribucion_geografica": [],
+                "nivel_confianza_promedio": {"nivel_promedio": 0.0},
+                "asesores_nuevos": {"asesores_nuevos": 0},
+                "tasa_retencion": {"tasa_retencion": 0.0},
+                "satisfaccion_cliente": {"calificacion_promedio": 0.0},
+                "valor_promedio_oferta": {"valor_promedio": 0}
+            }
+
+    
+    # ============================================================================
+    # MÉTODOS PARA DASHBOARD ANÁLISIS DE ASESORES (13 KPIs)
+    # ============================================================================
+    
+    async def _calcular_total_asesores_activos(self, fecha_inicio: datetime, fecha_fin: datetime, ciudad: str = None) -> int:
+        """KPI 1: Total de Asesores Activos (con al menos una oferta)"""
+        query = """
+        SELECT COUNT(DISTINCT o.asesor_id) as total_asesores_activos
+        FROM ofertas o
+        """
+        params = [fecha_inicio, fecha_fin]
+        
+        if ciudad:
+            query += """
+            JOIN asesores a ON o.asesor_id = a.id
+            WHERE o.created_at BETWEEN $1 AND $2
+            AND a.ciudad = $3
+            """
+            params.append(ciudad)
+        else:
+            query += "WHERE o.created_at BETWEEN $1 AND $2"
+            
+        result = await self._execute_query(query, params)
+        return result[0]['total_asesores_activos'] if result else 0
+
+    
+    async def _calcular_tasa_respuesta_asesores(self, fecha_inicio: datetime, fecha_fin: datetime, ciudad: str = None) -> Dict[str, Any]:
+        """KPI 2: Tasa de Respuesta Promedio"""
+        ciudad_filter = "AND a.ciudad = $3" if ciudad else ""
+        params = [fecha_inicio, fecha_fin]
+        if ciudad:
+            params.append(ciudad)
+            
+        query = f"""
+        WITH asignaciones AS (
+            SELECT 
+                sa.asesor_id,
+                COUNT(DISTINCT sa.solicitud_id) as solicitudes_asignadas
+            FROM solicitudes_asesores sa
+            JOIN asesores a ON sa.asesor_id = a.id
+            WHERE sa.created_at BETWEEN $1 AND $2
+            {ciudad_filter}
+            GROUP BY sa.asesor_id
+        ),
+        respuestas AS (
+            SELECT 
+                o.asesor_id,
+                COUNT(DISTINCT o.solicitud_id) as solicitudes_respondidas
+            FROM ofertas o
+            JOIN asesores a ON o.asesor_id = a.id
+            WHERE o.created_at BETWEEN $1 AND $2
+            {ciudad_filter}
+            GROUP BY o.asesor_id
+        )
+        SELECT 
+            COUNT(DISTINCT asig.asesor_id) as total_asesores,
+            ROUND(AVG(CASE 
+                WHEN asig.solicitudes_asignadas > 0 THEN 
+                    (COALESCE(resp.solicitudes_respondidas, 0)::FLOAT / asig.solicitudes_asignadas * 100)
+                ELSE 0 
+            END), 2) as tasa_respuesta_promedio
+        FROM asignaciones asig
+        LEFT JOIN respuestas resp ON asig.asesor_id = resp.asesor_id
+        """
+        result = await self._execute_query(query, params)
+        if result:
+            return {
+                "total_asesores": result[0]['total_asesores'],
+                "tasa_promedio": float(result[0]['tasa_respuesta_promedio'] or 0)
+            }
+        return {"total_asesores": 0, "tasa_promedio": 0.0}
+
+    
+    async def _calcular_tiempo_respuesta_asesores(self, fecha_inicio: datetime, fecha_fin: datetime, ciudad: str = None) -> Dict[str, Any]:
+        """KPI 3: Tiempo de Respuesta Promedio (TTFO por Asesor)"""
+        ciudad_filter = "AND a.ciudad = $3" if ciudad else ""
+        params = [fecha_inicio, fecha_fin]
+        if ciudad:
+            params.append(ciudad)
+            
+        query = f"""
+        WITH tiempos_respuesta AS (
+            SELECT 
+                o.asesor_id,
+                EXTRACT(EPOCH FROM (o.created_at - sa.created_at)) / 60 as minutos
+            FROM ofertas o
+            JOIN solicitudes_asesores sa ON o.solicitud_id = sa.solicitud_id 
+                AND o.asesor_id = sa.asesor_id
+            JOIN asesores a ON o.asesor_id = a.id
+            WHERE o.created_at BETWEEN $1 AND $2
+            AND sa.created_at < o.created_at
+            {ciudad_filter}
+        )
+        SELECT 
+            COUNT(DISTINCT asesor_id) as asesores_con_respuestas,
+            ROUND(AVG(minutos), 2) as tiempo_promedio_minutos,
+            ROUND(PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY minutos), 2) as mediana_minutos,
+            ROUND(MIN(minutos), 2) as min_minutos,
+            ROUND(MAX(minutos), 2) as max_minutos
+        FROM tiempos_respuesta
+        """
+        result = await self._execute_query(query, params)
+        if result and result[0]['asesores_con_respuestas']:
+            return {
+                "asesores_con_respuestas": result[0]['asesores_con_respuestas'],
+                "tiempo_promedio_minutos": float(result[0]['tiempo_promedio_minutos'] or 0),
+                "mediana_minutos": float(result[0]['mediana_minutos'] or 0),
+                "min_minutos": float(result[0]['min_minutos'] or 0),
+                "max_minutos": float(result[0]['max_minutos'] or 0)
+            }
+        return {"asesores_con_respuestas": 0, "tiempo_promedio_minutos": 0.0, "mediana_minutos": 0.0, "min_minutos": 0.0, "max_minutos": 0.0}
+
+    
+    async def _calcular_ofertas_por_asesor(self, fecha_inicio: datetime, fecha_fin: datetime, ciudad: str = None) -> Dict[str, Any]:
+        """KPI 4: Ofertas por Asesor (Promedio)"""
+        ciudad_filter = "AND a.ciudad = $3" if ciudad else ""
+        params = [fecha_inicio, fecha_fin]
+        if ciudad:
+            params.append(ciudad)
+            
+        query = f"""
+        WITH ofertas_por_asesor AS (
+            SELECT 
+                o.asesor_id,
+                COUNT(*) as total_ofertas
+            FROM ofertas o
+            JOIN asesores a ON o.asesor_id = a.id
+            WHERE o.created_at BETWEEN $1 AND $2
+            {ciudad_filter}
+            GROUP BY o.asesor_id
+        )
+        SELECT 
+            COUNT(*) as total_asesores,
+            ROUND(AVG(total_ofertas), 2) as ofertas_promedio,
+            ROUND(PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY total_ofertas), 2) as mediana,
+            MIN(total_ofertas) as min_ofertas,
+            MAX(total_ofertas) as max_ofertas
+        FROM ofertas_por_asesor
+        """
+        result = await self._execute_query(query, params)
+        if result and result[0]['total_asesores']:
+            return {
+                "total_asesores": result[0]['total_asesores'],
+                "ofertas_promedio": float(result[0]['ofertas_promedio'] or 0),
+                "mediana": float(result[0]['mediana'] or 0),
+                "min_ofertas": result[0]['min_ofertas'],
+                "max_ofertas": result[0]['max_ofertas']
+            }
+        return {"total_asesores": 0, "ofertas_promedio": 0.0, "mediana": 0.0, "min_ofertas": 0, "max_ofertas": 0}
+
+    
+    async def _calcular_tasa_adjudicacion_asesor(self, fecha_inicio: datetime, fecha_fin: datetime, ciudad: str = None) -> Dict[str, Any]:
+        """KPI 5: Tasa de Adjudicación por Asesor"""
+        ciudad_filter = "AND a.ciudad = $3" if ciudad else ""
+        params = [fecha_inicio, fecha_fin]
+        if ciudad:
+            params.append(ciudad)
+            
+        query = f"""
+        WITH estadisticas_asesor AS (
+            SELECT 
+                o.asesor_id,
+                COUNT(*) as total_ofertas,
+                COUNT(CASE WHEN o.estado = 'GANADORA' THEN 1 END) as ofertas_ganadoras,
+                CASE 
+                    WHEN COUNT(*) > 0 THEN 
+                        ROUND(COUNT(CASE WHEN o.estado = 'GANADORA' THEN 1 END)::FLOAT / COUNT(*) * 100, 2)
+                    ELSE 0 
+                END as tasa_adjudicacion
+            FROM ofertas o
+            JOIN asesores a ON o.asesor_id = a.id
+            WHERE o.created_at BETWEEN $1 AND $2
+            {ciudad_filter}
+            GROUP BY o.asesor_id
+        )
+        SELECT 
+            COUNT(*) as total_asesores,
+            ROUND(AVG(tasa_adjudicacion), 2) as tasa_promedio,
+            ROUND(PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY tasa_adjudicacion), 2) as mediana,
+            ROUND(MIN(tasa_adjudicacion), 2) as min_tasa,
+            ROUND(MAX(tasa_adjudicacion), 2) as max_tasa
+        FROM estadisticas_asesor
+        """
+        result = await self._execute_query(query, params)
+        if result and result[0]['total_asesores']:
+            return {
+                "total_asesores": result[0]['total_asesores'],
+                "tasa_promedio": float(result[0]['tasa_promedio'] or 0),
+                "mediana": float(result[0]['mediana'] or 0),
+                "min_tasa": float(result[0]['min_tasa'] or 0),
+                "max_tasa": float(result[0]['max_tasa'] or 0)
+            }
+        return {"total_asesores": 0, "tasa_promedio": 0.0, "mediana": 0.0, "min_tasa": 0.0, "max_tasa": 0.0}
+
+    
+    async def _calcular_ranking_top_asesores(self, fecha_inicio: datetime, fecha_fin: datetime, ciudad: str = None) -> list:
+        """KPI 6: Ranking Top 10 Asesores"""
+        ciudad_filter = "AND a.ciudad = $3" if ciudad else ""
+        params = [fecha_inicio, fecha_fin]
+        if ciudad:
+            params.append(ciudad)
+            
+        query = f"""
+        WITH ofertas_totales AS (
+            SELECT asesor_id, COUNT(*) as total
+            FROM ofertas 
+            WHERE created_at BETWEEN $1 AND $2
+            GROUP BY asesor_id
+        )
+        SELECT 
+            a.id,
+            a.nombre_comercial,
+            a.ciudad,
+            COUNT(o.id) as ofertas_ganadoras,
+            ROUND(AVG(COALESCE(ev.puntaje_total, 0)), 2) as puntaje_promedio,
+            ROUND(COUNT(o.id)::FLOAT / NULLIF(ot.total, 0) * 100, 2) as tasa_adjudicacion
+        FROM asesores a
+        JOIN ofertas o ON a.id = o.asesor_id
+        LEFT JOIN evaluaciones ev ON o.id = ev.oferta_id
+        LEFT JOIN ofertas_totales ot ON a.id = ot.asesor_id
+        WHERE o.estado = 'GANADORA'
+        AND o.created_at BETWEEN $1 AND $2
+        {ciudad_filter}
+        GROUP BY a.id, a.nombre_comercial, a.ciudad, ot.total
+        ORDER BY ofertas_ganadoras DESC, puntaje_promedio DESC
+        LIMIT 10
+        """
+        result = await self._execute_query(query, params)
+        if result:
+            return [
+                {
+                    "id": row['id'],
+                    "nombre_comercial": row['nombre_comercial'],
+                    "ciudad": row['ciudad'],
+                    "ofertas_ganadoras": row['ofertas_ganadoras'],
+                    "puntaje_promedio": float(row['puntaje_promedio'] or 0),
+                    "tasa_adjudicacion": float(row['tasa_adjudicacion'] or 0)
+                }
+                for row in result
+            ]
+        return []
+
+    
+    async def _calcular_especializacion_repuestos(self, fecha_inicio: datetime, fecha_fin: datetime, ciudad: str = None) -> list:
+        """KPI 7: Especialización por Tipo de Repuesto"""
+        ciudad_filter = "AND a.ciudad = $3" if ciudad else ""
+        params = [fecha_inicio, fecha_fin]
+        if ciudad:
+            params.append(ciudad)
+            
+        query = f"""
+        SELECT 
+            rs.categoria,
+            COUNT(DISTINCT o.asesor_id) as asesores_participantes,
+            COUNT(o.id) as total_ofertas,
+            COUNT(CASE WHEN o.estado = 'GANADORA' THEN 1 END) as ofertas_ganadoras,
+            ROUND(COUNT(CASE WHEN o.estado = 'GANADORA' THEN 1 END)::FLOAT / NULLIF(COUNT(o.id), 0) * 100, 2) as tasa_exito
+        FROM ofertas o
+        JOIN asesores a ON o.asesor_id = a.id
+        JOIN ofertas_detalle od ON o.id = od.oferta_id
+        JOIN repuestos_solicitud rs ON od.repuesto_solicitud_id = rs.id
+        WHERE o.created_at BETWEEN $1 AND $2
+        {ciudad_filter}
+        GROUP BY rs.categoria
+        ORDER BY total_ofertas DESC
+        LIMIT 20
+        """
+        result = await self._execute_query(query, params)
+        if result:
+            return [
+                {
+                    "categoria": row['categoria'],
+                    "asesores_participantes": row['asesores_participantes'],
+                    "total_ofertas": row['total_ofertas'],
+                    "ofertas_ganadoras": row['ofertas_ganadoras'],
+                    "tasa_exito": float(row['tasa_exito'] or 0)
+                }
+                for row in result
+            ]
+        return []
+
+    
+    async def _calcular_distribucion_geografica(self, fecha_inicio: datetime, fecha_fin: datetime) -> list:
+        """KPI 8: Distribución Geográfica"""
+        query = """
+        SELECT 
+            a.ciudad,
+            COUNT(DISTINCT a.id) as asesores_activos,
+            COUNT(o.id) as total_ofertas,
+            COUNT(CASE WHEN o.estado = 'GANADORA' THEN 1 END) as ofertas_ganadoras,
+            ROUND(AVG(CASE 
+                WHEN o.estado = 'GANADORA' THEN 1.0 
+                ELSE 0.0 
+            END) * 100, 2) as tasa_adjudicacion
+        FROM asesores a
+        JOIN ofertas o ON a.id = o.asesor_id
+        WHERE o.created_at BETWEEN $1 AND $2
+        GROUP BY a.ciudad
+        ORDER BY asesores_activos DESC
+        LIMIT 20
+        """
+        result = await self._execute_query(query, [fecha_inicio, fecha_fin])
+        if result:
+            return [
+                {
+                    "ciudad": row['ciudad'],
+                    "asesores_activos": row['asesores_activos'],
+                    "total_ofertas": row['total_ofertas'],
+                    "ofertas_ganadoras": row['ofertas_ganadoras'],
+                    "tasa_adjudicacion": float(row['tasa_adjudicacion'] or 0)
+                }
+                for row in result
+            ]
+        return []
+
+    
+    async def _calcular_nivel_confianza_promedio(self, fecha_inicio: datetime, fecha_fin: datetime, ciudad: str = None) -> Dict[str, Any]:
+        """KPI 9: Nivel de Confianza Promedio"""
+        ciudad_filter = "AND a.ciudad = $3" if ciudad else ""
+        params = [fecha_inicio, fecha_fin]
+        if ciudad:
+            params.append(ciudad)
+            
+        query = f"""
+        SELECT 
+            COUNT(DISTINCT a.id) as total_asesores,
+            ROUND(AVG(a.nivel_confianza), 2) as nivel_promedio,
+            ROUND(PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY a.nivel_confianza), 2) as mediana,
+            ROUND(MIN(a.nivel_confianza), 2) as min_nivel,
+            ROUND(MAX(a.nivel_confianza), 2) as max_nivel
+        FROM asesores a
+        WHERE a.id IN (
+            SELECT DISTINCT asesor_id 
+            FROM ofertas 
+            WHERE created_at BETWEEN $1 AND $2
+        )
+        {ciudad_filter}
+        """
+        result = await self._execute_query(query, params)
+        if result and result[0]['total_asesores']:
+            return {
+                "total_asesores": result[0]['total_asesores'],
+                "nivel_promedio": float(result[0]['nivel_promedio'] or 0),
+                "mediana": float(result[0]['mediana'] or 0),
+                "min_nivel": float(result[0]['min_nivel'] or 0),
+                "max_nivel": float(result[0]['max_nivel'] or 0)
+            }
+        return {"total_asesores": 0, "nivel_promedio": 0.0, "mediana": 0.0, "min_nivel": 0.0, "max_nivel": 0.0}
+
+    
+    async def _calcular_asesores_nuevos(self, fecha_inicio: datetime, fecha_fin: datetime, ciudad: str = None) -> Dict[str, Any]:
+        """KPI 10: Asesores Nuevos"""
+        ciudad_filter = "AND ciudad = $3" if ciudad else ""
+        params = [fecha_inicio, fecha_fin]
+        if ciudad:
+            params.append(ciudad)
+            
+        query = f"""
+        SELECT 
+            COUNT(*) as asesores_nuevos,
+            COUNT(CASE WHEN estado = 'ACTIVO' THEN 1 END) as activos,
+            COUNT(CASE WHEN id IN (
+                SELECT DISTINCT asesor_id FROM ofertas 
+                WHERE created_at BETWEEN $1 AND $2
+            ) THEN 1 END) as con_ofertas
+        FROM asesores
+        WHERE created_at BETWEEN $1 AND $2
+        {ciudad_filter}
+        """
+        result = await self._execute_query(query, params)
+        if result:
+            return {
+                "asesores_nuevos": result[0]['asesores_nuevos'],
+                "activos": result[0]['activos'],
+                "con_ofertas": result[0]['con_ofertas']
+            }
+        return {"asesores_nuevos": 0, "activos": 0, "con_ofertas": 0}
+
+    
+    async def _calcular_tasa_retencion_asesores(self, fecha_inicio: datetime, fecha_fin: datetime, ciudad: str = None) -> Dict[str, Any]:
+        """KPI 11: Tasa de Retención"""
+        ciudad_filter = "AND a.ciudad = $4" if ciudad else ""
+        params = [fecha_inicio, fecha_fin, fecha_inicio]
+        if ciudad:
+            params.append(ciudad)
+            
+        query = f"""
+        WITH periodo_anterior AS (
+            SELECT DISTINCT o.asesor_id
+            FROM ofertas o
+            JOIN asesores a ON o.asesor_id = a.id
+            WHERE o.created_at BETWEEN $1 - INTERVAL '30 days' AND $1
+            {ciudad_filter}
+        ),
+        periodo_actual AS (
+            SELECT DISTINCT o.asesor_id
+            FROM ofertas o
+            JOIN asesores a ON o.asesor_id = a.id
+            WHERE o.created_at BETWEEN $1 AND $2
+            {ciudad_filter}
+        )
+        SELECT 
+            (SELECT COUNT(*) FROM periodo_anterior) as asesores_periodo_anterior,
+            (SELECT COUNT(*) FROM periodo_actual WHERE asesor_id IN (SELECT asesor_id FROM periodo_anterior)) as asesores_retenidos,
+            ROUND(
+                (SELECT COUNT(*) FROM periodo_actual WHERE asesor_id IN (SELECT asesor_id FROM periodo_anterior))::FLOAT / 
+                NULLIF((SELECT COUNT(*) FROM periodo_anterior), 0) * 100, 
+                2
+            ) as tasa_retencion
+        """
+        result = await self._execute_query(query, params)
+        if result:
+            return {
+                "asesores_periodo_anterior": result[0]['asesores_periodo_anterior'],
+                "asesores_retenidos": result[0]['asesores_retenidos'],
+                "tasa_retencion": float(result[0]['tasa_retencion'] or 0)
+            }
+        return {"asesores_periodo_anterior": 0, "asesores_retenidos": 0, "tasa_retencion": 0.0}
+
+    
+    async def _calcular_satisfaccion_cliente_asesores(self, fecha_inicio: datetime, fecha_fin: datetime, ciudad: str = None) -> Dict[str, Any]:
+        """KPI 12: Satisfacción del Cliente (por Asesor)"""
+        ciudad_filter = "AND a.ciudad = $3" if ciudad else ""
+        params = [fecha_inicio, fecha_fin]
+        if ciudad:
+            params.append(ciudad)
+            
+        query = f"""
+        SELECT 
+            COUNT(DISTINCT o.asesor_id) as asesores_calificados,
+            ROUND(AVG(s.calificacion_asesor), 2) as calificacion_promedio,
+            ROUND(PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY s.calificacion_asesor), 2) as mediana,
+            ROUND(MIN(s.calificacion_asesor), 2) as min_calificacion,
+            ROUND(MAX(s.calificacion_asesor), 2) as max_calificacion
+        FROM ofertas o
+        JOIN solicitudes s ON o.solicitud_id = s.id
+        JOIN asesores a ON o.asesor_id = a.id
+        WHERE o.estado = 'GANADORA'
+        AND s.calificacion_asesor IS NOT NULL
+        AND o.created_at BETWEEN $1 AND $2
+        {ciudad_filter}
+        """
+        result = await self._execute_query(query, params)
+        if result and result[0]['asesores_calificados']:
+            return {
+                "asesores_calificados": result[0]['asesores_calificados'],
+                "calificacion_promedio": float(result[0]['calificacion_promedio'] or 0),
+                "mediana": float(result[0]['mediana'] or 0),
+                "min_calificacion": float(result[0]['min_calificacion'] or 0),
+                "max_calificacion": float(result[0]['max_calificacion'] or 0)
+            }
+        return {"asesores_calificados": 0, "calificacion_promedio": 0.0, "mediana": 0.0, "min_calificacion": 0.0, "max_calificacion": 0.0}
+
+    
+    async def _calcular_valor_promedio_oferta_asesor(self, fecha_inicio: datetime, fecha_fin: datetime, ciudad: str = None) -> Dict[str, Any]:
+        """KPI 13: Valor Promedio de Oferta por Asesor"""
+        ciudad_filter = "AND a.ciudad = $3" if ciudad else ""
+        params = [fecha_inicio, fecha_fin]
+        if ciudad:
+            params.append(ciudad)
+            
+        query = f"""
+        WITH valores_por_asesor AS (
+            SELECT 
+                o.asesor_id,
+                SUM(od.precio_unitario * rs.cantidad) as valor_oferta
+            FROM ofertas o
+            JOIN asesores a ON o.asesor_id = a.id
+            JOIN ofertas_detalle od ON o.id = od.oferta_id
+            JOIN repuestos_solicitud rs ON od.repuesto_solicitud_id = rs.id
+            WHERE o.created_at BETWEEN $1 AND $2
+            {ciudad_filter}
+            GROUP BY o.asesor_id, o.id
+        )
+        SELECT 
+            COUNT(DISTINCT asesor_id) as total_asesores,
+            ROUND(AVG(valor_oferta), 0) as valor_promedio,
+            ROUND(PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY valor_oferta), 0) as mediana,
+            ROUND(MIN(valor_oferta), 0) as min_valor,
+            ROUND(MAX(valor_oferta), 0) as max_valor
+        FROM valores_por_asesor
+        """
+        result = await self._execute_query(query, params)
+        if result and result[0]['total_asesores']:
+            return {
+                "total_asesores": result[0]['total_asesores'],
+                "valor_promedio": int(result[0]['valor_promedio'] or 0),
+                "mediana": int(result[0]['mediana'] or 0),
+                "min_valor": int(result[0]['min_valor'] or 0),
+                "max_valor": int(result[0]['max_valor'] or 0)
+            }
+        return {"total_asesores": 0, "valor_promedio": 0, "mediana": 0, "min_valor": 0, "max_valor": 0}

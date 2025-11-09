@@ -213,7 +213,7 @@ async def get_analisis_asesores(
     ciudad: Optional[str] = Query(None, description="Filtrar por ciudad")
 ) -> Dict[str, Any]:
     """
-    Obtener análisis de asesores con 13 KPIs de performance
+    Obtener análisis de asesores con 13 KPIs alineados
     """
     try:
         if not fecha_inicio:
@@ -221,22 +221,7 @@ async def get_analisis_asesores(
         if not fecha_fin:
             fecha_fin = datetime.utcnow()
             
-        # Por ahora retornamos estructura básica
-        asesores = {
-            "total_asesores": 0,
-            "asesores_activos": 0,
-            "tasa_respuesta_promedio": 0,
-            "tiempo_respuesta_promedio": 0,
-            "ofertas_por_asesor": 0,
-            "tasa_adjudicacion": 0,
-            "ranking_top_10": [],
-            "especializacion_por_repuesto": {},
-            "distribucion_geografica": {},
-            "nivel_confianza_promedio": 0,
-            "asesores_nuevos": 0,
-            "retension_asesores": 0,
-            "satisfaccion_cliente": 0
-        }
+        asesores = await metrics_calculator.get_analisis_asesores(fecha_inicio, fecha_fin, ciudad)
         
         return {
             "dashboard": "asesores",
