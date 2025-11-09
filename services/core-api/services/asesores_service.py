@@ -68,7 +68,7 @@ class AsesoresService:
                         password = f"TeLOO{datetime.now().year}!"
                     
                     # Create user
-                    password_hash = AuthService.hash_password(password)
+                    password_hash = AuthService.get_password_hash(password)
                     
                     usuario = await Usuario.create(
                         email=email,

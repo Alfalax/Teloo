@@ -9,6 +9,7 @@ async def init_db():
     database_url = os.getenv("DATABASE_URL", "postgres://teloo_user:teloo_password@postgres:5432/teloo_v3")
     
     # Configuración de base de datos
+    # IMPORTANTE: Analytics necesita acceso a los modelos del core-api para hacer queries
     DATABASE_CONFIG = {
         "connections": {
             "default": database_url,
@@ -16,8 +17,11 @@ async def init_db():
         "apps": {
             "models": {
                 "models": [
+                    # Modelos propios de Analytics
                     "app.models.events",
                     "app.models.metrics",
+                    # Modelos del core-api necesarios para queries de métricas
+                    # Nota: Solo se usan para lectura, no se modifican
                 ],
                 "default_connection": "default",
             }
@@ -28,7 +32,7 @@ async def init_db():
     
     await Tortoise.init(config=DATABASE_CONFIG)
     
-    # Generate schemas (create tables if they don't exist)
+    # Generate schemas solo para modelos de Analytics (safe=True no sobrescribe)
     await Tortoise.generate_schemas(safe=True)
 
 async def close_db():

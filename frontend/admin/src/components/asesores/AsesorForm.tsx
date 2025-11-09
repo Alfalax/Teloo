@@ -50,6 +50,7 @@ export function AsesorForm({
   const [ciudades, setCiudades] = useState<string[]>([]);
   const [departamentos, setDepartamentos] = useState<string[]>([]);
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const [serverError, setServerError] = useState<string>('');
   const [loadingData, setLoadingData] = useState(false);
 
   const isEditing = !!asesor;
@@ -57,6 +58,8 @@ export function AsesorForm({
   useEffect(() => {
     if (isOpen) {
       loadFormData();
+      setServerError(''); // Clear server error when opening form
+      setErrors({}); // Clear validation errors
     }
   }, [isOpen]);
 
@@ -174,9 +177,12 @@ export function AsesorForm({
       } else {
         await onSubmit(formData);
       }
+      setServerError('');
       onClose();
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error submitting form:', error);
+      const errorMessage = error.message || error.response?.data?.detail || 'Error al guardar el asesor';
+      setServerError(errorMessage);
     }
   };
 
@@ -349,6 +355,12 @@ export function AsesorForm({
               {errors.password && (
                 <p className="text-sm text-destructive">{errors.password}</p>
               )}
+            </div>
+          )}
+
+          {serverError && (
+            <div className="bg-red-50 border border-red-200 rounded-md p-3 mt-4">
+              <p className="text-sm text-red-800">{serverError}</p>
             </div>
           )}
 

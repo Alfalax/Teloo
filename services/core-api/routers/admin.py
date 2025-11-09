@@ -434,7 +434,7 @@ async def create_usuario(
             raise HTTPException(status_code=400, detail="El email ya está registrado")
         
         # Crear usuario
-        password_hash = AuthService.hash_password(usuario_data['password'])
+        password_hash = AuthService.get_password_hash(usuario_data['password'])
         usuario = await Usuario.create(
             email=usuario_data['email'],
             password_hash=password_hash,
@@ -493,7 +493,7 @@ async def update_usuario(
             usuario.estado = EstadoUsuario(usuario_data['estado'])
         if 'password' in usuario_data:
             from services.auth_service import AuthService
-            usuario.password_hash = AuthService.hash_password(usuario_data['password'])
+            usuario.password_hash = AuthService.get_password_hash(usuario_data['password'])
         
         await usuario.save()
         

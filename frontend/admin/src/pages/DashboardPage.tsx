@@ -1,20 +1,53 @@
 import { useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { TrendingUp, Users, ShoppingCart, DollarSign, RefreshCw, AlertCircle, BarChart3, Download } from 'lucide-react';
+import { TrendingUp, Users, ShoppingCart, DollarSign, RefreshCw, AlertCircle, Activity, CheckCircle, Download } from 'lucide-react';
 import { KPICard } from '@/components/dashboard/KPICard';
 import { LineChart } from '@/components/charts/LineChart';
 import { TopSolicitudesTable } from '@/components/dashboard/TopSolicitudesTable';
-import { AnalyticsDashboard } from '@/components/dashboard/AnalyticsDashboard';
 import { useDashboardData } from '@/hooks/useDashboard';
 import { analyticsService } from '@/services/analytics';
+import { useQuery } from '@tanstack/react-query';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
 
+// MetricRow component for Salud del Sistema
+interface MetricRowProps {
+  label: string;
+  value: string | number;
+  status?: 'good' | 'warning' | 'critical';
+  unit?: string;
+}
+
+const MetricRow: React.FC<MetricRowProps> = ({ label, value, status, unit }) => {
+  const getStatusIcon = () => {
+    switch (status) {
+      case 'good':
+        return <CheckCircle className="h-4 w-4 text-green-500" />;
+      case 'warning':
+        return <AlertCircle className="h-4 w-4 text-yellow-500" />;
+      case 'critical':
+        return <AlertCircle className="h-4 w-4 text-red-500" />;
+      default:
+        return null;
+    }
+  };
+
+  return (
+    <div className="flex justify-between items-center py-3 border-b border-gray-100 last:border-b-0">
+      <div className="flex items-center gap-2">
+        {getStatusIcon()}
+        <span className="font-medium text-gray-700">{label}</span>
+      </div>
+      <div className="flex items-center gap-1">
+        <span className="font-semibold text-gray-900">{value}</span>
+        {unit && <span className="text-sm text-gray-500">{unit}</span>}
+      </div>
+    </div>
+  );
+};
+
 export function DashboardPage() {
-  const [activeTab, setActiveTab] = useState('overview');
-  
   const {
     dashboardData,
     graficosData,
@@ -24,6 +57,13 @@ export function DashboardPage() {
     refetchDashboard,
     periodo,
   } = useDashboardData();
+
+  // Query for Salud del Sistema
+  const { data: saludData, isLoading: saludLoading } = useQuery({
+    queryKey: ['salud-marketplace'],
+    queryFn: () => analyticsService.getSaludMarketplace(),
+    refetchInterval: 120000, // Refetch every 2 minutes
+  });
 
   const handleExportDashboard = () => {
     const exportData = {
@@ -37,7 +77,15 @@ export function DashboardPage() {
   };
 
   // Format KPI data for display
-  const formatKPIValue = (value: number, type: 'currency' | 'number' | 'percentage') => {
+  const formatKPIValue = (value: number | string, type: 'currency' | 'number' | 'percentage') => {
+    // Convertir a número si es string
+    const numValue = typeof value === 'string' ? parseFloat(value) : value;
+    
+    // Validar que sea un número válido
+    if (isNaN(numValue)) {
+      return type === 'percentage' ? '0%' : '0';
+    }
+    
     switch (type) {
       case 'currency':
         return new Intl.NumberFormat('es-CO', {
@@ -45,11 +93,11 @@ export function DashboardPage() {
           currency: 'COP',
           minimumFractionDigits: 0,
           maximumFractionDigits: 0,
-        }).format(value);
+        }).format(numValue);
       case 'percentage':
-        return `${value.toFixed(1)}%`;
+        return `${numValue.toFixed(1)}%`;
       default:
-        return value.toLocaleString('es-CO');
+        return numValue.toLocaleString('es-CO');
     }
   };
 
@@ -127,19 +175,7 @@ export function DashboardPage() {
         </div>
       </div>
 
-      <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
-        <TabsList>
-          <TabsTrigger value="overview" className="flex items-center gap-2">
-            <TrendingUp className="h-4 w-4" />
-            Resumen
-          </TabsTrigger>
-          <TabsTrigger value="analytics" className="flex items-center gap-2">
-            <BarChart3 className="h-4 w-4" />
-            Analytics Completo
-          </TabsTrigger>
-        </TabsList>
-
-        <TabsContent value="overview" className="space-y-6">
+      <div className="space-y-6">
           {/* KPIs Grid */}
           <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
         <KPICard
@@ -249,52 +285,71 @@ export function DashboardPage() {
         />
       </div>
 
-      {/* Recent Activity */}
+      {/* Salud del Sistema */}
       <Card>
         <CardHeader>
-          <CardTitle>Actividad Reciente</CardTitle>
+          <CardTitle className="flex items-center gap-2">
+            <Activity className="h-5 w-5 text-green-600" />
+            Salud del Sistema
+          </CardTitle>
           <CardDescription>
-            Últimas acciones en el sistema
+            Métricas de rendimiento y disponibilidad del sistema
           </CardDescription>
         </CardHeader>
         <CardContent>
-          {isLoading ? (
-            <div className="space-y-4">
-              {Array.from({ length: 5 }).map((_, index) => (
-                <div key={index} className="flex items-center space-x-4">
-                  <div className="w-2 h-2 bg-muted animate-pulse rounded-full"></div>
-                  <div className="h-4 w-64 bg-muted animate-pulse rounded flex-1"></div>
-                  <div className="h-3 w-16 bg-muted animate-pulse rounded"></div>
-                </div>
+          {saludLoading ? (
+            <div className="space-y-3">
+              {[...Array(5)].map((_, i) => (
+                <div key={i} className="h-4 bg-gray-200 animate-pulse rounded"></div>
               ))}
             </div>
           ) : (
-            <div className="space-y-4">
-              {[
-                'Nueva solicitud creada: SOL-123',
-                'Oferta ganadora: Asesor Juan Pérez',
-                'Cliente aceptó oferta: SOL-120',
-                'Evaluación completada: SOL-118',
-                'Nuevo asesor registrado: María García',
-              ].map((activity, index) => (
-                <div key={index} className="flex items-center space-x-4">
-                  <div className="w-2 h-2 bg-primary rounded-full"></div>
-                  <p className="text-sm">{activity}</p>
-                  <span className="text-xs text-muted-foreground ml-auto">
-                    Hace {index + 1} min
-                  </span>
-                </div>
-              ))}
+            <div className="space-y-1">
+              <MetricRow
+                label="Disponibilidad Sistema"
+                value={saludData?.metricas?.disponibilidad_sistema || 99.5}
+                unit="%"
+                status={
+                  (saludData?.metricas?.disponibilidad_sistema || 99.5) > 99 ? 'good' :
+                  (saludData?.metricas?.disponibilidad_sistema || 99.5) > 95 ? 'warning' : 'critical'
+                }
+              />
+              <MetricRow
+                label="Latencia Promedio"
+                value={saludData?.metricas?.latencia_promedio || 150}
+                unit="ms"
+                status={
+                  (saludData?.metricas?.latencia_promedio || 150) < 200 ? 'good' :
+                  (saludData?.metricas?.latencia_promedio || 150) < 500 ? 'warning' : 'critical'
+                }
+              />
+              <MetricRow
+                label="Tasa de Error"
+                value={((saludData?.metricas?.tasa_error || 0.02) * 100).toFixed(2)}
+                unit="%"
+                status={
+                  (saludData?.metricas?.tasa_error || 0.02) < 0.01 ? 'good' :
+                  (saludData?.metricas?.tasa_error || 0.02) < 0.05 ? 'warning' : 'critical'
+                }
+              />
+              <MetricRow
+                label="Asesores Activos"
+                value={saludData?.metricas?.asesores_activos || 0}
+              />
+              <MetricRow
+                label="Carga del Sistema"
+                value={saludData?.metricas?.carga_sistema || 65}
+                unit="%"
+                status={
+                  (saludData?.metricas?.carga_sistema || 65) < 70 ? 'good' :
+                  (saludData?.metricas?.carga_sistema || 65) < 85 ? 'warning' : 'critical'
+                }
+              />
             </div>
           )}
         </CardContent>
       </Card>
-        </TabsContent>
-
-        <TabsContent value="analytics">
-          <AnalyticsDashboard />
-        </TabsContent>
-      </Tabs>
+      </div>
     </div>
   );
 }

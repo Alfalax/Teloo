@@ -170,7 +170,7 @@ async def create_asesor(
             raise HTTPException(status_code=400, detail="El email ya está registrado")
         
         # Create user
-        password_hash = AuthService.hash_password(asesor_data.password)
+        password_hash = AuthService.get_password_hash(asesor_data.password)
         
         usuario = await Usuario.create(
             email=asesor_data.email,
@@ -384,22 +384,30 @@ async def get_asesores_kpis(
         
         # Current period metrics
         total_asesores = await Asesor.filter(estado=EstadoAsesor.ACTIVO).count()
-        total_puntos_venta = await Asesor.filter(estado=EstadoAsesor.ACTIVO).count()  # Same as asesores for now
+        
+        # Calculate unique puntos de venta
+        asesores_activos = await Asesor.filter(estado=EstadoAsesor.ACTIVO).all()
+        unique_puntos_venta = set(asesor.punto_venta for asesor in asesores_activos if asesor.punto_venta)
+        total_puntos_venta = len(unique_puntos_venta)
         
         # Calculate coverage (unique cities/departments)
-        asesores_activos = await Asesor.filter(estado=EstadoAsesor.ACTIVO).all()
         unique_cities = set(asesor.ciudad for asesor in asesores_activos if asesor.ciudad)
         cobertura_nacional = len(unique_cities)
         
         # Previous period metrics for comparison
-        total_asesores_prev = await Asesor.filter(
+        asesores_prev = await Asesor.filter(
             estado=EstadoAsesor.ACTIVO,
             created_at__lt=fecha_inicio
-        ).count()
+        ).all()
+        total_asesores_prev = len(asesores_prev)
+        
+        # Calculate unique puntos de venta in previous period
+        unique_puntos_venta_prev = set(asesor.punto_venta for asesor in asesores_prev if asesor.punto_venta)
+        total_puntos_venta_prev = len(unique_puntos_venta_prev)
         
         # Calculate changes
         cambio_asesores = ((total_asesores - total_asesores_prev) / max(total_asesores_prev, 1)) * 100
-        cambio_puntos_venta = cambio_asesores  # Same calculation for now
+        cambio_puntos_venta = ((total_puntos_venta - total_puntos_venta_prev) / max(total_puntos_venta_prev, 1)) * 100
         cambio_cobertura = 0  # Would need historical data for proper calculation
         
         return {
