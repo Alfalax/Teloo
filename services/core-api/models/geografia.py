@@ -22,6 +22,7 @@ class Municipio(BaseModel):
     departamento = fields.CharField(max_length=100, index=True)
     area_metropolitana = fields.CharField(max_length=100, null=True, index=True)  # NULL si no pertenece
     hub_logistico = fields.CharField(max_length=100, index=True)
+    clasificacion = fields.CharField(max_length=20, default='TERCIARIA', index=True)  # PRINCIPAL, SECUNDARIA, TERCIARIA
     
     class Meta:
         table = "municipios"

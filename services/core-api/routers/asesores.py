@@ -390,9 +390,35 @@ async def get_asesores_kpis(
         unique_puntos_venta = set(asesor.punto_venta for asesor in asesores_activos if asesor.punto_venta)
         total_puntos_venta = len(unique_puntos_venta)
         
-        # Calculate coverage (unique cities/departments)
+        # Calculate coverage (unique cities/departments) - Only PRINCIPAL and SECUNDARIA cities
+        from models.geografia import Municipio
+        
+        # Get total principal and secondary cities
+        total_ciudades_principales = await Municipio.filter(
+            clasificacion__in=['PRINCIPAL', 'SECUNDARIA']
+        ).count()
+        
+        # Get unique cities with active advisors
         unique_cities = set(asesor.ciudad for asesor in asesores_activos if asesor.ciudad)
-        cobertura_nacional = len(unique_cities)
+        
+        # Count how many of these cities are principal or secondary
+        # Use flexible matching: check if normalized city name starts with the advisor's city
+        ciudades_con_asesores = 0
+        for ciudad in unique_cities:
+            ciudad_norm = Municipio.normalizar_ciudad(ciudad)
+            # Check if any principal/secondary city matches (starts with)
+            match = await Municipio.filter(
+                Q(municipio_norm__istartswith=ciudad_norm) | Q(municipio_norm=ciudad_norm),
+                clasificacion__in=['PRINCIPAL', 'SECUNDARIA']
+            ).exists()
+            if match:
+                ciudades_con_asesores += 1
+        
+        # Calculate coverage percentage
+        if total_ciudades_principales > 0:
+            cobertura_nacional = round((ciudades_con_asesores / total_ciudades_principales) * 100, 1)
+        else:
+            cobertura_nacional = 0.0
         
         # Previous period metrics for comparison
         asesores_prev = await Asesor.filter(

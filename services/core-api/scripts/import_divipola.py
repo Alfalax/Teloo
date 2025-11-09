@@ -7,12 +7,33 @@ import asyncio
 import pandas as pd
 from pathlib import Path
 import sys
+import unicodedata
 
 # Agregar el directorio padre al path para importar modelos
 sys.path.append(str(Path(__file__).parent.parent))
 
 from tortoise import Tortoise
 from models.geografia import Municipio
+
+
+def normalizar_texto(texto: str) -> str:
+    """
+    Normaliza texto: uppercase, sin tildes, trim
+    """
+    if pd.isna(texto):
+        return texto
+    
+    # Convertir a uppercase y trim
+    texto_norm = str(texto).strip().upper()
+    
+    # Remover tildes y caracteres especiales
+    texto_norm = unicodedata.normalize('NFD', texto_norm)
+    texto_norm = ''.join(
+        char for char in texto_norm 
+        if unicodedata.category(char) != 'Mn'
+    )
+    
+    return texto_norm
 
 
 async def import_divipola_from_excel(excel_path: str):
@@ -36,7 +57,8 @@ async def import_divipola_from_excel(excel_path: str):
         'Nombre Departamento': 'departamento',
         'Hub Logistico que pertenece': 'hub_logistico',
         'pertenece Area metropolitana': 'area_metropolitana',
-        ' Codigo': 'codigo_dane'
+        ' Codigo': 'codigo_dane',
+        'Clasificacion': 'clasificacion'
     }
     
     # Renombrar columnas
@@ -56,7 +78,7 @@ async def import_divipola_from_excel(excel_path: str):
     
     df = df.dropna(subset=required_columns)
     df['municipio'] = df['municipio'].str.strip()
-    df['municipio_norm'] = df['municipio'].str.strip().str.upper()
+    df['municipio_norm'] = df['municipio'].apply(normalizar_texto)
     df['departamento'] = df['departamento'].str.strip()
     df['hub_logistico'] = df['hub_logistico'].str.strip().str.upper()
     
@@ -74,6 +96,20 @@ async def import_divipola_from_excel(excel_path: str):
         df.loc[df['codigo_dane'] == 'nan', 'codigo_dane'] = None
     else:
         df['codigo_dane'] = None
+    
+    # Normalizar clasificación
+    if 'clasificacion' in df.columns:
+        df['clasificacion'] = df['clasificacion'].str.strip().str.upper()
+        # Convertir plural a singular
+        df['clasificacion'] = df['clasificacion'].str.replace('PRINCIPALES', 'PRINCIPAL')
+        df['clasificacion'] = df['clasificacion'].str.replace('SECUNDARIAS', 'SECUNDARIA')
+        df['clasificacion'] = df['clasificacion'].str.replace('TERCIARIAS', 'TERCIARIA')
+        # Validar valores permitidos
+        valid_classifications = ['PRINCIPAL', 'SECUNDARIA', 'TERCIARIA']
+        df.loc[~df['clasificacion'].isin(valid_classifications), 'clasificacion'] = 'TERCIARIA'
+        df['clasificacion'] = df['clasificacion'].fillna('TERCIARIA')
+    else:
+        df['clasificacion'] = 'TERCIARIA'
     
     # Validar duplicados por código DANE (no por nombre)
     if 'codigo_dane' in df.columns and df['codigo_dane'].notna().any():
@@ -126,7 +162,8 @@ async def import_divipola_from_excel(excel_path: str):
                 municipio_norm=row['municipio_norm'],
                 departamento=row['departamento'],
                 area_metropolitana=row.get('area_metropolitana'),
-                hub_logistico=row['hub_logistico']
+                hub_logistico=row['hub_logistico'],
+                clasificacion=row.get('clasificacion', 'TERCIARIA')
             )
             municipios_creados += 1
             
@@ -147,6 +184,9 @@ async def import_divipola_from_excel(excel_path: str):
     print(f"🏙️  Áreas metropolitanas: {df['area_metropolitana'].dropna().nunique()}")
     print(f"📦 Hubs logísticos: {df['hub_logistico'].nunique()}")
     print(f"🌆 Municipios con área metropolitana: {df['area_metropolitana'].notna().sum()}")
+    print(f"🏆 Clasificación - Principal: {(df['clasificacion'] == 'PRINCIPAL').sum()}")
+    print(f"🥈 Clasificación - Secundaria: {(df['clasificacion'] == 'SECUNDARIA').sum()}")
+    print(f"🥉 Clasificación - Terciaria: {(df['clasificacion'] == 'TERCIARIA').sum()}")
     print("="*60)
     
     # Mostrar distribución por hub
