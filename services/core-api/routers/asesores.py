@@ -437,16 +437,28 @@ async def get_asesores_kpis(
 
 
 @router.get("/ciudades", summary="Obtener lista de ciudades")
-async def get_ciudades(current_user: Usuario = Depends(get_current_active_user)):
+async def get_ciudades(
+    departamento: Optional[str] = Query(None, description="Filtrar por departamento"),
+    current_user: Usuario = Depends(get_current_active_user)
+):
     """
-    Obtiene lista única de ciudades de asesores
+    Obtiene lista única de ciudades desde la tabla municipios
+    Opcionalmente filtradas por departamento
     """
     try:
-        asesores = await Asesor.all()
-        ciudades = set(asesor.ciudad for asesor in asesores if asesor.ciudad)
+        from models.geografia import Municipio
+        
+        query = Municipio.all()
+        
+        if departamento:
+            query = query.filter(departamento__iexact=departamento)
+        
+        ciudades = await query.distinct().values_list('municipio', flat=True)
+        ciudades_sorted = sorted(list(set(ciudades)))
+        
         return {
             "success": True,
-            "data": sorted(list(ciudades))
+            "data": ciudades_sorted
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error obteniendo ciudades: {str(e)}")
@@ -455,14 +467,17 @@ async def get_ciudades(current_user: Usuario = Depends(get_current_active_user))
 @router.get("/departamentos", summary="Obtener lista de departamentos")
 async def get_departamentos(current_user: Usuario = Depends(get_current_active_user)):
     """
-    Obtiene lista única de departamentos de asesores
+    Obtiene lista única de departamentos desde la tabla municipios
     """
     try:
-        asesores = await Asesor.all()
-        departamentos = set(asesor.departamento for asesor in asesores if asesor.departamento)
+        from models.geografia import Municipio
+        
+        departamentos = await Municipio.all().distinct().values_list('departamento', flat=True)
+        departamentos_sorted = sorted(list(set(departamentos)))
+        
         return {
             "success": True,
-            "data": sorted(list(departamentos))
+            "data": departamentos_sorted
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error obteniendo departamentos: {str(e)}")
