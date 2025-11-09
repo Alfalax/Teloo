@@ -21,53 +21,29 @@ async def get_current_admin_user(current_user: Usuario = Depends(get_current_act
 router = APIRouter(prefix="/admin", tags=["admin"])
 
 
-@router.post("/import/areas-metropolitanas")
-async def import_areas_metropolitanas(
+@router.post("/import/divipola")
+async def import_divipola(
     file: UploadFile = File(...),
     current_user: Usuario = RequireAdmin
 ) -> Dict:
     """
-    Importa áreas metropolitanas desde archivo Excel
+    Importa municipios desde archivo Excel DIVIPOLA
     
-    Expected file format: Areas_Metropolitanas_TeLOO.xlsx
+    Expected file format: DIVIPOLA_Municipios.xlsx
     Required columns:
-    - area_metropolitana: Nombre del área metropolitana
-    - ciudad_nucleo: Ciudad núcleo del área
-    - municipio_norm: Municipio normalizado
-    
-    Optional columns:
+    - municipio: Nombre del municipio
     - departamento: Departamento
-    - poblacion: Población del municipio
-    """
-    
-    if not file.filename:
-        raise HTTPException(status_code=400, detail="No se proporcionó archivo")
-    
-    return await GeografiaService.importar_areas_metropolitanas_excel(file)
-
-
-@router.post("/import/hubs-logisticos")
-async def import_hubs_logisticos(
-    file: UploadFile = File(...),
-    current_user: Usuario = RequireAdmin
-) -> Dict:
-    """
-    Importa hubs logísticos desde archivo Excel
-    
-    Expected file format: Asignacion_Hubs_200km.xlsx
-    Required columns:
-    - municipio_norm: Municipio normalizado
-    - hub_asignado_norm: Hub logístico asignado normalizado
+    - hub_logistico: Hub logístico asignado
     
     Optional columns:
-    - distancia_km: Distancia al hub en kilómetros
-    - tiempo_estimado_horas: Tiempo estimado al hub en horas
+    - codigo_dane: Código DANE del municipio
+    - area_metropolitana: Área metropolitana (NULL si no aplica)
     """
     
     if not file.filename:
         raise HTTPException(status_code=400, detail="No se proporcionó archivo")
     
-    return await GeografiaService.importar_hubs_logisticos_excel(file)
+    return await GeografiaService.importar_divipola_excel(file)
 
 
 @router.get("/geografia/validar-integridad")
@@ -92,40 +68,53 @@ async def get_estadisticas_geograficas(
     return await GeografiaService.get_estadisticas_geograficas()
 
 
-@router.post("/import/geografia")
-async def import_geografia_completa(
-    areas_file: UploadFile = File(..., description="Archivo de áreas metropolitanas"),
-    hubs_file: UploadFile = File(..., description="Archivo de hubs logísticos"),
-    current_user: Usuario = RequireAdmin
+@router.get("/geografia/municipios")
+async def buscar_municipios(
+    query: Optional[str] = Query(None, description="Texto a buscar en nombre de municipio"),
+    departamento: Optional[str] = Query(None, description="Filtrar por departamento"),
+    hub: Optional[str] = Query(None, description="Filtrar por hub logístico"),
+    area_metropolitana: Optional[str] = Query(None, description="Filtrar por área metropolitana"),
+    limit: int = Query(50, ge=1, le=500, description="Límite de resultados"),
+    current_user: Usuario = RequireSystemManagement
 ) -> Dict:
     """
-    Importa datos geográficos completos (áreas metropolitanas + hubs logísticos)
-    Endpoint combinado para subir ambos archivos Excel de una vez
+    Busca municipios con filtros opcionales
+    Útil para autocompletado y validación de ciudades
     """
     
-    try:
-        # Importar áreas metropolitanas
-        resultado_areas = await GeografiaService.importar_areas_metropolitanas_excel(areas_file)
-        
-        # Importar hubs logísticos
-        resultado_hubs = await GeografiaService.importar_hubs_logisticos_excel(hubs_file)
-        
-        # Validar integridad después de la importación
-        integridad = await GeografiaService.validar_integridad_geografica()
-        
-        return {
-            "success": True,
-            "message": "Importación geográfica completa exitosa",
-            "areas_metropolitanas": resultado_areas,
-            "hubs_logisticos": resultado_hubs,
-            "validacion_integridad": integridad
-        }
-        
-    except Exception as e:
-        raise HTTPException(
-            status_code=500,
-            detail=f"Error en importación completa: {str(e)}"
-        )
+    municipios = await GeografiaService.buscar_municipios(
+        query=query,
+        departamento=departamento,
+        hub=hub,
+        area_metropolitana=area_metropolitana,
+        limit=limit
+    )
+    
+    return {
+        "success": True,
+        "total": len(municipios),
+        "municipios": municipios
+    }
+
+
+@router.get("/geografia/validar-ciudad")
+async def validar_ciudad(
+    ciudad: str = Query(..., description="Nombre de la ciudad a validar"),
+    departamento: Optional[str] = Query(None, description="Departamento opcional para validación específica"),
+    current_user: Usuario = RequireSystemManagement
+) -> Dict:
+    """
+    Valida si una ciudad existe en la base de datos geográfica
+    """
+    
+    existe = await GeografiaService.validar_ciudad(ciudad, departamento)
+    
+    return {
+        "success": True,
+        "ciudad": ciudad,
+        "departamento": departamento,
+        "existe": existe
+    }
 
 
 @router.get("/configuracion", summary="Obtener configuración del sistema")

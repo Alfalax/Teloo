@@ -8,7 +8,7 @@ from .enums import *
 from .user import Usuario, Cliente, Asesor
 from .solicitud import Solicitud, RepuestoSolicitado
 from .oferta import Oferta, OfertaDetalle, AdjudicacionRepuesto, Evaluacion
-from .geografia import AreaMetropolitana, HubLogistico, EvaluacionAsesorTemp
+from .geografia import Municipio, EvaluacionAsesorTemp
 from .analytics import (
     HistorialRespuestaOferta,
     OfertaHistorica,
@@ -49,8 +49,7 @@ __all__ = [
     "AdjudicacionRepuesto",
     "Evaluacion",
     # Geografia
-    "AreaMetropolitana",
-    "HubLogistico",
+    "Municipio",
     "EvaluacionAsesorTemp",
     # Analytics
     "HistorialRespuestaOferta",

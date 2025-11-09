@@ -25,7 +25,7 @@ def test_model_imports():
         Usuario, Cliente, Asesor,
         Solicitud, RepuestoSolicitado,
         Oferta, OfertaDetalle, AdjudicacionRepuesto, Evaluacion,
-        AreaMetropolitana, HubLogistico, EvaluacionAsesorTemp,
+        Municipio, EvaluacionAsesorTemp,
         HistorialRespuestaOferta, OfertaHistorica, AuditoriaTienda,
         EventoSistema, MetricaCalculada, Transaccion,
         PQR, Notificacion, SesionUsuario, LogAuditoria, ParametroConfig
@@ -104,8 +104,8 @@ def test_model_properties():
     
     print("\n🧪 Testing model properties and methods...")
     
-    # Test AreaMetropolitana normalization
-    normalized = AreaMetropolitana.normalizar_ciudad("  Bogotá D.C.  ")
+    # Test Municipio normalization
+    normalized = Municipio.normalizar_ciudad("  Bogotá D.C.  ")
     expected = "BOGOTA D.C."
     print(f"✅ City normalization: '{normalized}' (expected: '{expected}')")
     

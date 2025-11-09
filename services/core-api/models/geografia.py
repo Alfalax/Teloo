@@ -9,46 +9,25 @@ from .base import BaseModel
 from .enums import CanalNotificacion
 
 
-class AreaMetropolitana(BaseModel):
+class Municipio(BaseModel):
     """
-    Áreas metropolitanas de Colombia
-    Importadas desde archivo Excel Areas_Metropolitanas_TeLOO.xlsx
+    Municipios de Colombia con información geográfica unificada
+    Importados desde archivo Excel DIVIPOLA_Municipios.xlsx
+    Incluye: departamento, área metropolitana (si aplica) y hub logístico
     """
     
-    area_metropolitana = fields.CharField(max_length=100)
-    ciudad_nucleo = fields.CharField(max_length=100)
-    municipio_norm = fields.CharField(max_length=100)  # Municipio normalizado
-    
-    # Metadata adicional
-    departamento = fields.CharField(max_length=100, null=True)
-    poblacion = fields.IntField(null=True)
+    codigo_dane = fields.CharField(max_length=10, unique=True, null=True)
+    municipio = fields.CharField(max_length=100)  # Nombre original
+    municipio_norm = fields.CharField(max_length=100, index=True)  # Normalizado (UPPERCASE, sin tildes)
+    departamento = fields.CharField(max_length=100, index=True)
+    area_metropolitana = fields.CharField(max_length=100, null=True, index=True)  # NULL si no pertenece
+    hub_logistico = fields.CharField(max_length=100, index=True)
     
     class Meta:
-        table = "areas_metropolitanas"
-        unique_together = (("area_metropolitana", "municipio_norm"),)
+        table = "municipios"
         
     def __str__(self):
-        return f"{self.area_metropolitana} - {self.municipio_norm}"
-        
-    @classmethod
-    async def get_municipios_am(cls, ciudad: str) -> list:
-        """
-        Obtiene todos los municipios del área metropolitana de una ciudad
-        """
-        # Normalizar ciudad
-        ciudad_norm = cls.normalizar_ciudad(ciudad)
-        
-        # Buscar el área metropolitana de la ciudad
-        area = await cls.filter(municipio_norm=ciudad_norm).first()
-        if not area:
-            return []
-            
-        # Obtener todos los municipios de esa área metropolitana
-        municipios = await cls.filter(
-            area_metropolitana=area.area_metropolitana
-        ).values_list('municipio_norm', flat=True)
-        
-        return list(municipios)
+        return f"{self.municipio} - {self.departamento}"
         
     @staticmethod
     def normalizar_ciudad(ciudad: str) -> str:
@@ -68,48 +47,43 @@ class AreaMetropolitana(BaseModel):
         )
         
         return ciudad_norm
-
-
-class HubLogistico(BaseModel):
-    """
-    Hubs logísticos asignados por municipio
-    Importados desde archivo Excel Asignacion_Hubs_200km.xlsx
-    """
-    
-    municipio_norm = fields.CharField(max_length=100)  # Municipio normalizado
-    hub_asignado_norm = fields.CharField(max_length=100)  # Hub normalizado
-    
-    # Información adicional del hub
-    distancia_km = fields.IntField(null=True)  # Distancia al hub en km
-    tiempo_estimado_horas = fields.DecimalField(
-        max_digits=4, 
-        decimal_places=1, 
-        null=True
-    )
-    
-    class Meta:
-        table = "hubs_logisticos"
-        unique_together = (("municipio_norm", "hub_asignado_norm"),)
         
-    def __str__(self):
-        return f"{self.municipio_norm} → {self.hub_asignado_norm}"
+    @classmethod
+    async def get_by_ciudad(cls, ciudad: str):
+        """
+        Obtiene el municipio por nombre (normalizado)
+        """
+        ciudad_norm = cls.normalizar_ciudad(ciudad)
+        return await cls.filter(municipio_norm=ciudad_norm).first()
+        
+    @classmethod
+    async def get_municipios_area_metropolitana(cls, ciudad: str) -> list:
+        """
+        Obtiene todos los municipios del área metropolitana de una ciudad
+        """
+        municipio = await cls.get_by_ciudad(ciudad)
+        if not municipio or not municipio.area_metropolitana:
+            return []
+            
+        # Obtener todos los municipios de esa área metropolitana
+        municipios = await cls.filter(
+            area_metropolitana=municipio.area_metropolitana
+        ).values_list('municipio_norm', flat=True)
+        
+        return list(municipios)
         
     @classmethod
     async def get_municipios_hub(cls, ciudad: str) -> list:
         """
         Obtiene todos los municipios del mismo hub logístico de una ciudad
         """
-        # Normalizar ciudad
-        ciudad_norm = AreaMetropolitana.normalizar_ciudad(ciudad)
-        
-        # Buscar el hub de la ciudad
-        hub_record = await cls.filter(municipio_norm=ciudad_norm).first()
-        if not hub_record:
+        municipio = await cls.get_by_ciudad(ciudad)
+        if not municipio:
             return []
             
         # Obtener todos los municipios de ese hub
         municipios = await cls.filter(
-            hub_asignado_norm=hub_record.hub_asignado_norm
+            hub_logistico=municipio.hub_logistico
         ).values_list('municipio_norm', flat=True)
         
         return list(municipios)
@@ -119,9 +93,8 @@ class HubLogistico(BaseModel):
         """
         Obtiene el hub asignado a una ciudad específica
         """
-        ciudad_norm = AreaMetropolitana.normalizar_ciudad(ciudad)
-        hub_record = await cls.filter(municipio_norm=ciudad_norm).first()
-        return hub_record.hub_asignado_norm if hub_record else None
+        municipio = await cls.get_by_ciudad(ciudad)
+        return municipio.hub_logistico if municipio else None
 
 
 class EvaluacionAsesorTemp(BaseModel):

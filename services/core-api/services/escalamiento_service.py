@@ -7,7 +7,7 @@ from typing import List, Dict, Tuple, Optional
 from decimal import Decimal
 from datetime import datetime, timedelta
 import logging
-from models.geografia import AreaMetropolitana, HubLogistico, EvaluacionAsesorTemp
+from models.geografia import Municipio, EvaluacionAsesorTemp
 from models.user import Asesor
 from models.solicitud import Solicitud
 from models.analytics import (
@@ -47,25 +47,36 @@ class EscalamientoService:
         """
         
         # Normalizar nombres de ciudades
-        ciudad_sol_norm = AreaMetropolitana.normalizar_ciudad(ciudad_solicitud)
-        ciudad_ase_norm = AreaMetropolitana.normalizar_ciudad(ciudad_asesor)
+        ciudad_sol_norm = Municipio.normalizar_ciudad(ciudad_solicitud)
+        ciudad_ase_norm = Municipio.normalizar_ciudad(ciudad_asesor)
         
         # Nivel 1: Misma ciudad (5.0)
         if ciudad_sol_norm == ciudad_ase_norm:
             return Decimal('5.0'), "misma_ciudad"
         
+        # Obtener municipio de la solicitud para determinar área metropolitana y hub
+        municipio_solicitud = await Municipio.get_or_none(municipio_norm=ciudad_sol_norm)
+        
+        if not municipio_solicitud:
+            # Fallback: ciudad no encontrada en base de datos
+            logger.warning(f"Ciudad {ciudad_solicitud} no encontrada en base de datos de municipios")
+            return Decimal('3.0'), "ciudad_no_encontrada"
+        
         # Nivel 2: Área metropolitana (4.0)
-        municipios_am_solicitud = await AreaMetropolitana.get_municipios_am(ciudad_solicitud)
-        if ciudad_ase_norm in municipios_am_solicitud:
-            return Decimal('4.0'), "area_metropolitana"
+        if municipio_solicitud.area_metropolitana:
+            # Buscar si el asesor está en la misma área metropolitana
+            municipio_asesor = await Municipio.get_or_none(municipio_norm=ciudad_ase_norm)
+            if municipio_asesor and municipio_asesor.area_metropolitana == municipio_solicitud.area_metropolitana:
+                return Decimal('4.0'), "area_metropolitana"
         
         # Nivel 3: Hub logístico (3.5)
-        municipios_hub_solicitud = await HubLogistico.get_municipios_hub(ciudad_solicitud)
-        if ciudad_ase_norm in municipios_hub_solicitud:
+        # Buscar si el asesor está en el mismo hub logístico
+        municipio_asesor = await Municipio.get_or_none(municipio_norm=ciudad_ase_norm)
+        if municipio_asesor and municipio_asesor.hub_logistico == municipio_solicitud.hub_logistico:
             return Decimal('3.5'), "hub_logistico"
         
         # Nivel 4: Fallback para ciudades sin cobertura (3.0)
-        return await EscalamientoService.manejar_ciudad_sin_cobertura(ciudad_solicitud)
+        return Decimal('3.0'), "fuera_de_cobertura"
     
     @staticmethod
     async def calcular_actividad_reciente(
@@ -232,7 +243,7 @@ class EscalamientoService:
         asesores_elegibles = set()
         
         # Característica 1: Asesores de misma ciudad
-        ciudad_norm = AreaMetropolitana.normalizar_ciudad(ciudad_solicitud)
+        ciudad_norm = Municipio.normalizar_ciudad(ciudad_solicitud)
         asesores_misma_ciudad = await Asesor.filter(
             ciudad=ciudad_norm,
             estado=EstadoAsesor.ACTIVO,
@@ -244,22 +255,38 @@ class EscalamientoService:
         
         logger.info(f"Característica 1 - Misma ciudad ({ciudad_norm}): {len(asesores_misma_ciudad)} asesores")
         
+        # Obtener municipio de la solicitud
+        municipio_solicitud = await Municipio.get_or_none(municipio_norm=ciudad_norm)
+        
+        if not municipio_solicitud:
+            logger.warning(f"Ciudad {ciudad_solicitud} no encontrada en base de datos de municipios")
+            return list(asesores_elegibles)
+        
         # Característica 2: Asesores de todas las áreas metropolitanas nacionales
-        municipios_am = await AreaMetropolitana.get_municipios_am(ciudad_solicitud)
-        if municipios_am:
-            asesores_am = await Asesor.filter(
-                ciudad__in=municipios_am,
-                estado=EstadoAsesor.ACTIVO,
-                usuario__estado=EstadoUsuario.ACTIVO
-            ).prefetch_related('usuario').all()
+        if municipio_solicitud.area_metropolitana:
+            # Obtener todos los municipios de la misma área metropolitana
+            municipios_am = await Municipio.filter(
+                area_metropolitana=municipio_solicitud.area_metropolitana
+            ).values_list('municipio_norm', flat=True)
             
-            for asesor in asesores_am:
-                asesores_elegibles.add(asesor.id)
-            
-            logger.info(f"Característica 2 - Área metropolitana: {len(asesores_am)} asesores")
+            if municipios_am:
+                asesores_am = await Asesor.filter(
+                    ciudad__in=municipios_am,
+                    estado=EstadoAsesor.ACTIVO,
+                    usuario__estado=EstadoUsuario.ACTIVO
+                ).prefetch_related('usuario').all()
+                
+                for asesor in asesores_am:
+                    asesores_elegibles.add(asesor.id)
+                
+                logger.info(f"Característica 2 - Área metropolitana ({municipio_solicitud.area_metropolitana}): {len(asesores_am)} asesores")
         
         # Característica 3: Asesores del hub logístico de la ciudad
-        municipios_hub = await HubLogistico.get_municipios_hub(ciudad_solicitud)
+        # Obtener todos los municipios del mismo hub logístico
+        municipios_hub = await Municipio.filter(
+            hub_logistico=municipio_solicitud.hub_logistico
+        ).values_list('municipio_norm', flat=True)
+        
         if municipios_hub:
             asesores_hub = await Asesor.filter(
                 ciudad__in=municipios_hub,
@@ -270,7 +297,7 @@ class EscalamientoService:
             for asesor in asesores_hub:
                 asesores_elegibles.add(asesor.id)
             
-            logger.info(f"Característica 3 - Hub logístico: {len(asesores_hub)} asesores")
+            logger.info(f"Característica 3 - Hub logístico ({municipio_solicitud.hub_logistico}): {len(asesores_hub)} asesores")
         
         # Obtener objetos Asesor únicos
         asesores_finales = await Asesor.filter(
