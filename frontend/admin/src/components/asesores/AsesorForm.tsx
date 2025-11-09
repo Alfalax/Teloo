@@ -52,6 +52,7 @@ export function AsesorForm({
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [serverError, setServerError] = useState<string>('');
   const [loadingData, setLoadingData] = useState(false);
+  const [loadingCiudades, setLoadingCiudades] = useState(false);
 
   const isEditing = !!asesor;
 
@@ -95,16 +96,43 @@ export function AsesorForm({
   const loadFormData = async () => {
     setLoadingData(true);
     try {
-      const [ciudadesData, departamentosData] = await Promise.all([
-        asesoresService.getCiudades(),
-        asesoresService.getDepartamentos(),
-      ]);
-      setCiudades(ciudadesData);
+      const departamentosData = await asesoresService.getDepartamentos();
       setDepartamentos(departamentosData);
+      
+      // If editing and has departamento, load ciudades for that departamento
+      if (asesor?.departamento) {
+        await loadCiudadesByDepartamento(asesor.departamento);
+      }
     } catch (error) {
       console.error('Error loading form data:', error);
     } finally {
       setLoadingData(false);
+    }
+  };
+
+  const loadCiudadesByDepartamento = async (departamento: string) => {
+    if (!departamento) {
+      setCiudades([]);
+      return;
+    }
+    
+    setLoadingCiudades(true);
+    try {
+      // Import geografia service
+      const { geografiaService } = await import('@/services/geografia');
+      const ciudadesData = await geografiaService.getCiudadesByDepartamento(departamento);
+      setCiudades(ciudadesData);
+    } catch (error) {
+      console.error('Error loading ciudades:', error);
+      // Fallback to all ciudades if departamento filter fails
+      try {
+        const ciudadesData = await asesoresService.getCiudades();
+        setCiudades(ciudadesData);
+      } catch (fallbackError) {
+        console.error('Error loading all ciudades:', fallbackError);
+      }
+    } finally {
+      setLoadingCiudades(false);
     }
   };
 
@@ -190,6 +218,12 @@ export function AsesorForm({
     setFormData(prev => ({ ...prev, [field]: value }));
     if (errors[field]) {
       setErrors(prev => ({ ...prev, [field]: '' }));
+    }
+    
+    // Load ciudades when departamento changes
+    if (field === 'departamento') {
+      setFormData(prev => ({ ...prev, ciudad: '' })); // Reset ciudad
+      loadCiudadesByDepartamento(value);
     }
   };
 
@@ -297,10 +331,18 @@ export function AsesorForm({
               <Select
                 value={formData.ciudad}
                 onValueChange={(value) => handleInputChange('ciudad', value)}
-                disabled={loadingData || isLoading}
+                disabled={loadingData || isLoading || loadingCiudades || !formData.departamento}
               >
                 <SelectTrigger>
-                  <SelectValue placeholder="Seleccionar ciudad" />
+                  <SelectValue 
+                    placeholder={
+                      !formData.departamento 
+                        ? "Primero selecciona un departamento" 
+                        : loadingCiudades 
+                        ? "Cargando ciudades..." 
+                        : "Seleccionar ciudad"
+                    } 
+                  />
                 </SelectTrigger>
                 <SelectContent>
                   {ciudades.map((ciudad) => (
@@ -312,6 +354,9 @@ export function AsesorForm({
               </Select>
               {errors.ciudad && (
                 <p className="text-sm text-destructive">{errors.ciudad}</p>
+              )}
+              {loadingCiudades && (
+                <p className="text-xs text-muted-foreground">Cargando ciudades...</p>
               )}
             </div>
           </div>

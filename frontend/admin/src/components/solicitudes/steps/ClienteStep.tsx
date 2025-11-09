@@ -2,7 +2,8 @@
  * Cliente Step - First step of nueva solicitud wizard
  */
 
-import { User, Phone, Mail, MapPin } from "lucide-react";
+import { useState, useEffect } from "react";
+import { User, Phone, Mail, MapPin, Loader2 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -12,6 +13,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { geografiaService } from "@/services/geografia";
 
 interface ClienteData {
   nombre: string;
@@ -28,28 +30,50 @@ interface ClienteStepProps {
   isValid: boolean;
 }
 
-const departamentos = [
-  "Antioquia",
-  "Bogotá D.C.",
-  "Valle del Cauca",
-  "Atlántico",
-  "Santander",
-  "Cundinamarca",
-  "Bolívar",
-  "Córdoba",
-  "Norte de Santander",
-  "Tolima",
-];
-
-const ciudadesPorDepartamento: Record<string, string[]> = {
-  "Antioquia": ["Medellín", "Bello", "Itagüí", "Envigado"],
-  "Bogotá D.C.": ["Bogotá"],
-  "Valle del Cauca": ["Cali", "Palmira", "Buenaventura"],
-  "Atlántico": ["Barranquilla", "Soledad"],
-  "Santander": ["Bucaramanga", "Floridablanca", "Girón"],
-};
-
 export function ClienteStep({ data, onChange }: ClienteStepProps) {
+  const [departamentos, setDepartamentos] = useState<string[]>([]);
+  const [ciudades, setCiudades] = useState<string[]>([]);
+  const [loadingDepartamentos, setLoadingDepartamentos] = useState(false);
+  const [loadingCiudades, setLoadingCiudades] = useState(false);
+
+  // Load departamentos on mount
+  useEffect(() => {
+    loadDepartamentos();
+  }, []);
+
+  // Load ciudades when departamento changes
+  useEffect(() => {
+    if (data.departamento_origen) {
+      loadCiudades(data.departamento_origen);
+    } else {
+      setCiudades([]);
+    }
+  }, [data.departamento_origen]);
+
+  const loadDepartamentos = async () => {
+    setLoadingDepartamentos(true);
+    try {
+      const deps = await geografiaService.getDepartamentos();
+      setDepartamentos(deps);
+    } catch (error) {
+      console.error('Error loading departamentos:', error);
+    } finally {
+      setLoadingDepartamentos(false);
+    }
+  };
+
+  const loadCiudades = async (departamento: string) => {
+    setLoadingCiudades(true);
+    try {
+      const ciud = await geografiaService.getCiudadesByDepartamento(departamento);
+      setCiudades(ciud);
+    } catch (error) {
+      console.error('Error loading ciudades:', error);
+    } finally {
+      setLoadingCiudades(false);
+    }
+  };
+
   const handleChange = (field: keyof ClienteData, value: string) => {
     const newData = { ...data, [field]: value };
     
@@ -59,10 +83,6 @@ export function ClienteStep({ data, onChange }: ClienteStepProps) {
     
     onChange(newData);
   };
-
-  const ciudadesDisponibles = data.departamento_origen
-    ? ciudadesPorDepartamento[data.departamento_origen] || []
-    : [];
 
   return (
     <div className="space-y-6">
@@ -122,9 +142,10 @@ export function ClienteStep({ data, onChange }: ClienteStepProps) {
           <Select
             value={data.departamento_origen}
             onValueChange={(value) => handleChange("departamento_origen", value)}
+            disabled={loadingDepartamentos}
           >
             <SelectTrigger>
-              <SelectValue placeholder="Seleccionar departamento" />
+              <SelectValue placeholder={loadingDepartamentos ? "Cargando..." : "Seleccionar departamento"} />
             </SelectTrigger>
             <SelectContent>
               {departamentos.map((dept) => (
@@ -134,38 +155,50 @@ export function ClienteStep({ data, onChange }: ClienteStepProps) {
               ))}
             </SelectContent>
           </Select>
+          {loadingDepartamentos && (
+            <p className="text-xs text-muted-foreground flex items-center gap-1">
+              <Loader2 className="h-3 w-3 animate-spin" />
+              Cargando departamentos...
+            </p>
+          )}
         </div>
 
         <div className="space-y-2 md:col-span-2">
           <Label>Ciudad *</Label>
-          {ciudadesDisponibles.length > 0 ? (
-            <Select
-              value={data.ciudad_origen}
-              onValueChange={(value) => handleChange("ciudad_origen", value)}
-              disabled={!data.departamento_origen}
-            >
-              <SelectTrigger>
-                <SelectValue placeholder="Seleccionar ciudad" />
-              </SelectTrigger>
-              <SelectContent>
-                {ciudadesDisponibles.map((ciudad) => (
-                  <SelectItem key={ciudad} value={ciudad}>
-                    {ciudad}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          ) : (
-            <div className="relative">
-              <MapPin className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground h-4 w-4" />
-              <Input
-                placeholder="Ingresa la ciudad"
-                value={data.ciudad_origen}
-                onChange={(e) => handleChange("ciudad_origen", e.target.value)}
-                className="pl-10"
-                disabled={!data.departamento_origen}
+          <Select
+            value={data.ciudad_origen}
+            onValueChange={(value) => handleChange("ciudad_origen", value)}
+            disabled={!data.departamento_origen || loadingCiudades}
+          >
+            <SelectTrigger>
+              <SelectValue 
+                placeholder={
+                  !data.departamento_origen 
+                    ? "Primero selecciona un departamento" 
+                    : loadingCiudades 
+                    ? "Cargando ciudades..." 
+                    : "Seleccionar ciudad"
+                } 
               />
-            </div>
+            </SelectTrigger>
+            <SelectContent>
+              {ciudades.map((ciudad) => (
+                <SelectItem key={ciudad} value={ciudad}>
+                  {ciudad}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          {loadingCiudades && (
+            <p className="text-xs text-muted-foreground flex items-center gap-1">
+              <Loader2 className="h-3 w-3 animate-spin" />
+              Cargando ciudades del departamento...
+            </p>
+          )}
+          {data.departamento_origen && ciudades.length === 0 && !loadingCiudades && (
+            <p className="text-xs text-muted-foreground">
+              No se encontraron ciudades para este departamento
+            </p>
           )}
         </div>
       </div>

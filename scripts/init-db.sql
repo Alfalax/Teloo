@@ -111,20 +111,17 @@ CREATE TABLE IF NOT EXISTS asesores (
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
--- Create geographic support tables
-CREATE TABLE IF NOT EXISTS areas_metropolitanas (
+-- Create geographic support table (unified)
+CREATE TABLE IF NOT EXISTS municipios (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    area_metropolitana VARCHAR(255) NOT NULL,
-    ciudad_nucleo VARCHAR(255) NOT NULL,
-    municipio_norm VARCHAR(255) NOT NULL,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
-);
-
-CREATE TABLE IF NOT EXISTS hubs_logisticos (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    municipio_norm VARCHAR(255) NOT NULL,
-    hub_asignado_norm VARCHAR(255) NOT NULL,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+    codigo_dane VARCHAR(10) UNIQUE,
+    municipio VARCHAR(100) NOT NULL,
+    municipio_norm VARCHAR(100) NOT NULL,
+    departamento VARCHAR(100) NOT NULL,
+    area_metropolitana VARCHAR(100),
+    hub_logistico VARCHAR(100) NOT NULL,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
 -- Create solicitudes and related tables
@@ -350,8 +347,11 @@ CREATE INDEX IF NOT EXISTS idx_historial_respuestas_asesor_fecha ON historial_re
 CREATE INDEX IF NOT EXISTS idx_ofertas_historicas_asesor_fecha ON ofertas_historicas(asesor_id, fecha);
 CREATE INDEX IF NOT EXISTS idx_eventos_sistema_tipo_fecha ON eventos_sistema(tipo_evento, created_at);
 CREATE INDEX IF NOT EXISTS idx_metricas_calculadas_nombre_periodo ON metricas_calculadas(nombre_metrica, periodo, fecha_periodo);
-CREATE INDEX IF NOT EXISTS idx_areas_metropolitanas_municipio ON areas_metropolitanas(municipio_norm);
-CREATE INDEX IF NOT EXISTS idx_hubs_logisticos_municipio ON hubs_logisticos(municipio_norm);
+CREATE INDEX IF NOT EXISTS idx_municipios_norm ON municipios(municipio_norm);
+CREATE INDEX IF NOT EXISTS idx_municipios_departamento ON municipios(departamento);
+CREATE INDEX IF NOT EXISTS idx_municipios_area_metropolitana ON municipios(area_metropolitana);
+CREATE INDEX IF NOT EXISTS idx_municipios_hub ON municipios(hub_logistico);
+CREATE INDEX IF NOT EXISTS idx_municipios_codigo_dane ON municipios(codigo_dane);
 
 -- Insert default configuration parameters
 INSERT INTO parametros_config (clave, valor_json) VALUES

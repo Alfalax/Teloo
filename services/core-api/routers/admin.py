@@ -70,6 +70,48 @@ async def import_hubs_logisticos(
     return await GeografiaService.importar_hubs_logisticos_excel(file)
 
 
+@router.get("/geografia/departamentos")
+async def get_departamentos(
+    current_user: Usuario = Depends(get_current_active_user)
+) -> Dict:
+    """
+    Obtiene lista de todos los departamentos únicos
+    """
+    from models.geografia import Municipio
+    
+    departamentos = await Municipio.all().distinct().values_list('departamento', flat=True)
+    departamentos_sorted = sorted(list(set(departamentos)))
+    
+    return {
+        "success": True,
+        "data": departamentos_sorted
+    }
+
+
+@router.get("/geografia/ciudades")
+async def get_ciudades(
+    departamento: Optional[str] = Query(None, description="Filtrar por departamento"),
+    current_user: Usuario = Depends(get_current_active_user)
+) -> Dict:
+    """
+    Obtiene lista de ciudades, opcionalmente filtradas por departamento
+    """
+    from models.geografia import Municipio
+    
+    query = Municipio.all()
+    
+    if departamento:
+        query = query.filter(departamento__iexact=departamento)
+    
+    ciudades = await query.distinct().values_list('municipio', flat=True)
+    ciudades_sorted = sorted(list(set(ciudades)))
+    
+    return {
+        "success": True,
+        "data": ciudades_sorted
+    }
+
+
 @router.get("/geografia/validar-integridad")
 async def validar_integridad_geografica(
     current_user: Usuario = RequireSystemManagement
