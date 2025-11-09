@@ -8,7 +8,7 @@ import hashlib
 from models.user import Usuario, Cliente, Asesor
 from models.enums import RolUsuario, EstadoUsuario, TipoPQR, PrioridadPQR, EstadoPQR
 from models.analytics import ParametroConfig, PQR
-from models.geografia import AreaMetropolitana, HubLogistico
+from models.geografia import Municipio
 
 logger = logging.getLogger(__name__)
 
@@ -144,31 +144,9 @@ class InitService:
         try:
             logger.info("📊 Creating sample data...")
             
-            # Create sample metropolitan areas
-            areas_sample = [
-                {"area_metropolitana": "Área Metropolitana de Bogotá", "ciudad_nucleo": "Bogotá", "municipio_norm": "BOGOTA"},
-                {"area_metropolitana": "Área Metropolitana del Valle de Aburrá", "ciudad_nucleo": "Medellín", "municipio_norm": "MEDELLIN"},
-                {"area_metropolitana": "Área Metropolitana de Cali", "ciudad_nucleo": "Cali", "municipio_norm": "CALI"},
-                {"area_metropolitana": "Área Metropolitana de Barranquilla", "ciudad_nucleo": "Barranquilla", "municipio_norm": "BARRANQUILLA"},
-            ]
-            
-            for area_data in areas_sample:
-                existing = await AreaMetropolitana.get_or_none(municipio_norm=area_data["municipio_norm"])
-                if not existing:
-                    await AreaMetropolitana.create(**area_data)
-            
-            # Create sample logistic hubs
-            hubs_sample = [
-                {"municipio_norm": "BOGOTA", "hub_asignado_norm": "HUB_CENTRO"},
-                {"municipio_norm": "MEDELLIN", "hub_asignado_norm": "HUB_ANTIOQUIA"},
-                {"municipio_norm": "CALI", "hub_asignado_norm": "HUB_VALLE"},
-                {"municipio_norm": "BARRANQUILLA", "hub_asignado_norm": "HUB_ATLANTICO"},
-            ]
-            
-            for hub_data in hubs_sample:
-                existing = await HubLogistico.get_or_none(municipio_norm=hub_data["municipio_norm"])
-                if not existing:
-                    await HubLogistico.create(**hub_data)
+            # Note: Geographic data (municipios) should be imported using import_divipola.py script
+            # This ensures all 1,122 Colombian municipalities are properly loaded
+            logger.info("ℹ️ Geographic data should be imported using: docker exec -it teloo-core-api python scripts/import_divipola.py")
             
             # Create sample clients
             clientes_sample = [

@@ -1,31 +1,32 @@
 """
 Geographic data import service for TeLOO V3
-Handles Excel import for metropolitan areas and logistics hubs
+Handles Excel import for DIVIPOLA municipalities data
 """
 
 import pandas as pd
-from typing import List, Dict, Tuple
+from typing import Dict
 from fastapi import UploadFile, HTTPException
 import io
-from models.geografia import AreaMetropolitana, HubLogistico
+from models.geografia import Municipio
 from tortoise.transactions import in_transaction
 
 
 class GeografiaService:
     """
-    Service for importing and managing geographic data
+    Service for importing and managing geographic data from unified municipios table
     """
     
     @staticmethod
-    async def importar_areas_metropolitanas_excel(file: UploadFile) -> Dict:
+    async def importar_divipola_excel(file: UploadFile) -> Dict:
         """
-        Importa áreas metropolitanas desde archivo Excel
-        Procesa Areas_Metropolitanas_TeLOO.xlsx
+        Importa municipios desde archivo Excel DIVIPOLA_Municipios.xlsx
         
         Expected columns:
-        - area_metropolitana: Nombre del área metropolitana
-        - ciudad_nucleo: Ciudad núcleo del área
-        - municipio_norm: Municipio normalizado
+        - codigo_dane: Código DANE del municipio (opcional)
+        - municipio: Nombre del municipio
+        - departamento: Departamento
+        - area_metropolitana: Área metropolitana (opcional, NULL si no aplica)
+        - hub_logistico: Hub logístico asignado
         """
         
         # Validar archivo
@@ -41,7 +42,7 @@ class GeografiaService:
             df = pd.read_excel(io.BytesIO(contents))
             
             # Validar columnas requeridas
-            required_columns = ['area_metropolitana', 'ciudad_nucleo', 'municipio_norm']
+            required_columns = ['municipio', 'departamento', 'hub_logistico']
             missing_columns = [col for col in required_columns if col not in df.columns]
             
             if missing_columns:
@@ -52,144 +53,70 @@ class GeografiaService:
             
             # Limpiar y validar datos
             df = df.dropna(subset=required_columns)
-            df['area_metropolitana'] = df['area_metropolitana'].str.strip()
-            df['ciudad_nucleo'] = df['ciudad_nucleo'].str.strip()
-            df['municipio_norm'] = df['municipio_norm'].str.strip().str.upper()
+            df['municipio'] = df['municipio'].str.strip()
+            df['municipio_norm'] = df['municipio'].str.strip().str.upper()
+            df['departamento'] = df['departamento'].str.strip()
+            df['hub_logistico'] = df['hub_logistico'].str.strip().str.upper()
             
-            # Validar datos duplicados
-            duplicados = df.duplicated(subset=['area_metropolitana', 'municipio_norm'])
+            # Normalizar área metropolitana (puede ser NULL)
+            if 'area_metropolitana' in df.columns:
+                df['area_metropolitana'] = df['area_metropolitana'].str.strip()
+                df.loc[df['area_metropolitana'].isna(), 'area_metropolitana'] = None
+            else:
+                df['area_metropolitana'] = None
+            
+            # Normalizar código DANE
+            if 'codigo_dane' in df.columns:
+                df['codigo_dane'] = df['codigo_dane'].astype(str).str.strip()
+            else:
+                df['codigo_dane'] = None
+            
+            # Validar datos duplicados por municipio_norm
+            duplicados = df.duplicated(subset=['municipio_norm'])
             if duplicados.any():
-                filas_duplicadas = df[duplicados].index.tolist()
+                filas_duplicadas = df[duplicados]['municipio'].tolist()
                 raise HTTPException(
                     status_code=400,
-                    detail=f"Datos duplicados encontrados en filas: {filas_duplicadas}"
+                    detail=f"Municipios duplicados encontrados: {', '.join(filas_duplicadas[:5])}"
                 )
             
             # Importar datos en transacción
             async with in_transaction() as conn:
                 # Limpiar datos existentes
-                await AreaMetropolitana.all().using_db(conn).delete()
+                await Municipio.all().using_db(conn).delete()
                 
                 # Insertar nuevos datos
-                areas_creadas = []
+                municipios_creados = []
                 for _, row in df.iterrows():
-                    area = await AreaMetropolitana.create(
-                        area_metropolitana=row['area_metropolitana'],
-                        ciudad_nucleo=row['ciudad_nucleo'],
+                    municipio = await Municipio.create(
+                        codigo_dane=row.get('codigo_dane'),
+                        municipio=row['municipio'],
                         municipio_norm=row['municipio_norm'],
-                        departamento=row.get('departamento'),
-                        poblacion=row.get('poblacion'),
+                        departamento=row['departamento'],
+                        area_metropolitana=row.get('area_metropolitana'),
+                        hub_logistico=row['hub_logistico'],
                         using_db=conn
                     )
-                    areas_creadas.append(area)
+                    municipios_creados.append(municipio)
+            
+            # Estadísticas de importación
+            total_municipios = len(municipios_creados)
+            total_departamentos = df['departamento'].nunique()
+            total_areas_metro = df['area_metropolitana'].dropna().nunique()
+            total_hubs = df['hub_logistico'].nunique()
+            municipios_con_am = df['area_metropolitana'].notna().sum()
             
             return {
                 "success": True,
-                "message": f"Importadas {len(areas_creadas)} áreas metropolitanas",
-                "total_registros": len(areas_creadas),
-                "areas_metropolitanas": len(df['area_metropolitana'].unique()),
-                "municipios": len(df['municipio_norm'].unique())
-            }
-            
-        except pd.errors.EmptyDataError:
-            raise HTTPException(
-                status_code=400,
-                detail="Archivo Excel está vacío"
-            )
-        except Exception as e:
-            raise HTTPException(
-                status_code=500,
-                detail=f"Error procesando archivo: {str(e)}"
-            )
-    
-    @staticmethod
-    async def importar_hubs_logisticos_excel(file: UploadFile) -> Dict:
-        """
-        Importa hubs logísticos desde archivo Excel
-        Procesa Asignacion_Hubs_200km.xlsx
-        
-        Expected columns:
-        - municipio_norm: Municipio normalizado
-        - hub_asignado_norm: Hub logístico asignado normalizado
-        """
-        
-        # Validar archivo
-        if not file.filename.endswith(('.xlsx', '.xls')):
-            raise HTTPException(
-                status_code=400,
-                detail="Archivo debe ser formato Excel (.xlsx o .xls)"
-            )
-            
-        try:
-            # Leer archivo Excel
-            contents = await file.read()
-            df = pd.read_excel(io.BytesIO(contents))
-            
-            # Validar columnas requeridas
-            required_columns = ['municipio_norm', 'hub_asignado_norm']
-            missing_columns = [col for col in required_columns if col not in df.columns]
-            
-            if missing_columns:
-                raise HTTPException(
-                    status_code=400,
-                    detail=f"Columnas faltantes: {', '.join(missing_columns)}"
-                )
-            
-            # Limpiar y validar datos
-            df = df.dropna(subset=required_columns)
-            df['municipio_norm'] = df['municipio_norm'].str.strip().str.upper()
-            df['hub_asignado_norm'] = df['hub_asignado_norm'].str.strip().str.upper()
-            
-            # Validar datos duplicados
-            duplicados = df.duplicated(subset=['municipio_norm', 'hub_asignado_norm'])
-            if duplicados.any():
-                filas_duplicadas = df[duplicados].index.tolist()
-                raise HTTPException(
-                    status_code=400,
-                    detail=f"Datos duplicados encontrados en filas: {filas_duplicadas}"
-                )
-            
-            # Validar integridad: verificar que los hubs existan como municipios
-            hubs_unicos = df['hub_asignado_norm'].unique()
-            municipios_existentes = df['municipio_norm'].unique()
-            
-            hubs_inexistentes = []
-            for hub in hubs_unicos:
-                if hub not in municipios_existentes:
-                    # Verificar si existe en áreas metropolitanas
-                    area_exists = await AreaMetropolitana.filter(municipio_norm=hub).exists()
-                    if not area_exists:
-                        hubs_inexistentes.append(hub)
-            
-            if hubs_inexistentes:
-                raise HTTPException(
-                    status_code=400,
-                    detail=f"Hubs inexistentes como municipios: {', '.join(hubs_inexistentes)}"
-                )
-            
-            # Importar datos en transacción
-            async with in_transaction() as conn:
-                # Limpiar datos existentes
-                await HubLogistico.all().using_db(conn).delete()
-                
-                # Insertar nuevos datos
-                hubs_creados = []
-                for _, row in df.iterrows():
-                    hub = await HubLogistico.create(
-                        municipio_norm=row['municipio_norm'],
-                        hub_asignado_norm=row['hub_asignado_norm'],
-                        distancia_km=row.get('distancia_km'),
-                        tiempo_estimado_horas=row.get('tiempo_estimado_horas'),
-                        using_db=conn
-                    )
-                    hubs_creados.append(hub)
-            
-            return {
-                "success": True,
-                "message": f"Importados {len(hubs_creados)} registros de hubs logísticos",
-                "total_registros": len(hubs_creados),
-                "municipios": len(df['municipio_norm'].unique()),
-                "hubs_unicos": len(df['hub_asignado_norm'].unique())
+                "message": f"Importados {total_municipios} municipios exitosamente",
+                "estadisticas": {
+                    "total_municipios": total_municipios,
+                    "total_departamentos": total_departamentos,
+                    "total_areas_metropolitanas": total_areas_metro,
+                    "total_hubs_logisticos": total_hubs,
+                    "municipios_con_area_metropolitana": int(municipios_con_am),
+                    "municipios_sin_area_metropolitana": total_municipios - int(municipios_con_am)
+                }
             }
             
         except pd.errors.EmptyDataError:
@@ -207,42 +134,59 @@ class GeografiaService:
     async def validar_integridad_geografica() -> Dict:
         """
         Valida la integridad de los datos geográficos
-        Verifica consistencia entre áreas metropolitanas y hubs
+        Verifica consistencia de hubs y áreas metropolitanas
         """
         
-        # Obtener todos los municipios de áreas metropolitanas
-        municipios_am = await AreaMetropolitana.all().values_list('municipio_norm', flat=True)
-        municipios_am_set = set(municipios_am)
+        # Obtener todos los municipios
+        municipios = await Municipio.all()
         
-        # Obtener todos los municipios de hubs
-        municipios_hub = await HubLogistico.all().values_list('municipio_norm', flat=True)
-        municipios_hub_set = set(municipios_hub)
-        
-        # Obtener todos los hubs asignados
-        hubs_asignados = await HubLogistico.all().values_list('hub_asignado_norm', flat=True)
-        hubs_asignados_set = set(hubs_asignados)
+        if not municipios:
+            return {
+                "integridad_ok": False,
+                "mensaje": "No hay datos geográficos en el sistema",
+                "total_municipios": 0
+            }
         
         # Análisis de integridad
-        municipios_solo_am = municipios_am_set - municipios_hub_set
-        municipios_solo_hub = municipios_hub_set - municipios_am_set
-        municipios_comunes = municipios_am_set & municipios_hub_set
+        total_municipios = len(municipios)
+        municipios_con_am = sum(1 for m in municipios if m.area_metropolitana)
+        municipios_sin_am = total_municipios - municipios_con_am
         
-        # Verificar hubs que no existen como municipios
-        hubs_sin_municipio = hubs_asignados_set - municipios_am_set - municipios_hub_set
+        # Obtener hubs únicos
+        hubs_unicos = set(m.hub_logistico for m in municipios)
+        
+        # Obtener áreas metropolitanas únicas
+        areas_metro_unicas = set(m.area_metropolitana for m in municipios if m.area_metropolitana)
+        
+        # Verificar que cada hub tenga al menos un municipio
+        hubs_con_municipios = {}
+        for hub in hubs_unicos:
+            count = sum(1 for m in municipios if m.hub_logistico == hub)
+            hubs_con_municipios[hub] = count
+        
+        # Verificar que cada área metropolitana tenga al menos 2 municipios
+        areas_con_municipios = {}
+        for area in areas_metro_unicas:
+            count = sum(1 for m in municipios if m.area_metropolitana == area)
+            areas_con_municipios[area] = count
+        
+        areas_con_un_solo_municipio = [
+            area for area, count in areas_con_municipios.items() if count == 1
+        ]
         
         return {
-            "total_municipios_am": len(municipios_am_set),
-            "total_municipios_hub": len(municipios_hub_set),
-            "municipios_comunes": len(municipios_comunes),
-            "municipios_solo_am": len(municipios_solo_am),
-            "municipios_solo_hub": len(municipios_solo_hub),
-            "hubs_unicos": len(hubs_asignados_set),
-            "hubs_sin_municipio": list(hubs_sin_municipio),
-            "integridad_ok": len(hubs_sin_municipio) == 0,
-            "cobertura_geografica": {
-                "areas_metropolitanas": len(set(await AreaMetropolitana.all().values_list('area_metropolitana', flat=True))),
-                "hubs_logisticos": len(hubs_asignados_set)
-            }
+            "integridad_ok": len(areas_con_un_solo_municipio) == 0,
+            "total_municipios": total_municipios,
+            "municipios_con_area_metropolitana": municipios_con_am,
+            "municipios_sin_area_metropolitana": municipios_sin_am,
+            "total_hubs": len(hubs_unicos),
+            "total_areas_metropolitanas": len(areas_metro_unicas),
+            "hubs_con_municipios": hubs_con_municipios,
+            "areas_con_un_solo_municipio": areas_con_un_solo_municipio,
+            "advertencias": [
+                f"Área metropolitana '{area}' tiene solo 1 municipio"
+                for area in areas_con_un_solo_municipio
+            ] if areas_con_un_solo_municipio else []
         }
     
     @staticmethod
@@ -261,25 +205,14 @@ class GeografiaService:
             return False
             
         # Normalizar ciudad para búsqueda
-        ciudad_norm = ciudad.strip().upper()
+        ciudad_norm = Municipio.normalizar_ciudad(ciudad)
         
-        # Buscar en áreas metropolitanas
-        query = AreaMetropolitana.filter(municipio_norm=ciudad_norm)
+        # Buscar municipio
+        query = Municipio.filter(municipio_norm=ciudad_norm)
         if departamento:
             query = query.filter(departamento__icontains=departamento)
         
-        existe_am = await query.exists()
-        if existe_am:
-            return True
-        
-        # Buscar en hubs logísticos
-        existe_hub = await HubLogistico.filter(municipio_norm=ciudad_norm).exists()
-        if existe_hub:
-            return True
-        
-        # Buscar como hub asignado
-        existe_como_hub = await HubLogistico.filter(hub_asignado_norm=ciudad_norm).exists()
-        return existe_como_hub
+        return await query.exists()
     
     @staticmethod
     async def get_estadisticas_geograficas() -> Dict:
@@ -287,33 +220,102 @@ class GeografiaService:
         Obtiene estadísticas generales de los datos geográficos
         """
         
-        # Estadísticas de áreas metropolitanas
-        total_areas = await AreaMetropolitana.all().count()
-        areas_unicas = len(set(await AreaMetropolitana.all().values_list('area_metropolitana', flat=True)))
-        municipios_am = len(set(await AreaMetropolitana.all().values_list('municipio_norm', flat=True)))
+        # Contar totales
+        total_municipios = await Municipio.all().count()
         
-        # Estadísticas de hubs logísticos
-        total_hubs_registros = await HubLogistico.all().count()
-        municipios_hub = len(set(await HubLogistico.all().values_list('municipio_norm', flat=True)))
-        hubs_unicos = len(set(await HubLogistico.all().values_list('hub_asignado_norm', flat=True)))
+        if total_municipios == 0:
+            return {
+                "total_municipios": 0,
+                "mensaje": "No hay datos geográficos en el sistema"
+            }
+        
+        # Obtener datos únicos
+        municipios = await Municipio.all()
+        
+        departamentos = set(m.departamento for m in municipios)
+        areas_metro = set(m.area_metropolitana for m in municipios if m.area_metropolitana)
+        hubs = set(m.hub_logistico for m in municipios)
+        
+        municipios_con_am = sum(1 for m in municipios if m.area_metropolitana)
+        
+        # Distribución por hub
+        distribucion_hubs = {}
+        for hub in hubs:
+            count = sum(1 for m in municipios if m.hub_logistico == hub)
+            distribucion_hubs[hub] = count
+        
+        # Distribución por departamento (top 10)
+        distribucion_deptos = {}
+        for depto in departamentos:
+            count = sum(1 for m in municipios if m.departamento == depto)
+            distribucion_deptos[depto] = count
+        
+        top_10_deptos = dict(sorted(
+            distribucion_deptos.items(), 
+            key=lambda x: x[1], 
+            reverse=True
+        )[:10])
         
         return {
-            "areas_metropolitanas": {
-                "total_registros": total_areas,
-                "areas_unicas": areas_unicas,
-                "municipios_cubiertos": municipios_am
-            },
-            "hubs_logisticos": {
-                "total_registros": total_hubs_registros,
-                "municipios_cubiertos": municipios_hub,
-                "hubs_unicos": hubs_unicos
-            },
-            "cobertura_total": {
-                "municipios_con_am": municipios_am,
-                "municipios_con_hub": municipios_hub,
-                "total_municipios_sistema": len(set(
-                    await AreaMetropolitana.all().values_list('municipio_norm', flat=True) +
-                    await HubLogistico.all().values_list('municipio_norm', flat=True)
-                ))
-            }
+            "total_municipios": total_municipios,
+            "total_departamentos": len(departamentos),
+            "total_areas_metropolitanas": len(areas_metro),
+            "total_hubs_logisticos": len(hubs),
+            "municipios_con_area_metropolitana": municipios_con_am,
+            "municipios_sin_area_metropolitana": total_municipios - municipios_con_am,
+            "porcentaje_con_area_metropolitana": round((municipios_con_am / total_municipios) * 100, 2),
+            "distribucion_por_hub": distribucion_hubs,
+            "top_10_departamentos": top_10_deptos
         }
+    
+    @staticmethod
+    async def buscar_municipios(
+        query: str = None,
+        departamento: str = None,
+        hub: str = None,
+        area_metropolitana: str = None,
+        limit: int = 50
+    ) -> list:
+        """
+        Busca municipios con filtros opcionales
+        
+        Args:
+            query: Texto a buscar en nombre de municipio
+            departamento: Filtrar por departamento
+            hub: Filtrar por hub logístico
+            area_metropolitana: Filtrar por área metropolitana
+            limit: Límite de resultados
+            
+        Returns:
+            Lista de municipios que coinciden con los filtros
+        """
+        
+        filters = Municipio.all()
+        
+        if query:
+            query_norm = Municipio.normalizar_ciudad(query)
+            filters = filters.filter(municipio_norm__icontains=query_norm)
+        
+        if departamento:
+            filters = filters.filter(departamento__icontains=departamento)
+        
+        if hub:
+            hub_norm = hub.strip().upper()
+            filters = filters.filter(hub_logistico=hub_norm)
+        
+        if area_metropolitana:
+            filters = filters.filter(area_metropolitana__icontains=area_metropolitana)
+        
+        municipios = await filters.limit(limit)
+        
+        return [
+            {
+                "id": str(m.id),
+                "codigo_dane": m.codigo_dane,
+                "municipio": m.municipio,
+                "departamento": m.departamento,
+                "area_metropolitana": m.area_metropolitana,
+                "hub_logistico": m.hub_logistico
+            }
+            for m in municipios
+        ]

@@ -85,22 +85,21 @@ async def test_models():
         )
         print(f"✅ OfertaDetalle created: {detalle}")
         
-        # Test AreaMetropolitana model
-        print("\n🧪 Testing AreaMetropolitana model...")
-        area = AreaMetropolitana(
-            area_metropolitana="AREA METROPOLITANA DE BOGOTA",
-            ciudad_nucleo="BOGOTA",
-            municipio_norm="BOGOTA"
-        )
-        print(f"✅ AreaMetropolitana created: {area}")
-        
-        # Test HubLogistico model
-        print("\n🧪 Testing HubLogistico model...")
-        hub = HubLogistico(
+        # Test Municipio model
+        print("\n🧪 Testing Municipio model...")
+        municipio = Municipio(
+            codigo_dane="11001",
+            municipio="Bogotá",
             municipio_norm="BOGOTA",
-            hub_asignado_norm="BOGOTA"
+            departamento="CUNDINAMARCA",
+            area_metropolitana="SI",
+            hub_logistico="BOGOTÁ D.C."
         )
-        print(f"✅ HubLogistico created: {hub}")
+        print(f"✅ Municipio created: {municipio}")
+        
+        # Test city normalization
+        normalized = Municipio.normalizar_ciudad("  Bogotá D.C.  ")
+        print(f"✅ City normalization: '{normalized}'")
         
         # Test analytics models
         print("\n🧪 Testing Analytics models...")
