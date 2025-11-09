@@ -6,7 +6,7 @@ import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { analyticsService } from '@/services/analytics';
-import { Download, Filter, Calendar, TrendingUp, Users, DollarSign, Activity } from 'lucide-react';
+import { Download, Filter, TrendingUp, Users, DollarSign, Activity } from 'lucide-react';
 
 interface DashboardFilters {
   fechaInicio: string;
@@ -205,6 +205,10 @@ export function ReportesPage() {
 // Componente para Embudo Operativo - 11 KPIs
 const EmbudoOperativoReport: React.FC<{ data: any }> = ({ data }) => {
   const metricas = data?.metricas || {};
+  const conversiones = metricas.conversiones || {};
+  const tiempos = metricas.tiempos || {};
+  const fallos = metricas.fallos || {};
+  const tasa_entrada = metricas.tasa_entrada || {};
 
   return (
     <div className="space-y-6">
@@ -213,89 +217,136 @@ const EmbudoOperativoReport: React.FC<{ data: any }> = ({ data }) => {
         <h2 className="text-2xl font-bold">Embudo Operativo - 11 KPIs</h2>
       </div>
 
-      {/* KPIs Principales */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-        <MetricCard
-          title="Solicitudes Recibidas"
-          value={metricas.solicitudes_recibidas || 0}
-          icon={<Activity className="h-4 w-4" />}
-        />
-        <MetricCard
-          title="Solicitudes Procesadas"
-          value={metricas.solicitudes_procesadas || 0}
-          icon={<TrendingUp className="h-4 w-4" />}
-        />
-        <MetricCard
-          title="Asesores Contactados"
-          value={metricas.asesores_contactados || 0}
-          icon={<Users className="h-4 w-4" />}
-        />
-        <MetricCard
-          title="Tasa Respuesta Asesores"
-          value={`${(metricas.tasa_respuesta_asesores || 0).toFixed(1)}%`}
-          icon={<TrendingUp className="h-4 w-4" />}
-        />
-      </div>
-
-      {/* Ofertas */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-        <MetricCard
-          title="Ofertas Recibidas"
-          value={metricas.ofertas_recibidas || 0}
-          icon={<DollarSign className="h-4 w-4" />}
-        />
-        <MetricCard
-          title="Ofertas por Solicitud"
-          value={(metricas.ofertas_por_solicitud || 0).toFixed(1)}
-          icon={<TrendingUp className="h-4 w-4" />}
-        />
-        <MetricCard
-          title="Solicitudes Evaluadas"
-          value={metricas.solicitudes_evaluadas || 0}
-          icon={<Activity className="h-4 w-4" />}
-        />
-      </div>
-
-      {/* Cierre */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-        <MetricCard
-          title="Tiempo Evaluación (min)"
-          value={(metricas.tiempo_evaluacion || 0).toFixed(1)}
-          icon={<Calendar className="h-4 w-4" />}
-        />
-        <MetricCard
-          title="Ofertas Ganadoras"
-          value={metricas.ofertas_ganadoras || 0}
-          icon={<TrendingUp className="h-4 w-4" />}
-        />
-        <MetricCard
-          title="Tasa Aceptación Cliente"
-          value={`${(metricas.tasa_aceptacion_cliente || 0).toFixed(1)}%`}
-          icon={<Users className="h-4 w-4" />}
-        />
-        <MetricCard
-          title="Solicitudes Cerradas"
-          value={metricas.solicitudes_cerradas || 0}
-          icon={<Activity className="h-4 w-4" />}
-        />
-      </div>
-
-      {/* Resumen en Tabla */}
+      {/* 1. Tasa de Entrada de Solicitudes */}
       <Card>
         <CardHeader>
-          <CardTitle>Resumen Completo del Embudo</CardTitle>
+          <CardTitle>1. Tasa de Entrada de Solicitudes</CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="space-y-2">
-            {Object.entries(metricas).map(([key, value]) => (
-              <div key={key} className="flex justify-between items-center py-2 border-b last:border-b-0">
-                <span className="font-medium capitalize">{key.replace(/_/g, ' ')}</span>
-                <Badge variant="outline">{typeof value === 'number' ? value.toLocaleString() : String(value)}</Badge>
-              </div>
-            ))}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div>
+              <p className="text-sm text-gray-600">Por Día</p>
+              <p className="text-2xl font-bold">{tasa_entrada.por_dia?.length || 0} días</p>
+            </div>
+            <div>
+              <p className="text-sm text-gray-600">Por Semana</p>
+              <p className="text-2xl font-bold">{tasa_entrada.por_semana?.length || 0} semanas</p>
+            </div>
+            <div>
+              <p className="text-sm text-gray-600">Por Hora</p>
+              <p className="text-2xl font-bold">{tasa_entrada.por_hora?.length || 0} horas</p>
+            </div>
           </div>
         </CardContent>
       </Card>
+
+      {/* 2-5. Tasas de Conversión */}
+      <div>
+        <h3 className="text-lg font-semibold mb-3">Tasas de Conversión del Embudo</h3>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+          <Card>
+            <CardContent className="p-6">
+              <p className="text-sm font-medium text-gray-600">2. ABIERTA → EN_EVALUACION</p>
+              <p className="text-3xl font-bold text-blue-600">{(conversiones.abierta_a_evaluacion || 0).toFixed(1)}%</p>
+              <p className="text-xs text-gray-500 mt-1">Solicitudes con ofertas</p>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardContent className="p-6">
+              <p className="text-sm font-medium text-gray-600">3. EN_EVALUACION → ADJUDICADA</p>
+              <p className="text-3xl font-bold text-green-600">{(conversiones.evaluacion_a_adjudicada || 0).toFixed(1)}%</p>
+              <p className="text-xs text-gray-500 mt-1">Ofertas con ganador</p>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardContent className="p-6">
+              <p className="text-sm font-medium text-gray-600">4. ADJUDICADA → ACEPTADA</p>
+              <p className="text-3xl font-bold text-purple-600">{(conversiones.adjudicada_a_aceptada || 0).toFixed(1)}%</p>
+              <p className="text-xs text-gray-500 mt-1">Aceptadas por cliente</p>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardContent className="p-6">
+              <p className="text-sm font-medium text-gray-600">5. Conversión General</p>
+              <p className="text-3xl font-bold text-orange-600">{(conversiones.conversion_general || 0).toFixed(1)}%</p>
+              <p className="text-xs text-gray-500 mt-1">Fin a fin</p>
+            </CardContent>
+          </Card>
+        </div>
+      </div>
+
+      {/* 6-8. Tiempos */}
+      <div>
+        <h3 className="text-lg font-semibold mb-3">Tiempos del Proceso</h3>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <Card>
+            <CardContent className="p-6">
+              <p className="text-sm font-medium text-gray-600">6. Tiempo hasta Primera Oferta (TTFO)</p>
+              <p className="text-3xl font-bold text-blue-600">{(tiempos.ttfo_mediana_horas || 0).toFixed(1)}h</p>
+              <p className="text-xs text-gray-500 mt-1">Mediana: {(tiempos.ttfo_mediana_horas || 0).toFixed(1)}h | Promedio: {(tiempos.ttfo_promedio_horas || 0).toFixed(1)}h</p>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardContent className="p-6">
+              <p className="text-sm font-medium text-gray-600">7. Tiempo hasta Adjudicación (TTA)</p>
+              <p className="text-3xl font-bold text-green-600">{(tiempos.tta_mediana_horas || 0).toFixed(1)}h</p>
+              <p className="text-xs text-gray-500 mt-1">Mediana: {(tiempos.tta_mediana_horas || 0).toFixed(1)}h | Promedio: {(tiempos.tta_promedio_horas || 0).toFixed(1)}h</p>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardContent className="p-6">
+              <p className="text-sm font-medium text-gray-600">8. Tiempo hasta Decisión Cliente (TTCD)</p>
+              <p className="text-3xl font-bold text-purple-600">{(tiempos.ttcd_mediana_horas || 0).toFixed(1)}h</p>
+              <p className="text-xs text-gray-500 mt-1">Mediana: {(tiempos.ttcd_mediana_horas || 0).toFixed(1)}h | Promedio: {(tiempos.ttcd_promedio_horas || 0).toFixed(1)}h</p>
+            </CardContent>
+          </Card>
+        </div>
+      </div>
+
+      {/* 9-10. Fallos y Escalamiento */}
+      <div>
+        <h3 className="text-lg font-semibold mb-3">Análisis de Fallos y Escalamiento</h3>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <Card>
+            <CardContent className="p-6">
+              <p className="text-sm font-medium text-gray-600">9. Tasa de Llenado</p>
+              <p className="text-3xl font-bold text-green-600">{(fallos.tasa_llenado || 0).toFixed(1)}%</p>
+              <p className="text-xs text-gray-500 mt-1">Solicitudes con ofertas</p>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardContent className="p-6">
+              <p className="text-sm font-medium text-gray-600">10. Tasa de Escalamiento</p>
+              <p className="text-3xl font-bold text-orange-600">{(fallos.tasa_escalamiento || 0).toFixed(1)}%</p>
+              <p className="text-xs text-gray-500 mt-1">Más allá de Nivel 1</p>
+            </CardContent>
+          </Card>
+        </div>
+      </div>
+
+      {/* 11. Tasa de Fallo por Nivel */}
+      <div>
+        <h3 className="text-lg font-semibold mb-3">11. Tasa de Fallo por Nivel</h3>
+        <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
+          {Object.entries(fallos.fallo_por_nivel || {}).length > 0 ? (
+            Object.entries(fallos.fallo_por_nivel || {}).map(([nivel, tasa]: [string, any]) => (
+              <Card key={nivel}>
+                <CardContent className="p-6">
+                  <p className="text-sm font-medium text-gray-600">Nivel {nivel}</p>
+                  <p className="text-3xl font-bold text-red-600">{(tasa || 0).toFixed(1)}%</p>
+                  <p className="text-xs text-gray-500 mt-1">Tasa de fallo</p>
+                </CardContent>
+              </Card>
+            ))
+          ) : (
+            <Card className="col-span-5">
+              <CardContent className="p-6">
+                <p className="text-sm text-gray-400 text-center">Sin datos de fallos por nivel</p>
+              </CardContent>
+            </Card>
+          )}
+        </div>
+      </div>
     </div>
   );
 };
@@ -303,22 +354,11 @@ const EmbudoOperativoReport: React.FC<{ data: any }> = ({ data }) => {
 // Componente para Salud del Marketplace - 5 KPIs
 const SaludMarketplaceReport: React.FC<{ data: any }> = ({ data }) => {
   const metricas = data?.metricas || {};
-
-  const getStatusColor = (key: string, value: number) => {
-    if (key === 'disponibilidad_sistema') {
-      return value >= 99 ? 'text-green-600' : value >= 95 ? 'text-yellow-600' : 'text-red-600';
-    }
-    if (key === 'latencia_promedio') {
-      return value < 200 ? 'text-green-600' : value < 500 ? 'text-yellow-600' : 'text-red-600';
-    }
-    if (key === 'tasa_error') {
-      return value < 0.01 ? 'text-green-600' : value < 0.05 ? 'text-yellow-600' : 'text-red-600';
-    }
-    if (key === 'carga_sistema') {
-      return value < 70 ? 'text-green-600' : value < 85 ? 'text-yellow-600' : 'text-red-600';
-    }
-    return 'text-gray-900';
-  };
+  const ratio = metricas.ratio_oferta_demanda || {};
+  const densidad = metricas.densidad_ofertas || {};
+  const participacion = metricas.tasa_participacion_asesores || {};
+  const adjudicacion = metricas.tasa_adjudicacion_promedio || {};
+  const aceptacion = metricas.tasa_aceptacion_cliente || {};
 
   return (
     <div className="space-y-6">
@@ -327,160 +367,91 @@ const SaludMarketplaceReport: React.FC<{ data: any }> = ({ data }) => {
         <h2 className="text-2xl font-bold">Salud del Marketplace - 5 KPIs</h2>
       </div>
 
-      {/* KPIs de Salud */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+      {/* 1. Ratio Oferta/Demanda */}
+      <Card>
+        <CardHeader>
+          <CardTitle>1. Ratio Oferta/Demanda</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div>
+              <p className="text-sm text-gray-600">Asesores Activos</p>
+              <p className="text-2xl font-bold">{ratio.asesores_activos || 0}</p>
+            </div>
+            <div>
+              <p className="text-sm text-gray-600">Solicitudes Diarias (Promedio)</p>
+              <p className="text-2xl font-bold">{(ratio.solicitudes_diarias_promedio || 0).toFixed(1)}</p>
+            </div>
+            <div>
+              <p className="text-sm text-gray-600">Ratio</p>
+              <p className="text-3xl font-bold text-blue-600">{(ratio.ratio || 0).toFixed(1)}</p>
+              <p className="text-xs text-gray-500 mt-1">Óptimo: 15-25</p>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* 2-5. Otros KPIs */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <Card>
           <CardContent className="p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-gray-600">Disponibilidad Sistema</p>
-                <p className={`text-2xl font-bold ${getStatusColor('disponibilidad_sistema', metricas.disponibilidad_sistema || 0)}`}>
-                  {(metricas.disponibilidad_sistema || 0).toFixed(2)}%
-                </p>
-                <p className="text-xs text-gray-500 mt-1">Objetivo: &gt; 99%</p>
-              </div>
-              <Activity className="h-8 w-8 text-green-500" />
+            <p className="text-sm font-medium text-gray-600">2. Densidad de Ofertas</p>
+            <p className="text-3xl font-bold text-green-600">{(densidad.densidad_promedio || 0).toFixed(2)}</p>
+            <p className="text-xs text-gray-500 mt-1">Ofertas por solicitud llenada</p>
+            <div className="mt-2 text-xs text-gray-600">
+              <span>Min: {densidad.min_ofertas || 0} | Max: {densidad.max_ofertas || 0}</span>
             </div>
           </CardContent>
         </Card>
 
         <Card>
           <CardContent className="p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-gray-600">Latencia Promedio</p>
-                <p className={`text-2xl font-bold ${getStatusColor('latencia_promedio', metricas.latencia_promedio || 0)}`}>
-                  {(metricas.latencia_promedio || 0).toFixed(0)} ms
-                </p>
-                <p className="text-xs text-gray-500 mt-1">Objetivo: &lt; 200ms</p>
-              </div>
-              <TrendingUp className="h-8 w-8 text-blue-500" />
+            <p className="text-sm font-medium text-gray-600">3. Tasa de Participación de Asesores</p>
+            <p className="text-3xl font-bold text-purple-600">{(participacion.tasa_participacion || 0).toFixed(1)}%</p>
+            <p className="text-xs text-gray-500 mt-1">Asesores que enviaron ofertas</p>
+            <div className="mt-2 text-xs text-gray-600">
+              <span>{participacion.total_participantes || 0} de {participacion.total_habilitados || 0} habilitados</span>
             </div>
           </CardContent>
         </Card>
 
         <Card>
           <CardContent className="p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-gray-600">Tasa de Error</p>
-                <p className={`text-2xl font-bold ${getStatusColor('tasa_error', metricas.tasa_error || 0)}`}>
-                  {((metricas.tasa_error || 0) * 100).toFixed(2)}%
-                </p>
-                <p className="text-xs text-gray-500 mt-1">Objetivo: &lt; 1%</p>
-              </div>
-              <Activity className="h-8 w-8 text-red-500" />
+            <p className="text-sm font-medium text-gray-600">4. Tasa de Adjudicación Promedio</p>
+            <p className="text-3xl font-bold text-orange-600">{(adjudicacion.tasa_promedio || 0).toFixed(1)}%</p>
+            <p className="text-xs text-gray-500 mt-1">% ofertas ganadoras por asesor</p>
+            <div className="mt-2 text-xs text-gray-600">
+              <span>Mediana: {(adjudicacion.mediana || 0).toFixed(1)}%</span>
             </div>
           </CardContent>
         </Card>
 
         <Card>
           <CardContent className="p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-gray-600">Asesores Activos</p>
-                <p className="text-2xl font-bold text-gray-900">
-                  {metricas.asesores_activos || 0}
-                </p>
-                <p className="text-xs text-gray-500 mt-1">Últimos 7 días</p>
-              </div>
-              <Users className="h-8 w-8 text-purple-500" />
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardContent className="p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-gray-600">Carga del Sistema</p>
-                <p className={`text-2xl font-bold ${getStatusColor('carga_sistema', metricas.carga_sistema || 0)}`}>
-                  {(metricas.carga_sistema || 0).toFixed(1)}%
-                </p>
-                <p className="text-xs text-gray-500 mt-1">Objetivo: &lt; 70%</p>
-              </div>
-              <Activity className="h-8 w-8 text-orange-500" />
+            <p className="text-sm font-medium text-gray-600">5. Tasa de Aceptación del Cliente</p>
+            <p className="text-3xl font-bold text-teal-600">{(aceptacion.tasa_aceptacion || 0).toFixed(1)}%</p>
+            <p className="text-xs text-gray-500 mt-1">Ofertas adjudicadas aceptadas</p>
+            <div className="mt-2 text-xs text-gray-600">
+              <span>{aceptacion.aceptadas || 0} de {aceptacion.total_adjudicadas || 0} adjudicadas</span>
             </div>
           </CardContent>
         </Card>
       </div>
-
-      {/* Estado General */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Estado General del Sistema</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="space-y-3">
-            {Object.entries(metricas).map(([key, value]) => (
-              <div key={key} className="flex justify-between items-center py-2 border-b last:border-b-0">
-                <span className="font-medium capitalize">{key.replace(/_/g, ' ')}</span>
-                <Badge variant="outline" className={getStatusColor(key, typeof value === 'number' ? value : 0)}>
-                  {typeof value === 'number' ? value.toLocaleString() : String(value)}
-                </Badge>
-              </div>
-            ))}
-          </div>
-        </CardContent>
-      </Card>
     </div>
   );
 };
 
-// Componente para Dashboard Financiero
-const FinancieroReport: React.FC<{ data: any }> = ({ data }) => {
-  const metricas = data?.metricas || {};
-
-  return (
-    <div className="space-y-6">
-      <div className="flex items-center gap-2 mb-4">
-        <DollarSign className="h-6 w-6 text-green-600" />
-        <h2 className="text-2xl font-bold">Dashboard Financiero</h2>
-      </div>
-
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-        <MetricCard
-          title="Ingresos Totales"
-          value={`$${(metricas.ingresos_totales || 0).toLocaleString()}`}
-          icon={<DollarSign className="h-4 w-4" />}
-          trend={metricas.ingresos_totales_cambio}
-        />
-        <MetricCard
-          title="Comisiones Generadas"
-          value={`$${(metricas.comisiones_generadas || 0).toLocaleString()}`}
-          icon={<DollarSign className="h-4 w-4" />}
-          trend={metricas.comisiones_generadas_cambio}
-        />
-        <MetricCard
-          title="Valor Promedio Transacción"
-          value={`$${(metricas.valor_promedio_transaccion || 0).toLocaleString()}`}
-          icon={<TrendingUp className="h-4 w-4" />}
-          trend={metricas.valor_promedio_transaccion_cambio}
-        />
-      </div>
-
-      <Card>
-        <CardHeader>
-          <CardTitle>Métricas Financieras Detalladas</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="space-y-4">
-            {Object.entries(metricas).map(([key, value]) => (
-              <div key={key} className="flex justify-between items-center py-2 border-b">
-                <span className="font-medium capitalize">{key.replace(/_/g, ' ')}</span>
-                <Badge variant="outline">{String(value)}</Badge>
-              </div>
-            ))}
-          </div>
-        </CardContent>
-      </Card>
-    </div>
-  );
-};
-
-// Componente para Análisis de Asesores - 13 KPIs
 const AsesoresReport: React.FC<{ data: any }> = ({ data }) => {
   const metricas = data?.metricas || {};
+  const tasa_respuesta = metricas.tasa_respuesta_promedio || {};
+  const tiempo_respuesta = metricas.tiempo_respuesta_promedio || {};
+  const ofertas_asesor = metricas.ofertas_por_asesor || {};
+  const tasa_adjudicacion = metricas.tasa_adjudicacion_por_asesor || {};
+  const nivel_confianza = metricas.nivel_confianza_promedio || {};
+  const asesores_nuevos = metricas.asesores_nuevos || {};
+  const tasa_retencion = metricas.tasa_retencion || {};
+  const satisfaccion = metricas.satisfaccion_cliente || {};
+  const valor_promedio = metricas.valor_promedio_oferta || {};
 
   return (
     <div className="space-y-6">
@@ -489,134 +460,145 @@ const AsesoresReport: React.FC<{ data: any }> = ({ data }) => {
         <h2 className="text-2xl font-bold">Análisis de Asesores - 13 KPIs</h2>
       </div>
 
-      {/* KPIs Principales de Asesores */}
+      {/* KPIs 1-4: Principales */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         <Card>
           <CardContent className="p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-gray-600">Total Asesores</p>
-                <p className="text-2xl font-bold text-gray-900">{metricas.total_asesores || 0}</p>
-                <p className="text-xs text-gray-500 mt-1">Registrados</p>
-              </div>
-              <Users className="h-8 w-8 text-purple-500" />
-            </div>
+            <p className="text-sm font-medium text-gray-600">1. Asesores Activos</p>
+            <p className="text-3xl font-bold text-purple-600">{metricas.total_asesores_activos || 0}</p>
+            <p className="text-xs text-gray-500 mt-1">Con ofertas en el período</p>
           </CardContent>
         </Card>
 
         <Card>
           <CardContent className="p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-gray-600">Asesores Activos</p>
-                <p className="text-2xl font-bold text-green-600">{metricas.asesores_activos || 0}</p>
-                <p className="text-xs text-gray-500 mt-1">Último mes</p>
-              </div>
-              <Activity className="h-8 w-8 text-green-500" />
-            </div>
+            <p className="text-sm font-medium text-gray-600">2. Tasa de Respuesta</p>
+            <p className="text-3xl font-bold text-blue-600">{(tasa_respuesta.tasa_promedio || 0).toFixed(1)}%</p>
+            <p className="text-xs text-gray-500 mt-1">{tasa_respuesta.total_asesores || 0} asesores</p>
           </CardContent>
         </Card>
 
         <Card>
           <CardContent className="p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-gray-600">Tasa Respuesta</p>
-                <p className="text-2xl font-bold text-blue-600">{(metricas.tasa_respuesta_promedio || 0).toFixed(1)}%</p>
-                <p className="text-xs text-gray-500 mt-1">Promedio</p>
-              </div>
-              <TrendingUp className="h-8 w-8 text-blue-500" />
-            </div>
+            <p className="text-sm font-medium text-gray-600">3. Tiempo de Respuesta</p>
+            <p className="text-3xl font-bold text-orange-600">{(tiempo_respuesta.tiempo_promedio_minutos || 0).toFixed(0)} min</p>
+            <p className="text-xs text-gray-500 mt-1">Mediana: {(tiempo_respuesta.mediana_minutos || 0).toFixed(0)} min</p>
           </CardContent>
         </Card>
 
         <Card>
           <CardContent className="p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-gray-600">Tiempo Respuesta</p>
-                <p className="text-2xl font-bold text-orange-600">{(metricas.tiempo_respuesta_promedio || 0).toFixed(1)} min</p>
-                <p className="text-xs text-gray-500 mt-1">Promedio</p>
-              </div>
-              <Calendar className="h-8 w-8 text-orange-500" />
-            </div>
+            <p className="text-sm font-medium text-gray-600">4. Ofertas por Asesor</p>
+            <p className="text-3xl font-bold text-green-600">{(ofertas_asesor.ofertas_promedio || 0).toFixed(1)}</p>
+            <p className="text-xs text-gray-500 mt-1">Mediana: {(ofertas_asesor.mediana || 0).toFixed(0)}</p>
           </CardContent>
         </Card>
       </div>
 
-      {/* Métricas de Performance */}
+      {/* KPIs 5-8: Performance */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-        <MetricCard
-          title="Ofertas por Asesor"
-          value={(metricas.ofertas_por_asesor || 0).toFixed(1)}
-          icon={<DollarSign className="h-4 w-4" />}
-        />
-        <MetricCard
-          title="Tasa Adjudicación"
-          value={`${(metricas.tasa_adjudicacion || 0).toFixed(1)}%`}
-          icon={<TrendingUp className="h-4 w-4" />}
-        />
-        <MetricCard
-          title="Nivel Confianza"
-          value={(metricas.nivel_confianza_promedio || 0).toFixed(1)}
-          icon={<Activity className="h-4 w-4" />}
-        />
-        <MetricCard
-          title="Asesores Nuevos"
-          value={metricas.asesores_nuevos || 0}
-          icon={<Users className="h-4 w-4" />}
-        />
+        <Card>
+          <CardContent className="p-6">
+            <p className="text-sm font-medium text-gray-600">5. Tasa de Adjudicación</p>
+            <p className="text-3xl font-bold text-teal-600">{(tasa_adjudicacion.tasa_promedio || 0).toFixed(1)}%</p>
+            <p className="text-xs text-gray-500 mt-1">Mediana: {(tasa_adjudicacion.mediana || 0).toFixed(1)}%</p>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardContent className="p-6">
+            <p className="text-sm font-medium text-gray-600">9. Nivel de Confianza</p>
+            <p className="text-3xl font-bold text-yellow-600">{(nivel_confianza.nivel_promedio || 0).toFixed(1)}</p>
+            <p className="text-xs text-gray-500 mt-1">De 5.0 | Mediana: {(nivel_confianza.mediana || 0).toFixed(1)}</p>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardContent className="p-6">
+            <p className="text-sm font-medium text-gray-600">10. Asesores Nuevos</p>
+            <p className="text-3xl font-bold text-indigo-600">{asesores_nuevos.asesores_nuevos || 0}</p>
+            <p className="text-xs text-gray-500 mt-1">{asesores_nuevos.con_ofertas || 0} con ofertas</p>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardContent className="p-6">
+            <p className="text-sm font-medium text-gray-600">11. Tasa de Retención</p>
+            <p className="text-3xl font-bold text-green-600">{(tasa_retencion.tasa_retencion || 0).toFixed(1)}%</p>
+            <p className="text-xs text-gray-500 mt-1">{tasa_retencion.asesores_retenidos || 0} retenidos</p>
+          </CardContent>
+        </Card>
       </div>
 
-      {/* Retención y Satisfacción */}
+      {/* KPIs 12-13: Satisfacción y Valor */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <Card>
           <CardContent className="p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-gray-600">Retención de Asesores</p>
-                <p className="text-2xl font-bold text-green-600">{(metricas.retension_asesores || 0).toFixed(1)}%</p>
-                <p className="text-xs text-gray-500 mt-1">Últimos 3 meses</p>
-              </div>
-              <Users className="h-8 w-8 text-green-500" />
-            </div>
+            <p className="text-sm font-medium text-gray-600">12. Satisfacción del Cliente</p>
+            <p className="text-3xl font-bold text-pink-600">{(satisfaccion.calificacion_promedio || 0).toFixed(1)}/5.0</p>
+            <p className="text-xs text-gray-500 mt-1">{satisfaccion.asesores_calificados || 0} asesores calificados | Mediana: {(satisfaccion.mediana || 0).toFixed(1)}</p>
           </CardContent>
         </Card>
 
         <Card>
           <CardContent className="p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-gray-600">Satisfacción Cliente</p>
-                <p className="text-2xl font-bold text-yellow-600">{(metricas.satisfaccion_cliente || 0).toFixed(1)}/5.0</p>
-                <p className="text-xs text-gray-500 mt-1">Calificación promedio</p>
-              </div>
-              <Activity className="h-8 w-8 text-yellow-500" />
-            </div>
+            <p className="text-sm font-medium text-gray-600">13. Valor Promedio de Oferta</p>
+            <p className="text-3xl font-bold text-emerald-600">${(valor_promedio.valor_promedio || 0).toLocaleString()}</p>
+            <p className="text-xs text-gray-500 mt-1">Mediana: ${(valor_promedio.mediana || 0).toLocaleString()}</p>
           </CardContent>
         </Card>
       </div>
 
-      {/* Ranking y Distribución */}
+      {/* Ranking Top 10 */}
+      <Card>
+        <CardHeader>
+          <CardTitle>6. Ranking Top 10 Asesores</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="space-y-2">
+            {(metricas.ranking_top_10 || []).length > 0 ? (
+              (metricas.ranking_top_10 || []).map((asesor: any, index: number) => (
+                <div key={index} className="flex justify-between items-center py-2 border-b last:border-b-0">
+                  <div className="flex items-center gap-3">
+                    <Badge variant="outline" className="w-8 h-8 flex items-center justify-center font-bold">
+                      {index + 1}
+                    </Badge>
+                    <div>
+                      <p className="font-medium">{asesor.nombre_comercial || `Asesor ${index + 1}`}</p>
+                      <p className="text-xs text-gray-500">{asesor.ciudad || ''}</p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <div className="text-right">
+                      <p className="text-sm font-bold">{asesor.ofertas_ganadoras || 0} ganadas</p>
+                      <p className="text-xs text-gray-500">{(asesor.tasa_adjudicacion || 0).toFixed(1)}% tasa</p>
+                    </div>
+                    <Badge variant="outline">⭐ {(asesor.puntaje_promedio || 0).toFixed(1)}</Badge>
+                  </div>
+                </div>
+              ))
+            ) : (
+              <p className="text-center text-gray-500 py-4">No hay datos disponibles</p>
+            )}
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* KPIs 7-8: Especialización y Distribución */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <Card>
           <CardHeader>
-            <CardTitle>Ranking Top 10 Asesores</CardTitle>
+            <CardTitle>7. Especialización por Tipo de Repuesto</CardTitle>
           </CardHeader>
           <CardContent>
             <div className="space-y-2">
-              {(metricas.ranking_top_10 || []).length > 0 ? (
-                (metricas.ranking_top_10 || []).map((asesor: any, index: number) => (
+              {(metricas.especializacion_repuestos || []).length > 0 ? (
+                (metricas.especializacion_repuestos || []).slice(0, 10).map((item: any, index: number) => (
                   <div key={index} className="flex justify-between items-center py-2 border-b last:border-b-0">
+                    <span className="font-medium">{item.categoria || 'N/A'}</span>
                     <div className="flex items-center gap-2">
-                      <Badge variant="outline" className="w-8 h-8 flex items-center justify-center">
-                        {index + 1}
-                      </Badge>
-                      <span className="font-medium">{asesor.nombre || `Asesor ${index + 1}`}</span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <span className="text-sm text-gray-500">{asesor.ciudad || ''}</span>
-                      <Badge variant="outline">{asesor.puntaje || 0}</Badge>
+                      <span className="text-sm text-gray-500">{item.asesores_participantes || 0} asesores</span>
+                      <Badge variant="outline">{(item.tasa_exito || 0).toFixed(1)}%</Badge>
                     </div>
                   </div>
                 ))
@@ -629,59 +611,119 @@ const AsesoresReport: React.FC<{ data: any }> = ({ data }) => {
 
         <Card>
           <CardHeader>
-            <CardTitle>Especialización y Distribución</CardTitle>
+            <CardTitle>8. Distribución Geográfica</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="space-y-3">
-              <div className="flex justify-between items-center py-2 border-b">
-                <span className="font-medium">Especialización por Repuesto</span>
-                <Badge variant="outline">
-                  {Object.keys(metricas.especializacion_por_repuesto || {}).length} categorías
-                </Badge>
-              </div>
-              <div className="flex justify-between items-center py-2 border-b">
-                <span className="font-medium">Distribución Geográfica</span>
-                <Badge variant="outline">
-                  {Object.keys(metricas.distribucion_geografica || {}).length} ciudades
-                </Badge>
-              </div>
-              <div className="flex justify-between items-center py-2 border-b">
-                <span className="font-medium">Ofertas por Asesor</span>
-                <Badge variant="outline">{(metricas.ofertas_por_asesor || 0).toFixed(1)}</Badge>
-              </div>
-              <div className="flex justify-between items-center py-2 border-b">
-                <span className="font-medium">Tasa Adjudicación</span>
-                <Badge variant="outline">{(metricas.tasa_adjudicacion || 0).toFixed(1)}%</Badge>
-              </div>
-              <div className="flex justify-between items-center py-2 border-b">
-                <span className="font-medium">Nivel Confianza Promedio</span>
-                <Badge variant="outline">{(metricas.nivel_confianza_promedio || 0).toFixed(1)}</Badge>
-              </div>
+            <div className="space-y-2">
+              {(metricas.distribucion_geografica || []).length > 0 ? (
+                (metricas.distribucion_geografica || []).slice(0, 10).map((item: any, index: number) => (
+                  <div key={index} className="flex justify-between items-center py-2 border-b last:border-b-0">
+                    <span className="font-medium">{item.ciudad || 'N/A'}</span>
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm text-gray-500">{item.asesores_activos || 0} asesores</span>
+                      <Badge variant="outline">{item.ofertas_ganadoras || 0} ganadas</Badge>
+                    </div>
+                  </div>
+                ))
+              ) : (
+                <p className="text-center text-gray-500 py-4">No hay datos disponibles</p>
+              )}
             </div>
           </CardContent>
         </Card>
       </div>
+    </div>
+  );
+};
 
-      {/* Resumen Completo */}
+// Componente para Dashboard Financiero - 6 KPIs
+const FinancieroReport: React.FC<{ data: any }> = ({ data }) => {
+  const metricas = data?.metricas || {};
+  const gov = metricas.valor_bruto_ofertado || {};
+  const gav_adj = metricas.valor_bruto_adjudicado || {};
+  const gav_acc = metricas.valor_bruto_aceptado || {};
+  const promedio_sol = metricas.valor_promedio_solicitud || {};
+  const fuga = metricas.tasa_fuga_valor || {};
+  const resumen = metricas.resumen_financiero || {};
+
+  return (
+    <div className="space-y-6">
+      <div className="flex items-center gap-2 mb-4">
+        <DollarSign className="h-6 w-6 text-green-600" />
+        <h2 className="text-2xl font-bold">Dashboard Financiero - 6 KPIs</h2>
+      </div>
+
+      {/* KPIs 1-3: Valores Brutos */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <Card>
+          <CardContent className="p-6">
+            <p className="text-sm font-medium text-gray-600">1. Valor Bruto Ofertado (GOV)</p>
+            <p className="text-3xl font-bold text-blue-600">${(gov.valor_total || 0).toLocaleString()}</p>
+            <p className="text-xs text-gray-500 mt-1">{gov.total_ofertas || 0} ofertas | Promedio: ${(gov.valor_promedio || 0).toLocaleString()}</p>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardContent className="p-6">
+            <p className="text-sm font-medium text-gray-600">2. Valor Bruto Adjudicado (GAV_adj)</p>
+            <p className="text-3xl font-bold text-green-600">${(gav_adj.valor_total || 0).toLocaleString()}</p>
+            <p className="text-xs text-gray-500 mt-1">{gav_adj.total_adjudicadas || 0} adjudicadas | Promedio: ${(gav_adj.valor_promedio || 0).toLocaleString()}</p>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardContent className="p-6">
+            <p className="text-sm font-medium text-gray-600">3. Valor Bruto Aceptado (GAV_acc)</p>
+            <p className="text-3xl font-bold text-emerald-600">${(gav_acc.valor_total || 0).toLocaleString()}</p>
+            <p className="text-xs text-gray-500 mt-1">{gav_acc.total_aceptadas || 0} aceptadas | Promedio: ${(gav_acc.valor_promedio || 0).toLocaleString()}</p>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* KPIs 4-5: Promedio y Fuga */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <Card>
+          <CardContent className="p-6">
+            <p className="text-sm font-medium text-gray-600">4. Valor Promedio por Solicitud</p>
+            <p className="text-3xl font-bold text-purple-600">${(promedio_sol.valor_promedio_por_solicitud || 0).toLocaleString()}</p>
+            <p className="text-xs text-gray-500 mt-1">{promedio_sol.solicitudes_aceptadas || 0} solicitudes aceptadas</p>
+            <p className="text-xs text-gray-500">Total: ${(promedio_sol.valor_total_aceptado || 0).toLocaleString()}</p>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardContent className="p-6">
+            <p className="text-sm font-medium text-gray-600">5. Tasa de Fuga de Valor</p>
+            <p className="text-3xl font-bold text-red-600">{(fuga.tasa_fuga_porcentaje || 0).toFixed(1)}%</p>
+            <p className="text-xs text-gray-500 mt-1">Valor fugado: ${(fuga.valor_fugado || 0).toLocaleString()}</p>
+            <p className="text-xs text-gray-500">Adjudicado: ${(fuga.valor_adjudicado || 0).toLocaleString()} | Aceptado: ${(fuga.valor_aceptado || 0).toLocaleString()}</p>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* KPI 6: Resumen Financiero */}
       <Card>
         <CardHeader>
-          <CardTitle>Resumen Completo - Todos los KPIs</CardTitle>
+          <CardTitle>6. Resumen Financiero</CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-2">
-            {Object.entries(metricas).map(([key, value]) => {
-              if (key === 'ranking_top_10' || key === 'especializacion_por_repuesto' || key === 'distribucion_geografica') {
-                return null; // Skip complex objects
-              }
-              return (
-                <div key={key} className="flex justify-between items-center py-2 border-b">
-                  <span className="font-medium capitalize text-sm">{key.replace(/_/g, ' ')}</span>
-                  <Badge variant="outline">
-                    {typeof value === 'number' ? value.toLocaleString() : String(value)}
-                  </Badge>
-                </div>
-              );
-            })}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+            <div>
+              <p className="text-sm text-gray-600">Conversión Oferta → Adjudicación</p>
+              <p className="text-2xl font-bold text-blue-600">{(resumen.conversion_oferta_adjudicacion || 0).toFixed(1)}%</p>
+            </div>
+            <div>
+              <p className="text-sm text-gray-600">Conversión Adjudicación → Aceptación</p>
+              <p className="text-2xl font-bold text-green-600">{(resumen.conversion_adjudicacion_aceptacion || 0).toFixed(1)}%</p>
+            </div>
+            <div>
+              <p className="text-sm text-gray-600">Conversión General Financiera</p>
+              <p className="text-2xl font-bold text-purple-600">{(resumen.conversion_general_financiera || 0).toFixed(1)}%</p>
+            </div>
+            <div>
+              <p className="text-sm text-gray-600">Ticket Promedio Marketplace</p>
+              <p className="text-2xl font-bold text-orange-600">${(resumen.ticket_promedio_marketplace || 0).toLocaleString()}</p>
+            </div>
           </div>
         </CardContent>
       </Card>
