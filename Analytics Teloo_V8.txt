@@ -1,0 +1,149 @@
+
+2.1. El Dashboard del Embudo Operativo
+Objetivo: Visualizar y medir la eficiencia del flujo de proceso central del negocio, desde la creación de una solicitud hasta su resolución final, tal como se describe en la sección 3 del documento de entendimiento. Este dashboard es el electrocardiograma de la operación diaria.   
+
+Fuentes de Datos Clave: Principalmente las tablas SOLICITUDES (para estados y timestamps) y OFERTAS (para tiempos de respuesta).   
+
+Indicadores Propuestos:
+
+Tasa de Entrada de Solicitudes (Request Inflow Rate): Número de nuevas solicitudes creadas por hora, día y semana. Permite identificar patrones de demanda y horas pico.
+
+Tasas de Conversión del Embudo: Un análisis detallado de la progresión de las solicitudes a través de sus estados clave.   
+
+ABIERTA → EN_EVALUACION: Porcentaje de solicitudes que reciben al menos una oferta. Mide la capacidad inicial de la plataforma para generar interés de los asesores.
+
+EN_EVALUACION → ADJUDICADA: Porcentaje de solicitudes con ofertas que resultan en la selección de un ganador. Mide la eficacia del algoritmo de evaluación.
+
+ADJUDICADA → ACEPTADA: Porcentaje de ofertas ganadoras que son aceptadas por el cliente. Mide la competitividad final de la oferta presentada.
+
+Tasa de Conversión General: Calculada como (Total de Solicitudes ACEPTADA / Total de Solicitudes Creadas). Esta es una versión más granular y completa del KPI ya definido para el dashboard de administrador.   
+
+Métricas de Velocidad:
+
+Tiempo hasta la Primera Oferta (TTFO): Mediana del tiempo transcurrido desde solicitudes.fecha_creacion hasta la creación de la primera oferta asociada. Es un indicador crítico de la reactividad de la red de asesores.
+
+Tiempo hasta la Adjudicación (TTA): Mediana del tiempo desde la creación de la solicitud hasta que su estado cambia a ADJUDICADA. Mide la velocidad de todo el ciclo de oferta y evaluación.
+
+Tiempo hasta la Decisión del Cliente (TTCD): Mediana del tiempo desde que la oferta ganadora se presenta al cliente (evento que debe registrarse) hasta que el cliente responde (ACEPTADA o RECHAZADA).
+
+Métricas de Fallo del Proceso:
+
+Tasa de Llenado de Solicitudes (Request Fill Rate): 100% - Tasa de CERRADA_SIN_OFERTAS. Es el porcentaje de solicitudes que reciben al menos una oferta. Un valor bajo es una señal de alarma sobre la liquidez del marketplace.
+
+Tasa de Escalamiento: Porcentaje de solicitudes que necesitan escalar más allá del Nivel 1. Un valor alto indica que el primer anillo de asesores (teóricamente los más adecuados) no es suficiente o no está respondiendo, lo que introduce demoras en el proceso.   
+
+Tasa de Fallo por Nivel: Porcentaje de solicitudes que no reciben ofertas en un nivel específico (1, 2, 3, 4 o 5), forzando el escalamiento al siguiente. Permite diagnosticar problemas en segmentos específicos de la red de asesores.
+
+2.2. El Dashboard de Salud del Marketplace
+Objetivo: Medir el equilibrio, la liquidez y la competitividad del ecosistema de TeLo. Un marketplace saludable no solo procesa transacciones, sino que fomenta un entorno competitivo y participativo tanto para clientes como para asesores.
+
+Fuentes de Datos Clave: SOLICITUDES, ASESORES, OFERTAS.   
+
+Indicadores Propuestos:
+
+Ratio Oferta/Demanda: Calculado como (Número de Asesores Activos / Número de Solicitudes Diarias). Ofrece una visión de alto nivel de la capacidad de la oferta para satisfacer la demanda.
+
+Densidad de Ofertas: Número promedio de ofertas recibidas por cada solicitud que fue llenada (es decir, que recibió al menos una oferta). Una alta densidad sugiere un entorno competitivo que beneficia al cliente final.
+
+Tasa de Participación de Asesores (Advisor Engagement Rate): Porcentaje de asesores habilitados que han enviado al menos una oferta en un período determinado (ej. últimos 7 días). Mide qué tan activa es la base de proveedores.
+
+Tasa de Adjudicación (Win Rate) del Asesor Promedio: Para un asesor típico, ¿qué porcentaje de las ofertas que envía resultan ADJUDICADA? Un valor muy bajo a nivel de plataforma puede ser desmotivador para la red de asesores.
+
+Tasa de Aceptación del Cliente: Del total de ofertas ADJUDICADA, ¿qué porcentaje son finalmente ACEPTADA por el cliente? Una tasa baja en este punto, incluso después de que el algoritmo ha seleccionado la "mejor" opción, puede indicar que las ofertas ganadoras todavía no son lo suficientemente atractivas para el mercado o que el cliente perdió interés debido al tiempo de espera.
+
+2.3. El Dashboard Financiero
+Objetivo: Rastrear el flujo de valor económico a través de la plataforma, proporcionando una visión clara del volumen de negocio que se está gestionando.
+
+Fuentes de Datos Clave: OFERTAS, OFERTAS_DETALLE, SOLICITUDES.   
+
+Indicadores Propuestos:
+
+Valor Bruto Ofertado (Gross Offer Value - GOV): Suma monetaria del valor total de todas las ofertas enviadas en la plataforma. Representa el valor potencial total de la oferta disponible. Se calcula sumando (precio_unitario * cantidad) para todos los ítems en OFERTAS_DETALLE.
+
+Valor Bruto Adjudicado (Gross Adjudicated Value - GAV_adj): Suma monetaria del valor de todas las ofertas que han sido seleccionadas como ADJUDICADA. Representa el valor que la plataforma ha seleccionado como óptimo.
+
+Valor Bruto Aceptado (Gross Accepted Value - GAV_acc): Suma monetaria del valor de todas las ofertas que han sido ACEPTADA por los clientes. Este es el indicador financiero más importante de la plataforma, ya que representa el volumen de negocio que TeLo ha facilitado con éxito. Es una evolución directa del KPI "Monto total aceptado por clientes".   
+
+Valor Promedio de Oferta Aceptada: GAV_acc / Número de solicitudes ACEPTADA. Permite entender el "ticket promedio" de las transacciones exitosas.
+
+Tasa de Fuga de Valor (Value Leakage Rate): Calculada como ((GAV_adj - GAV_acc) / GAV_adj). Este KPI es crucial, ya que mide el porcentaje de valor que, habiendo sido identificado como "ganador" por el sistema, es finalmente rechazado por el cliente. Una tasa alta es una señal de que el algoritmo de evaluación podría no estar perfectamente alineado con las preferencias reales del cliente.
+
+Tabla 2.1: Diccionario Maestro de KPIs
+Para garantizar la coherencia y claridad en toda la organización, se propone la creación de un diccionario de KPIs centralizado. Este documento será la referencia única para la definición, cálculo y propósito de cada métrica.
+
+Nombre del KPI	Descripción	Fórmula / Lógica de Cálculo	Tablas Fuente	Pregunta de Negocio que Responde	Visualización Recomendada
+Tiempo hasta la Primera Oferta (TTFO)	Mediana del tiempo en minutos desde la creación de una solicitud hasta la recepción de su primera oferta.	MEDIAN(MIN(ofertas.created_at) - solicitudes.created_at) GROUP BY solicitud_id	SOLICITUDES, OFERTAS	¿Con qué rapidez responden nuestros asesores a la nueva demanda?	Gráfico de líneas (evolución temporal), Medidor (Gauge) con umbrales
+Tasa de Llenado de Solicitudes	Porcentaje de solicitudes que reciben al menos una oferta.	(COUNT(DISTINCT solicitud_id FROM ofertas) / COUNT(id FROM solicitudes)) * 100	SOLICITUDES, OFERTAS	¿Qué tan efectivos somos en encontrar al menos un proveedor para cada necesidad?	Gráfico de barras por período, Número grande con tendencia
+Tasa de Escalamiento	Porcentaje de solicitudes que avanzan más allá del Nivel 1.	(COUNT(solicitudes WHERE nivel_actual > 1) / COUNT(solicitudes)) * 100	SOLICITUDES	¿Nuestra primera línea de asesores es suficiente o dependemos de la red extendida?	Gráfico de pastel, Gráfico de barras por geografía
+Densidad de Ofertas	Número promedio de ofertas por solicitud que fue llenada.	AVG(COUNT(ofertas.id) GROUP BY solicitud_id) para solicitudes con al menos una oferta.	OFERTAS	¿Cuán competitivo es nuestro marketplace para una solicitud dada?	Histograma de distribución, Gráfico de líneas (evolución temporal)
+Valor Bruto Aceptado (GAV_acc)	Suma monetaria total de las ofertas aceptadas por los clientes en un período.	SUM(detalle.precio_unitario * rep.cantidad) para ofertas con estado ACEPTADA.	OFERTAS, OFERTAS_DETALLE, REPUESTOS_SOLICITUD	¿Cuál es el volumen total de negocio que hemos facilitado exitosamente?	Gráfico de barras por mes/semana, Número grande con comparativa YoY/MoM
+Tasa de Fuga de Valor	Porcentaje de valor adjudicado que es rechazado por el cliente.	(SUM(GAV_adj) - SUM(GAV_acc)) / SUM(GAV_adj)	OFERTAS, OFERTAS_DETALLE	¿Existe una desconexión entre lo que nuestro algoritmo considera "óptimo" y lo que el cliente valora?	Gráfico de líneas (evolución temporal), Gráfico de barras por categoría de repuesto
+
+
+Sección 3: Análisis Profundo del Ecosistema de Asesores
+El éxito de TeLo depende directamente de la calidad, compromiso y eficiencia de su red de asesores. Esta sección se enfoca en desarrollar una comprensión profunda de este lado de la oferta del marketplace, yendo más allá de las métricas superficiales para crear un sistema de gestión de asesores basado en datos.
+
+3.1. Cuadros de Mando de Rendimiento del Asesor (Advisor Scorecards)
+Objetivo: Crear una visión holística y basada en datos del rendimiento de cada asesor. Este enfoque dinámico complementará y, con el tiempo, podría superar en importancia a las calificaciones administrativas estáticas (calificacion_inventario, calificacion_confianza) que actualmente se definen manualmente. Estas métricas objetivas son esenciales para la justicia y eficacia del algoritmo de asignación de niveles.   
+
+Fuentes de Datos Clave: ASESORES, OFERTAS, SOLICITUDES.   
+
+Métricas Propuestas (por asesor):
+
+Tasa de Presentación de Ofertas (Offer Submission Rate): Del total de solicitudes asignadas a la bandeja de un asesor, ¿en qué porcentaje presenta una oferta? Un asesor que ignora muchas solicitudes puede no estar comprometido o puede estar recibiendo asignaciones irrelevantes.
+
+Tasa de Adjudicación Personal (Personal Win Rate): Del total de ofertas que un asesor presenta, ¿qué porcentaje resulta ADJUDICADA? Esta es la métrica de competitividad directa del asesor.
+
+Tasa de Aceptación sobre Adjudicaciones: De las ofertas ADJUDICADA de un asesor, ¿qué porcentaje es finalmente ACEPTADA por el cliente? Un asesor con una alta tasa de adjudicación pero baja tasa de aceptación podría estar ganando con ofertas que, aunque algorítmicamente superiores, no son atractivas para el cliente final (ej. precios marginalmente mejores pero con mala reputación implícita no capturada por el sistema).
+
+Índice de Competitividad de Oferta: Un puntaje compuesto que evalúa las ofertas de un asesor en relación con las de sus competidores en las mismas solicitudes. Se basaría en la desviación de su precio, tiempo de entrega y garantía con respecto al mejor y al promedio de cada solicitud, utilizando los mismos criterios de la evaluación de ofertas.   
+
+Mediana de Tiempo de Respuesta: El tiempo mediano personal que tarda un asesor en presentar una oferta desde que la solicitud aparece en su bandeja. Mide su agilidad y atención a la plataforma.
+
+3.2. Segmentación Dinámica de Asesores
+Objetivo: Clasificar a los asesores en grupos homogéneos y accionables basados en su comportamiento real en la plataforma, no solo en sus atributos estáticos. Esto permite al equipo de operaciones de TeLo diseñar intervenciones personalizadas para maximizar el valor de cada segmento. Se propone una adaptación del clásico modelo de análisis RFM (Recencia, Frecuencia, Valor Monetario).
+
+Dimensiones de Segmentación:
+
+Recencia: Tiempo transcurrido desde la última oferta enviada por el asesor.
+
+Frecuencia: Número de ofertas enviadas en los últimos 30 días.
+
+Valor: GAV_acc (Valor Bruto Aceptado) total generado por el asesor en los últimos 90 días.
+
+Segmentos Propuestos:
+
+Asesores Estrella (Power Advisors): Alto rendimiento en las tres dimensiones. Son la columna vertebral de la plataforma. Generan valor consistentemente y están muy comprometidos.
+
+Estrellas en Ascenso (Rising Stars): Alta Recencia y Frecuencia, pero bajo Valor. Son asesores muy activos y comprometidos que luchan por ganar ofertas. Necesitan apoyo para mejorar su competitividad.
+
+Gigantes Dormidos (Sleeping Giants): Baja Recencia, pero alto Valor histórico. Fueron asesores estrella en el pasado pero su actividad ha disminuido. Es crucial reactivarlos antes de que abandonen la plataforma.
+
+Asesores en Riesgo (At-Risk Advisors): Alta Recencia (aún activos), pero con Frecuencia y Valor en rápida disminución. Muestran los primeros signos de desvinculación.
+
+Nuevos Asesores: Recién registrados, con valores bajos en todas las métricas. Necesitan un proceso de onboarding guiado para convertirse en miembros productivos del ecosistema.
+
+Tabla 3.1: Matriz de Segmentación de Asesores
+Esta matriz traduce los segmentos de datos en un plan de acción concreto para el negocio, convirtiendo el análisis en gestión proactiva de la comunidad de asesores.
+
+Nombre del Segmento	Definición Basada en Datos	Implicación para el Negocio	Acciones Recomendadas
+Asesores Estrella	Cuartil superior en Recencia, Frecuencia y Valor.	Generan una parte desproporcionada del valor de la plataforma. Su retención es de máxima prioridad.	- Programa de lealtad (comisiones reducidas, soporte prioritario). - Acceso beta a nuevas funcionalidades. - Reconocimiento público (ej. "Asesor del Mes").
+Estrellas en Ascenso	Alta Frecuencia/Recencia, bajo Valor.	Están comprometidos pero no son competitivos. Alto riesgo de frustración y abandono.	- Webinars de estrategia sobre cómo crear ofertas ganadoras. - Informes personalizados de competitividad (ej. "En la solicitud X, perdiste por un 5% en precio"). - Mentoría por parte de Asesores Estrella.
+Gigantes Dormidos	Baja Recencia, alto Valor histórico.	Representan una pérdida de capacidad probada. La reactivación es una ganancia rápida y de alto impacto.	- Campaña de email/WhatsApp personalizada: "¿Te echamos de menos, [Nombre]?". - Encuesta de salida para entender las razones de la inactividad. - Incentivo de reactivación (ej. 0% de comisión en las próximas 5 ventas).
+Asesores en Riesgo	Frecuencia y Valor en declive.	Indicador temprano de churn. La intervención proactiva es mucho más efectiva que la reactivación.	- Alerta automática al gestor de cuentas de TeLo. - Llamada proactiva para entender si enfrentan algún problema. - Ofrecer una sesión de revisión de estrategia.
+Nuevos Asesores	Menos de 30 días en la plataforma, baja actividad.	El onboarding es crítico. La experiencia inicial definirá su compromiso a largo plazo.	- Secuencia de emails de bienvenida con tutoriales. - Asignación de un "buddy" o mentor. - Metas iniciales gamificadas (ej. "Envía tus primeras 10 ofertas y obtén un bono").
+
+
+3.3. Análisis Geoespacial de Cobertura y Oportunidad
+Objetivo: Mapear la distribución geográfica de la oferta (asesores) frente a la demanda (solicitudes de clientes) para identificar visualmente desequilibrios, brechas de mercado y áreas de saturación.
+
+Metodología: Utilizando Python con librerías como GeoPandas para el manejo de datos geoespaciales y Plotly o Folium para la creación de mapas interactivos.
+
+Se extraen las coordenadas de las ciudades de los clientes desde la tabla CLIENTES y CIUDADES.   
+
+Estos puntos se visualizan como un mapa de calor (heatmap), donde las áreas más "calientes" representan las zonas con mayor volumen de solicitudes.
+
+Sobre este mapa de calor, se superponen las ubicaciones de los puntos de venta de los asesores, extraídas de la tabla PUNTOS_VENTA.   
+
+
+
