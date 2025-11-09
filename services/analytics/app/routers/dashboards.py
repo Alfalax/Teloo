@@ -183,7 +183,7 @@ async def get_dashboard_financiero(
     fecha_fin: Optional[datetime] = Query(None, description="Fecha fin (ISO format)")
 ) -> Dict[str, Any]:
     """
-    Obtener dashboard financiero con 5 KPIs de transacciones
+    Obtener dashboard financiero con 5 KPIs alineados (GOV, GAV_adj, GAV_acc, etc.)
     """
     try:
         if not fecha_inicio:
@@ -191,14 +191,7 @@ async def get_dashboard_financiero(
         if not fecha_fin:
             fecha_fin = datetime.utcnow()
             
-        # Por ahora retornamos estructura básica
-        financiero = {
-            "ingresos_totales": 0,
-            "comisiones_generadas": 0,
-            "valor_promedio_transaccion": 0,
-            "transacciones_completadas": 0,
-            "crecimiento_mensual": 0
-        }
+        financiero = await metrics_calculator.get_dashboard_financiero(fecha_inicio, fecha_fin)
         
         return {
             "dashboard": "financiero",
