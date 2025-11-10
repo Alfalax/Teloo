@@ -148,10 +148,10 @@ export function ExcelImportDialog({
             <FileSpreadsheet className="h-5 w-5" />
             Importar Asesores desde Excel
           </DialogTitle>
-          <DialogDescription>
-            Sube un archivo Excel con la información de los asesores para importar masivamente.
-          </DialogDescription>
         </DialogHeader>
+        <DialogDescription>
+          Sube un archivo Excel con la información de los asesores para importar masivamente.
+        </DialogDescription>
 
         <div className="space-y-4">
           {/* Download Template Button */}

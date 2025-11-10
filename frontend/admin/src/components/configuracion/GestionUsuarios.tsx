@@ -167,10 +167,10 @@ export function GestionUsuarios() {
           <DialogContent className="max-w-md">
             <DialogHeader>
               <DialogTitle>Crear Nuevo Usuario</DialogTitle>
-              <DialogDescription>
-                Complete la información del nuevo usuario del sistema
-              </DialogDescription>
             </DialogHeader>
+            <DialogDescription>
+              Complete la información del nuevo usuario del sistema
+            </DialogDescription>
             <UsuarioForm
               onSubmit={handleCreateUsuario}
               onCancel={() => setIsCreateDialogOpen(false)}
@@ -319,10 +319,10 @@ export function GestionUsuarios() {
         <DialogContent className="max-w-md">
           <DialogHeader>
             <DialogTitle>Editar Usuario</DialogTitle>
-            <DialogDescription>
-              Modifique la información del usuario
-            </DialogDescription>
           </DialogHeader>
+          <DialogDescription>
+            Modifique la información del usuario
+          </DialogDescription>
           {editingUsuario && (
             <UsuarioForm
               initialData={editingUsuario}

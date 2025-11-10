@@ -64,10 +64,10 @@ export function SolicitudDetailDialog({
               {solicitud.estado}
             </Badge>
           </div>
-          <DialogDescription className="text-sm text-muted-foreground font-mono">
-            ID: {solicitud.id}
-          </DialogDescription>
         </DialogHeader>
+        <DialogDescription className="text-sm text-muted-foreground font-mono">
+          ID: {solicitud.id}
+        </DialogDescription>
 
         <div className="space-y-6">
           {/* Cliente Info */}

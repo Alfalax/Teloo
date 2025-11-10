@@ -279,44 +279,44 @@ export default function OfertaIndividualModal({
 
   return (
     <Dialog open={open} onOpenChange={onClose}>
-      <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto" aria-describedby="oferta-description">
+      <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Crear Oferta - Solicitud #{solicitud.id.slice(0, 8)}</DialogTitle>
-          <DialogDescription id="oferta-description">
-            Complete la información de su oferta para los repuestos seleccionados
-          </DialogDescription>
-          
-          {/* Excel Actions */}
-          <div className="flex gap-2 mt-4">
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={handleDescargarPlantilla}
-              className="flex items-center gap-2"
-            >
-              <Download className="h-4 w-4" />
-              Descargar Plantilla Excel
-            </Button>
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={handleCargarExcel}
-              className="flex items-center gap-2"
-            >
-              <Upload className="h-4 w-4" />
-              Cargar desde Excel
-            </Button>
-            <input
-              ref={fileInputRef}
-              type="file"
-              accept=".xlsx,.xls"
-              onChange={handleFileChange}
-              className="hidden"
-            />
-          </div>
         </DialogHeader>
+        <DialogDescription>
+          Complete la información de su oferta para los repuestos seleccionados
+        </DialogDescription>
+          
+        {/* Excel Actions */}
+        <div className="flex gap-2 mt-4">
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={handleDescargarPlantilla}
+            className="flex items-center gap-2"
+          >
+            <Download className="h-4 w-4" />
+            Descargar Plantilla Excel
+          </Button>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={handleCargarExcel}
+            className="flex items-center gap-2"
+          >
+            <Upload className="h-4 w-4" />
+            Cargar desde Excel
+          </Button>
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept=".xlsx,.xls"
+            onChange={handleFileChange}
+            className="hidden"
+          />
+        </div>
 
         <div className="space-y-6">
           {/* Vehicle Info */}

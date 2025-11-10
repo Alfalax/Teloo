@@ -129,10 +129,10 @@ export function NuevaSolicitudDialog({
       <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Nueva Solicitud</DialogTitle>
-          <DialogDescription>
-            Completa los pasos para crear una nueva solicitud de repuestos
-          </DialogDescription>
         </DialogHeader>
+        <DialogDescription>
+          Completa los pasos para crear una nueva solicitud de repuestos
+        </DialogDescription>
 
         {/* Steps Indicator */}
         <div className="flex items-center justify-center space-x-4 py-4">

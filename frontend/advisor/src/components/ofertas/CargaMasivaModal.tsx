@@ -213,13 +213,13 @@ export default function CargaMasivaModal({ open, onClose, onSuccess }: CargaMasi
 
   return (
     <Dialog open={open} onOpenChange={handleClose}>
-      <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto" aria-describedby="carga-masiva-description">
+      <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Carga Masiva de Ofertas</DialogTitle>
-          <DialogDescription id="carga-masiva-description">
-            Suba un archivo Excel con sus ofertas para múltiples solicitudes
-          </DialogDescription>
         </DialogHeader>
+        <DialogDescription>
+          Suba un archivo Excel con sus ofertas para múltiples solicitudes
+        </DialogDescription>
 
         <div className="space-y-6">
           {/* Download Template */}
