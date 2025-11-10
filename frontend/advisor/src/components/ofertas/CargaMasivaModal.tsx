@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback } from 'react';
 import { useDropzone } from 'react-dropzone';
 import { Upload, Download, FileSpreadsheet, AlertCircle, CheckCircle, X } from 'lucide-react';
 import * as XLSX from 'xlsx';
@@ -33,7 +33,7 @@ interface ExcelRow {
 
 export default function CargaMasivaModal({ open, onClose, onSuccess }: CargaMasivaModalProps) {
   // Load configuration parameters
-  const { getMetadata, isLoading: isLoadingConfig } = useConfiguracion([
+  const { getMetadata } = useConfiguracion([
     'precio_minimo_oferta',
     'precio_maximo_oferta',
     'garantia_minima_meses',
@@ -52,16 +52,12 @@ export default function CargaMasivaModal({ open, onClose, onSuccess }: CargaMasi
   );
 
   // Get validation ranges from metadata
-  const precioMeta = getMetadata('precio_minimo_oferta');
-  const garantiaMeta = getMetadata('garantia_minima_meses');
-  const tiempoMeta = getMetadata('tiempo_entrega_minimo_dias');
-
-  const precioMin = precioMeta?.min ?? 1000;
-  const precioMax = precioMeta?.max ?? 50000000;
-  const garantiaMin = garantiaMeta?.min ?? 1;
-  const garantiaMax = garantiaMeta?.max ?? 60;
-  const tiempoMin = tiempoMeta?.min ?? 0;
-  const tiempoMax = tiempoMeta?.max ?? 90;
+  const precioMin = getMetadata('precio_minimo_oferta', 'min') ?? 1000;
+  const precioMax = getMetadata('precio_maximo_oferta', 'max') ?? 50000000;
+  const garantiaMin = getMetadata('garantia_minima_meses', 'min') ?? 1;
+  const garantiaMax = getMetadata('garantia_maxima_meses', 'max') ?? 60;
+  const tiempoMin = getMetadata('tiempo_entrega_minimo_dias', 'min') ?? 0;
+  const tiempoMax = getMetadata('tiempo_entrega_maximo_dias', 'max') ?? 90;
 
   const onDrop = useCallback((acceptedFiles: File[]) => {
     const file = acceptedFiles[0];
@@ -217,10 +213,10 @@ export default function CargaMasivaModal({ open, onClose, onSuccess }: CargaMasi
 
   return (
     <Dialog open={open} onOpenChange={handleClose}>
-      <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+      <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto" aria-describedby="carga-masiva-description">
         <DialogHeader>
           <DialogTitle>Carga Masiva de Ofertas</DialogTitle>
-          <DialogDescription>
+          <DialogDescription id="carga-masiva-description">
             Suba un archivo Excel con sus ofertas para múltiples solicitudes
           </DialogDescription>
         </DialogHeader>

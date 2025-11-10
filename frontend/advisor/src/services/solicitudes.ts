@@ -1,4 +1,4 @@
-import { apiClient } from '@/lib/axios';
+/*  */import { apiClient } from '@/lib/axios';
 import { SolicitudConOferta } from '@/types/solicitud';
 
 // Service for managing solicitudes with offers
@@ -39,5 +39,21 @@ export const solicitudesService = {
   }> {
     const response = await apiClient.get('/v1/solicitudes/metrics');
     return response.data;
+  },
+
+  async descargarPlantillaOferta(solicitudId: string): Promise<void> {
+    const response = await apiClient.get(`/v1/solicitudes/${solicitudId}/plantilla-oferta`, {
+      responseType: 'blob',
+    });
+    
+    // Crear URL del blob y descargar
+    const url = window.URL.createObjectURL(new Blob([response.data]));
+    const link = document.createElement('a');
+    link.href = url;
+    link.setAttribute('download', `plantilla_oferta_${solicitudId}.xlsx`);
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    window.URL.revokeObjectURL(url);
   },
 };

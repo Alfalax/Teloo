@@ -1,5 +1,5 @@
-import { useState, useEffect } from 'react';
-import { Car, AlertCircle } from 'lucide-react';
+import { useState, useEffect, useRef } from 'react';
+import { Car, AlertCircle, Download, Upload } from 'lucide-react';
 import { useConfiguracion } from '@/hooks/useConfiguracion';
 import {
   Dialog,
@@ -16,7 +16,9 @@ import { Textarea } from '@/components/ui/textarea';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Solicitud, CreateOfertaRequest } from '@/types/solicitud';
 import { ofertasService } from '@/services/ofertas';
+import { solicitudesService } from '@/services/solicitudes';
 import { formatCurrency } from '@/lib/utils';
+import * as XLSX from 'xlsx';
 
 interface OfertaIndividualModalProps {
   solicitud: Solicitud;
@@ -39,7 +41,7 @@ export default function OfertaIndividualModal({
   onSuccess,
 }: OfertaIndividualModalProps) {
   // Load configuration parameters
-  const { getMetadata, isLoading: isLoadingConfig } = useConfiguracion([
+  const { getMetadata } = useConfiguracion([
     'precio_minimo_oferta',
     'precio_maximo_oferta',
     'garantia_minima_meses',
@@ -51,31 +53,71 @@ export default function OfertaIndividualModal({
   // Use repuestos_solicitados or repuestos (backward compatibility)
   const repuestosSolicitud = solicitud.repuestos_solicitados || solicitud.repuestos || [];
   
-  const [repuestos, setRepuestos] = useState<RepuestoOferta[]>(
-    repuestosSolicitud.map((r) => ({
-      repuesto_solicitado_id: r.id,
-      incluir: true,
-      precio_unitario: '',
-      garantia_meses: '',
-    }))
-  );
+  const [repuestos, setRepuestos] = useState<RepuestoOferta[]>([]);
   const [tiempoEntrega, setTiempoEntrega] = useState('');
   const [observaciones, setObservaciones] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [validationErrors, setValidationErrors] = useState<Record<string, string>>({});
 
-  // Get validation ranges from metadata
-  const precioMeta = getMetadata('precio_minimo_oferta');
-  const garantiaMeta = getMetadata('garantia_minima_meses');
-  const tiempoMeta = getMetadata('tiempo_entrega_minimo_dias');
+  // Preload values from existing offer or initialize empty
+  useEffect(() => {
+    if (open) {
+      const miOferta = (solicitud as any).mi_oferta;
+      
+      if (miOferta && miOferta.detalles) {
+        // Preload from existing offer
+        const repuestosConOferta = repuestosSolicitud.map((r) => {
+          const detalle = miOferta.detalles.find(
+            (d: any) => d.repuesto_solicitado_id === r.id
+          );
+          
+          if (detalle) {
+            return {
+              repuesto_solicitado_id: r.id,
+              incluir: true,
+              precio_unitario: detalle.precio_unitario.toString(),
+              garantia_meses: detalle.garantia_meses.toString(),
+            };
+          }
+          
+          return {
+            repuesto_solicitado_id: r.id,
+            incluir: false,
+            precio_unitario: '',
+            garantia_meses: '',
+          };
+        });
+        
+        setRepuestos(repuestosConOferta);
+        setTiempoEntrega(miOferta.tiempo_entrega_dias.toString());
+        setObservaciones(miOferta.observaciones || '');
+      } else {
+        // Initialize empty for new offer
+        setRepuestos(
+          repuestosSolicitud.map((r) => ({
+            repuesto_solicitado_id: r.id,
+            incluir: true,
+            precio_unitario: '',
+            garantia_meses: '',
+          }))
+        );
+        setTiempoEntrega('');
+        setObservaciones('');
+      }
+      
+      setError(null);
+      setValidationErrors({});
+    }
+  }, [open, solicitud]);
 
-  const precioMin = precioMeta?.min ?? 1000;
-  const precioMax = precioMeta?.max ?? 50000000;
-  const garantiaMin = garantiaMeta?.min ?? 1;
-  const garantiaMax = garantiaMeta?.max ?? 60;
-  const tiempoMin = tiempoMeta?.min ?? 0;
-  const tiempoMax = tiempoMeta?.max ?? 90;
+  // Get validation ranges from metadata
+  const precioMin = getMetadata('precio_minimo_oferta', 'min') ?? 1000;
+  const precioMax = getMetadata('precio_maximo_oferta', 'max') ?? 50000000;
+  const garantiaMin = getMetadata('garantia_minima_meses', 'min') ?? 1;
+  const garantiaMax = getMetadata('garantia_maxima_meses', 'max') ?? 60;
+  const tiempoMin = getMetadata('tiempo_entrega_minimo_dias', 'min') ?? 0;
+  const tiempoMax = getMetadata('tiempo_entrega_maximo_dias', 'max') ?? 90;
 
   const validateForm = (): boolean => {
     const errors: Record<string, string> = {};
@@ -157,6 +199,58 @@ export default function OfertaIndividualModal({
     }
   };
 
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const handleDescargarPlantilla = async () => {
+    try {
+      await solicitudesService.descargarPlantillaOferta(solicitud.id);
+    } catch (err: any) {
+      setError('Error descargando plantilla: ' + (err.response?.data?.detail || err.message));
+    }
+  };
+
+  const handleCargarExcel = () => {
+    fileInputRef.current?.click();
+  };
+
+  const handleFileChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    try {
+      const data = await file.arrayBuffer();
+      const workbook = XLSX.read(data);
+      const worksheet = workbook.Sheets[workbook.SheetNames[0]];
+      const jsonData = XLSX.utils.sheet_to_json(worksheet) as any[];
+
+      // Mapear datos del Excel al estado
+      const nuevosRepuestos = repuestos.map((r) => {
+        const excelRow = jsonData.find((row) => row.repuesto_id === r.repuesto_solicitado_id);
+        
+        if (excelRow && excelRow.precio_unitario && excelRow.garantia_meses) {
+          return {
+            ...r,
+            incluir: true,
+            precio_unitario: excelRow.precio_unitario.toString(),
+            garantia_meses: excelRow.garantia_meses.toString(),
+          };
+        }
+        
+        return r;
+      });
+
+      setRepuestos(nuevosRepuestos);
+      setError(null);
+    } catch (err: any) {
+      setError('Error procesando archivo Excel: ' + err.message);
+    }
+
+    // Reset input
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
+  };
+
   const handleRepuestoChange = (index: number, field: keyof RepuestoOferta, value: any) => {
     const newRepuestos = [...repuestos];
     newRepuestos[index] = { ...newRepuestos[index], [field]: value };
@@ -185,12 +279,43 @@ export default function OfertaIndividualModal({
 
   return (
     <Dialog open={open} onOpenChange={onClose}>
-      <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
+      <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto" aria-describedby="oferta-description">
         <DialogHeader>
           <DialogTitle>Crear Oferta - Solicitud #{solicitud.id.slice(0, 8)}</DialogTitle>
-          <DialogDescription>
+          <DialogDescription id="oferta-description">
             Complete la información de su oferta para los repuestos seleccionados
           </DialogDescription>
+          
+          {/* Excel Actions */}
+          <div className="flex gap-2 mt-4">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={handleDescargarPlantilla}
+              className="flex items-center gap-2"
+            >
+              <Download className="h-4 w-4" />
+              Descargar Plantilla Excel
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={handleCargarExcel}
+              className="flex items-center gap-2"
+            >
+              <Upload className="h-4 w-4" />
+              Cargar desde Excel
+            </Button>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept=".xlsx,.xls"
+              onChange={handleFileChange}
+              className="hidden"
+            />
+          </div>
         </DialogHeader>
 
         <div className="space-y-6">
@@ -212,31 +337,35 @@ export default function OfertaIndividualModal({
           {/* Repuestos */}
           <div className="space-y-4">
             <Label className="text-base font-semibold">Repuestos Solicitados</Label>
-            {repuestosSolicitud.map((repuesto, index) => (
-              <div
-                key={repuesto.id}
-                className={`p-4 border rounded-lg space-y-3 ${
-                  !repuestos[index].incluir ? 'opacity-50 bg-muted/50' : ''
-                }`}
-              >
-                <div className="flex items-start gap-3">
-                  <Checkbox
-                    checked={repuestos[index].incluir}
-                    onCheckedChange={(checked) =>
-                      handleRepuestoChange(index, 'incluir', checked)
-                    }
-                    className="mt-1"
-                  />
-                  <div className="flex-1">
-                    <p className="font-medium">{repuesto.nombre}</p>
-                    {repuesto.codigo && (
-                      <p className="text-sm text-muted-foreground">Código: {repuesto.codigo}</p>
-                    )}
-                    <p className="text-sm text-muted-foreground">Cantidad: {repuesto.cantidad}</p>
-                  </div>
+            {repuestosSolicitud.map((repuesto, index) => {
+              const repuestoData = repuestos[index];
+              if (!repuestoData) return null;
+              
+              return (
+                <div
+                  key={repuesto.id}
+                  className={`p-4 border rounded-lg space-y-3 ${
+                    !repuestoData.incluir ? 'opacity-50 bg-muted/50' : ''
+                  }`}
+                >
+                  <div className="flex items-start gap-3">
+                    <Checkbox
+                      checked={repuestoData.incluir}
+                      onCheckedChange={(checked) =>
+                        handleRepuestoChange(index, 'incluir', checked)
+                      }
+                      className="mt-1"
+                    />
+                    <div className="flex-1">
+                      <p className="font-medium">{repuesto.nombre}</p>
+                      {repuesto.codigo && (
+                        <p className="text-sm text-muted-foreground">Código: {repuesto.codigo}</p>
+                      )}
+                      <p className="text-sm text-muted-foreground">Cantidad: {repuesto.cantidad}</p>
+                    </div>
                 </div>
 
-                {repuestos[index].incluir && (
+                {repuestoData.incluir && (
                   <div className="grid grid-cols-2 gap-3 ml-7">
                     <div className="space-y-2">
                       <Label htmlFor={`precio-${index}`}>
@@ -246,7 +375,7 @@ export default function OfertaIndividualModal({
                         id={`precio-${index}`}
                         type="number"
                         placeholder={`${precioMin} - ${precioMax}`}
-                        value={repuestos[index].precio_unitario}
+                        value={repuestoData.precio_unitario}
                         onChange={(e) =>
                           handleRepuestoChange(index, 'precio_unitario', e.target.value)
                         }
@@ -267,7 +396,7 @@ export default function OfertaIndividualModal({
                         id={`garantia-${index}`}
                         type="number"
                         placeholder={`${garantiaMin} - ${garantiaMax}`}
-                        value={repuestos[index].garantia_meses}
+                        value={repuestoData.garantia_meses}
                         onChange={(e) =>
                           handleRepuestoChange(index, 'garantia_meses', e.target.value)
                         }
@@ -283,7 +412,8 @@ export default function OfertaIndividualModal({
                   </div>
                 )}
               </div>
-            ))}
+              );
+            })}
             {validationErrors.repuestos && (
               <p className="text-sm text-destructive flex items-center gap-1">
                 <AlertCircle className="h-4 w-4" />

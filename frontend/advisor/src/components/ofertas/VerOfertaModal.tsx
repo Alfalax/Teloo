@@ -1,4 +1,4 @@
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { SolicitudConOferta } from '@/types/solicitud';
@@ -49,12 +49,15 @@ export default function VerOfertaModal({ open, onClose, solicitud, onActualizarO
 
   return (
     <Dialog open={open} onOpenChange={onClose}>
-      <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+      <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto" aria-describedby="ver-oferta-description">
         <DialogHeader>
           <DialogTitle className="flex items-center justify-between">
             <span>Detalle de Mi Oferta</span>
             {getEstadoBadge(mi_oferta.estado)}
           </DialogTitle>
+          <DialogDescription id="ver-oferta-description" className="sr-only">
+            Visualización del detalle de la oferta enviada
+          </DialogDescription>
         </DialogHeader>
 
         <div className="space-y-6">
