@@ -159,6 +159,33 @@ async def validar_ciudad(
     }
 
 
+@router.get("/configuracion/public", summary="Obtener configuración pública (solo lectura)")
+async def get_configuracion_public(
+    categoria: Optional[str] = Query(None, description="Categoría específica de configuración"),
+    current_user: Usuario = Depends(get_current_active_user)
+):
+    """
+    Obtiene la configuración del sistema (solo lectura)
+    Disponible para todos los usuarios autenticados
+    """
+    
+    if categoria:
+        config = await ConfiguracionService.get_config(categoria)
+        metadata = await ConfiguracionService.get_metadata(categoria)
+        return {
+            "categoria": categoria,
+            "configuracion": config,
+            "metadata": metadata
+        }
+    else:
+        config = await ConfiguracionService.get_config()
+        metadata = await ConfiguracionService.get_all_metadata()
+        return {
+            "configuracion_completa": config,
+            "metadata": metadata
+        }
+
+
 @router.get("/configuracion", summary="Obtener configuración del sistema")
 async def get_configuracion(
     categoria: Optional[str] = Query(None, description="Categoría específica de configuración"),

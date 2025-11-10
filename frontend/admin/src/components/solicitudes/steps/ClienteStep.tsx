@@ -3,7 +3,7 @@
  */
 
 import { useState, useEffect } from "react";
-import { User, Phone, Mail, MapPin, Loader2 } from "lucide-react";
+import { User, Phone, Mail, Loader2, Search } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -13,7 +13,9 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Button } from "@/components/ui/button";
 import { geografiaService } from "@/services/geografia";
+import { solicitudesService } from "@/services/solicitudes";
 
 interface ClienteData {
   nombre: string;
@@ -35,6 +37,8 @@ export function ClienteStep({ data, onChange }: ClienteStepProps) {
   const [ciudades, setCiudades] = useState<string[]>([]);
   const [loadingDepartamentos, setLoadingDepartamentos] = useState(false);
   const [loadingCiudades, setLoadingCiudades] = useState(false);
+  const [searchingCliente, setSearchingCliente] = useState(false);
+  const [clienteFound, setClienteFound] = useState(false);
 
   // Load departamentos on mount
   useEffect(() => {
@@ -81,7 +85,41 @@ export function ClienteStep({ data, onChange }: ClienteStepProps) {
       newData.ciudad_origen = "";
     }
     
+    // Reset cliente found flag when phone changes
+    if (field === "telefono") {
+      setClienteFound(false);
+    }
+    
     onChange(newData);
+  };
+
+  const buscarClientePorTelefono = async () => {
+    if (!data.telefono || data.telefono.length < 10) {
+      return;
+    }
+
+    setSearchingCliente(true);
+    try {
+      const result = await solicitudesService.buscarClientePorTelefono(data.telefono);
+      
+      if (result.found) {
+        setClienteFound(true);
+        onChange({
+          nombre: result.nombre || data.nombre,
+          telefono: result.telefono || data.telefono,
+          email: result.email || data.email,
+          ciudad_origen: result.ciudad || data.ciudad_origen,
+          departamento_origen: result.departamento || data.departamento_origen,
+        });
+      } else {
+        setClienteFound(false);
+      }
+    } catch (error) {
+      console.error('Error buscando cliente:', error);
+      setClienteFound(false);
+    } finally {
+      setSearchingCliente(false);
+    }
   };
 
   return (
@@ -94,6 +132,41 @@ export function ClienteStep({ data, onChange }: ClienteStepProps) {
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div className="space-y-2 md:col-span-2">
+          <Label htmlFor="telefono">Teléfono *</Label>
+          <div className="flex gap-2">
+            <div className="relative flex-1">
+              <Phone className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground h-4 w-4" />
+              <Input
+                id="telefono"
+                placeholder="Ej: 3001234567"
+                value={data.telefono}
+                onChange={(e) => handleChange("telefono", e.target.value)}
+                className="pl-10"
+              />
+            </div>
+            <Button
+              type="button"
+              variant="outline"
+              size="icon"
+              onClick={buscarClientePorTelefono}
+              disabled={searchingCliente || !data.telefono || data.telefono.length < 10}
+              title="Buscar cliente existente"
+            >
+              {searchingCliente ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <Search className="h-4 w-4" />
+              )}
+            </Button>
+          </div>
+          {clienteFound && (
+            <p className="text-xs text-green-600">
+              ✓ Cliente encontrado - datos autocompletados
+            </p>
+          )}
+        </div>
+
         <div className="space-y-2">
           <Label htmlFor="nombre">Nombre Completo *</Label>
           <div className="relative">
@@ -103,20 +176,6 @@ export function ClienteStep({ data, onChange }: ClienteStepProps) {
               placeholder="Ej: Juan Pérez"
               value={data.nombre}
               onChange={(e) => handleChange("nombre", e.target.value)}
-              className="pl-10"
-            />
-          </div>
-        </div>
-
-        <div className="space-y-2">
-          <Label htmlFor="telefono">Teléfono *</Label>
-          <div className="relative">
-            <Phone className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground h-4 w-4" />
-            <Input
-              id="telefono"
-              placeholder="Ej: 3001234567"
-              value={data.telefono}
-              onChange={(e) => handleChange("telefono", e.target.value)}
               className="pl-10"
             />
           </div>

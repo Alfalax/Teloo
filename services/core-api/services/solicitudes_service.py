@@ -223,7 +223,7 @@ class SolicitudesService:
             # Add Colombian prefix
             telefono = f"+57{telefono_digits[-10:]}"
         
-        # Create or get usuario and cliente
+        # Get or create usuario and cliente (telefono is now unique)
         usuario = await Usuario.get_or_none(telefono=telefono)
         
         if not usuario:

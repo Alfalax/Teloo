@@ -99,6 +99,74 @@ class SolicitudesStatsResponse(BaseModel):
     rechazadas_expiradas: int
 
 
+class ClienteSearchResponse(BaseModel):
+    """Response model for cliente search by phone"""
+    found: bool
+    cliente_id: Optional[str] = None
+    nombre: Optional[str] = None
+    email: Optional[str] = None
+    telefono: Optional[str] = None
+    ciudad: Optional[str] = None
+    departamento: Optional[str] = None
+
+
+@router.get("/clientes/buscar", response_model=ClienteSearchResponse)
+async def buscar_cliente_por_telefono(
+    telefono: str = Query(..., description="Teléfono del cliente"),
+    current_user: Usuario = Depends(get_current_user)
+):
+    """
+    Buscar cliente por teléfono para autocompletar formulario
+    """
+    try:
+        from models.user import Cliente
+        
+        # Normalize phone number
+        telefono_normalizado = telefono
+        if not telefono.startswith("+57"):
+            telefono_digits = ''.join(filter(str.isdigit, telefono))
+            telefono_normalizado = f"+57{telefono_digits[-10:]}"
+        
+        # Search usuario by phone
+        usuario = await Usuario.get_or_none(telefono=telefono_normalizado).prefetch_related("cliente")
+        
+        if not usuario:
+            return {"found": False}
+        
+        # Get cliente profile
+        cliente = await Cliente.get_or_none(usuario_id=usuario.id)
+        
+        if not cliente:
+            return {
+                "found": True,
+                "cliente_id": None,
+                "nombre": usuario.nombre_completo,
+                "email": usuario.email,
+                "telefono": usuario.telefono,
+                "ciudad": None,
+                "departamento": None
+            }
+        
+        return {
+            "found": True,
+            "cliente_id": str(cliente.id),
+            "nombre": usuario.nombre_completo,
+            "email": usuario.email,
+            "telefono": usuario.telefono,
+            "ciudad": cliente.ciudad,
+            "departamento": cliente.departamento
+        }
+        
+    except Exception as e:
+        import traceback
+        print(f"Error in buscar_cliente_por_telefono: {str(e)}")
+        print(traceback.format_exc())
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error searching cliente: {str(e)}"
+        )
+
+
 @router.get("/metrics")
 async def get_advisor_metrics(
     current_user: Usuario = Depends(get_current_user)
