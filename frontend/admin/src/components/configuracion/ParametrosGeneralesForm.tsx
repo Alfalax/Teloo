@@ -22,7 +22,7 @@ export function ParametrosGeneralesForm({ data, categoria }: Props) {
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
   const [saveSuccess, setSaveSuccess] = useState(false);
-  const { updateConfiguracion } = useConfiguracion();
+  const { updateConfiguracion, metadata } = useConfiguracion();
 
   const {
     register,
@@ -54,99 +54,44 @@ export function ParametrosGeneralesForm({ data, categoria }: Props) {
     }
   };
 
-  const parametros = [
-    {
-      key: 'ofertas_minimas_deseadas',
-      label: 'Ofertas Mínimas Deseadas',
-      description: 'Número mínimo de ofertas antes de cierre anticipado',
-      type: 'number',
-      min: 1,
-      max: 10,
-      default: 2,
-      unit: 'ofertas'
-    },
-    {
-      key: 'timeout_evaluacion_seg',
-      label: 'Timeout de Evaluación',
-      description: 'Tiempo máximo para completar evaluación',
-      type: 'number',
-      min: 1,
-      max: 30,
-      default: 5,
-      unit: 'segundos'
-    },
-    {
-      key: 'vigencia_auditoria_dias',
-      label: 'Vigencia de Auditoría',
-      description: 'Días de vigencia de auditorías de confianza',
-      type: 'number',
-      min: 1,
-      max: 365,
-      default: 30,
-      unit: 'días'
-    },
-    {
-      key: 'periodo_actividad_dias',
-      label: 'Período de Actividad',
-      description: 'Días para calcular actividad reciente',
-      type: 'number',
-      min: 1,
-      max: 90,
-      default: 30,
-      unit: 'días'
-    },
-    {
-      key: 'periodo_desempeno_meses',
-      label: 'Período de Desempeño',
-      description: 'Meses para calcular desempeño histórico',
-      type: 'number',
-      min: 1,
-      max: 24,
-      default: 6,
-      unit: 'meses'
-    },
-    {
-      key: 'confianza_minima_operar',
-      label: 'Confianza Mínima para Operar',
-      description: 'Nivel mínimo de confianza requerido',
-      type: 'number',
-      min: 1.0,
-      max: 5.0,
-      step: 0.1,
-      default: 2.0,
-      unit: 'puntos'
-    },
-    {
-      key: 'cobertura_minima_pct',
-      label: 'Cobertura Mínima',
-      description: 'Porcentaje mínimo de cobertura de repuestos',
-      type: 'number',
-      min: 0,
-      max: 100,
-      default: 50,
-      unit: '%'
-    },
-    {
-      key: 'timeout_ofertas_horas',
-      label: 'Timeout de Ofertas',
-      description: 'Horas antes de marcar ofertas como expiradas',
-      type: 'number',
-      min: 1,
-      max: 168,
-      default: 20,
-      unit: 'horas'
-    },
-    {
-      key: 'notificacion_expiracion_horas_antes',
-      label: 'Notificación de Expiración',
-      description: 'Horas antes de expiración para notificar',
-      type: 'number',
-      min: 1,
-      max: 12,
-      default: 2,
-      unit: 'horas'
-    }
-  ];
+  // Helper function to format label from key
+  const formatLabel = (key: string): string => {
+    const labels: Record<string, string> = {
+      'ofertas_minimas_deseadas': 'Ofertas Mínimas Deseadas',
+      'timeout_evaluacion_seg': 'Timeout de Evaluación',
+      'timeout_evaluacion_segundos': 'Timeout de Evaluación',
+      'vigencia_auditoria_dias': 'Vigencia de Auditoría',
+      'periodo_actividad_dias': 'Período de Actividad',
+      'periodo_actividad_reciente_dias': 'Período de Actividad',
+      'periodo_desempeno_meses': 'Período de Desempeño',
+      'periodo_desempeno_historico_meses': 'Período de Desempeño',
+      'confianza_minima_operar': 'Confianza Mínima para Operar',
+      'cobertura_minima_pct': 'Cobertura Mínima',
+      'cobertura_minima_porcentaje': 'Cobertura Mínima',
+      'timeout_ofertas_horas': 'Timeout de Ofertas',
+      'notificacion_expiracion_horas_antes': 'Notificación de Expiración'
+    };
+    return labels[key] || key.split('_').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
+  };
+
+  // Generate parametros dynamically from metadata
+  const parametros = Object.entries(metadata)
+    .filter(([key, meta]) => {
+      // Only include parameters that have min/max (individual parameters, not categories)
+      return meta && typeof meta === 'object' && ('min' in meta || 'max' in meta);
+    })
+    .map(([key, meta]) => ({
+      key,
+      label: formatLabel(key),
+      description: meta.description || '',
+      type: 'number' as const,
+      min: meta.min ?? 0,
+      max: meta.max ?? 100,
+      step: (meta.min !== undefined && meta.min < 1) ? 0.1 : 1,
+      default: meta.default ?? 0,
+      unit: meta.unit || ''
+    }))
+    .sort((a, b) => a.label.localeCompare(b.label));
 
   return (
     <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
