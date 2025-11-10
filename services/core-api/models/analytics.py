@@ -440,6 +440,9 @@ class ParametroConfig(Model):
     # Valor del parámetro (JSON para flexibilidad)
     valor_json = fields.JSONField()
     
+    # Metadata de validación (min, max, default, unit, description)
+    metadata_json = fields.JSONField(null=True)
+    
     # Metadata
     descripcion = fields.TextField(null=True)
     categoria = fields.CharField(max_length=50, null=True)  # "escalamiento", "evaluacion", etc.
