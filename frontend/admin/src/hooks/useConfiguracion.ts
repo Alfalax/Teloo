@@ -5,7 +5,8 @@
 import { useState, useEffect, useCallback } from 'react';
 import { configuracionService } from '@/services/configuracion';
 import type { 
-  ConfiguracionCompleta, 
+  ConfiguracionCompleta,
+  ConfiguracionConMetadata,
   ConfiguracionSummary, 
   CategoriaConfiguracion,
   Usuario,
@@ -14,6 +15,7 @@ import type {
 
 export function useConfiguracion() {
   const [configuracion, setConfiguracion] = useState<ConfiguracionCompleta | null>(null);
+  const [metadata, setMetadata] = useState<Record<string, any>>({});
   const [summary, setSummary] = useState<ConfiguracionSummary | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -28,7 +30,8 @@ export function useConfiguracion() {
         configuracionService.getConfiguracionSummary()
       ]);
       
-      setConfiguracion(configData);
+      setConfiguracion(configData.configuracion_completa);
+      setMetadata(configData.metadata);
       setSummary(summaryData);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Error cargando configuración');
@@ -80,6 +83,7 @@ export function useConfiguracion() {
 
   return {
     configuracion,
+    metadata,
     summary,
     loading,
     error,

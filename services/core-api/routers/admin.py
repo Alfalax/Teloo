@@ -165,7 +165,7 @@ async def get_configuracion(
     current_user: Usuario = Depends(get_current_admin_user)
 ):
     """
-    Obtiene la configuración actual del sistema
+    Obtiene la configuración actual del sistema con metadatos
     
     Categorías disponibles:
     - pesos_escalamiento: Pesos del algoritmo de escalamiento
@@ -178,14 +178,18 @@ async def get_configuracion(
     
     if categoria:
         config = await ConfiguracionService.get_config(categoria)
+        metadata = await ConfiguracionService.get_metadata(categoria)
         return {
             "categoria": categoria,
-            "configuracion": config
+            "configuracion": config,
+            "metadata": metadata
         }
     else:
         config = await ConfiguracionService.get_config()
+        metadata = await ConfiguracionService.get_all_metadata()
         return {
-            "configuracion_completa": config
+            "configuracion_completa": config,
+            "metadata": metadata
         }
 
 
