@@ -384,3 +384,73 @@ class ConfiguracionService:
                 'rangos_validos': True
             }
         }
+    
+
+    @staticmethod
+    async def get_metadata(categoria: str) -> Dict[str, Any]:
+        """
+        Obtiene metadatos de validación para una categoría específica
+        
+        Args:
+            categoria: Categoría de configuración
+            
+        Returns:
+            Dict: Metadatos de validación (min, max, default, unit, description)
+        """
+        param = await ParametroConfig.filter(clave=categoria).first()
+        
+        if param and param.metadata_json:
+            return param.metadata_json
+        
+        return {}
+    
+    @staticmethod
+    async def get_all_metadata() -> Dict[str, Dict[str, Any]]:
+        """
+        Obtiene todos los metadatos de validación
+        
+        Returns:
+            Dict: Metadatos por categoría
+        """
+        params = await ParametroConfig.all()
+        
+        metadata = {}
+        for param in params:
+            if param.metadata_json:
+                metadata[param.clave] = param.metadata_json
+        
+        return metadata
+    
+    @staticmethod
+    async def update_metadata(
+        categoria: str,
+        nuevos_metadatos: Dict[str, Any],
+        usuario: Optional[Usuario] = None
+    ) -> Dict[str, Any]:
+        """
+        Actualiza metadatos de validación para una categoría
+        
+        Args:
+            categoria: Categoría de configuración
+            nuevos_metadatos: Nuevos metadatos (min, max, default, unit, description)
+            usuario: Usuario que realiza el cambio
+            
+        Returns:
+            Dict: Metadatos actualizados
+        """
+        param = await ParametroConfig.filter(clave=categoria).first()
+        
+        if not param:
+            raise HTTPException(
+                status_code=404,
+                detail=f"Categoría '{categoria}' no encontrada"
+            )
+        
+        # Actualizar metadatos
+        param.metadata_json = nuevos_metadatos
+        param.modificado_por = usuario
+        await param.save()
+        
+        logger.info(f"Metadatos de '{categoria}' actualizados por {usuario.nombre_completo if usuario else 'Sistema'}")
+        
+        return nuevos_metadatos
