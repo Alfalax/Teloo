@@ -16,9 +16,10 @@ interface VerOfertaModalProps {
   open: boolean;
   onClose: () => void;
   solicitud: SolicitudConOferta | null;
+  onActualizarOferta?: (solicitud: SolicitudConOferta) => void;
 }
 
-export default function VerOfertaModal({ open, onClose, solicitud }: VerOfertaModalProps) {
+export default function VerOfertaModal({ open, onClose, solicitud, onActualizarOferta }: VerOfertaModalProps) {
   if (!solicitud || !solicitud.mi_oferta) return null;
 
   const { mi_oferta } = solicitud;
@@ -221,6 +222,16 @@ export default function VerOfertaModal({ open, onClose, solicitud }: VerOfertaMo
           <Button variant="outline" onClick={onClose}>
             Cerrar
           </Button>
+          {onActualizarOferta && (
+            <Button 
+              onClick={() => {
+                onClose();
+                onActualizarOferta(solicitud);
+              }}
+            >
+              Actualizar Oferta
+            </Button>
+          )}
         </div>
       </DialogContent>
     </Dialog>

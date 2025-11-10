@@ -130,6 +130,7 @@ export default function DashboardPage() {
           setSelectedSolicitud(null);
         }}
         solicitud={selectedSolicitud}
+        onActualizarOferta={handleHacerOferta}
       />
     </div>
   );

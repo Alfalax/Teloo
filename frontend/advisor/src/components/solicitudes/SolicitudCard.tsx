@@ -1,10 +1,9 @@
-import { Clock, MapPin, Car, Package, CheckCircle2, DollarSign, Calendar } from 'lucide-react';
+import { Clock, MapPin, Package, CheckCircle2, DollarSign, Calendar, AlertCircle } from 'lucide-react';
 import { Card, CardContent, CardFooter, CardHeader } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { SolicitudConOferta } from '@/types/solicitud';
 import { formatRelativeTime } from '@/lib/utils';
-import { useState } from 'react';
 
 interface SolicitudCardProps {
   solicitud: SolicitudConOferta;
@@ -13,7 +12,6 @@ interface SolicitudCardProps {
 }
 
 export default function SolicitudCard({ solicitud, onHacerOferta, onVerOferta }: SolicitudCardProps) {
-  const [showOfertaDetails, setShowOfertaDetails] = useState(false);
   const tiempoRestante = solicitud.tiempo_restante_horas || 0;
   const isUrgente = tiempoRestante < 4;
   const repuestos = solicitud.repuestos_solicitados || solicitud.repuestos || [];
@@ -58,42 +56,19 @@ export default function SolicitudCard({ solicitud, onHacerOferta, onVerOferta }:
       </CardHeader>
 
       <CardContent className="space-y-3">
-        {repuestos.length > 0 && (
-          <div className="space-y-2">
-            <div className="flex items-center gap-2 text-sm font-medium">
-              <Car className="h-4 w-4 text-primary" />
-              <span>
-                {repuestos[0].marca_vehiculo} {repuestos[0].linea_vehiculo} {repuestos[0].anio_vehiculo}
-              </span>
-            </div>
-            <div className="space-y-1.5">
-              {repuestos.slice(0, showOfertaDetails ? repuestos.length : 3).map((repuesto, index) => (
-                <div key={repuesto.id} className="flex items-start gap-2 text-sm">
-                  <span className="text-muted-foreground">{index + 1}.</span>
-                  <div className="flex-1">
-                    <p className="font-medium">{repuesto.nombre}</p>
-                    {repuesto.codigo && (
-                      <p className="text-xs text-muted-foreground">Código: {repuesto.codigo}</p>
-                    )}
-                    <p className="text-xs text-muted-foreground">Cantidad: {repuesto.cantidad}</p>
-                  </div>
-                </div>
-              ))}
-              {repuestos.length > 3 && !showOfertaDetails && (
-                <button
-                  onClick={() => setShowOfertaDetails(true)}
-                  className="text-xs text-primary hover:underline"
-                >
-                  Ver {repuestos.length - 3} más...
-                </button>
-              )}
+        {/* Sección SIN OFERTA - Solo cuando no tiene oferta */}
+        {!tieneOferta && (
+          <div className="p-3 bg-red-50 dark:bg-red-950 rounded-lg border border-red-200 dark:border-red-800 min-h-[88px] flex items-center justify-center">
+            <div className="flex items-center gap-2">
+              <AlertCircle className="h-5 w-5 text-red-600 dark:text-red-400" />
+              <p className="font-semibold text-red-900 dark:text-red-100">SIN OFERTA</p>
             </div>
           </div>
         )}
 
-        {/* Sección de Mi Oferta */}
+        {/* Sección de Mi Oferta - Solo cuando tiene oferta */}
         {tieneOferta && solicitud.mi_oferta && (
-          <div className="mt-3 p-3 bg-green-50 dark:bg-green-950 rounded-lg border border-green-200 dark:border-green-800">
+          <div className="p-3 bg-green-50 dark:bg-green-950 rounded-lg border border-green-200 dark:border-green-800">
             <div className="flex items-center justify-between mb-2">
               <h4 className="text-sm font-semibold text-green-900 dark:text-green-100">Mi Oferta</h4>
               <Badge variant="outline" className="text-xs">
@@ -131,23 +106,14 @@ export default function SolicitudCard({ solicitud, onHacerOferta, onVerOferta }:
         </div>
       </CardContent>
 
-      <CardFooter className="pt-3 gap-2">
+      <CardFooter className="pt-3">
         {tieneOferta ? (
-          <>
-            <Button 
-              variant="outline"
-              className="flex-1" 
-              onClick={() => onVerOferta?.(solicitud)}
-            >
-              Ver Oferta
-            </Button>
-            <Button 
-              className="flex-1" 
-              onClick={() => onHacerOferta(solicitud)}
-            >
-              Actualizar Oferta
-            </Button>
-          </>
+          <Button 
+            className="w-full" 
+            onClick={() => onVerOferta?.(solicitud)}
+          >
+            Ver Oferta
+          </Button>
         ) : (
           <Button 
             className="w-full" 
