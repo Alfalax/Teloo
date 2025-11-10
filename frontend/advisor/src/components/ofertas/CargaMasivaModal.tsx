@@ -1,7 +1,8 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { useDropzone } from 'react-dropzone';
 import { Upload, Download, FileSpreadsheet, AlertCircle, CheckCircle, X } from 'lucide-react';
 import * as XLSX from 'xlsx';
+import { useConfiguracion } from '@/hooks/useConfiguracion';
 import {
   Dialog,
   DialogContent,
@@ -31,6 +32,16 @@ interface ExcelRow {
 }
 
 export default function CargaMasivaModal({ open, onClose, onSuccess }: CargaMasivaModalProps) {
+  // Load configuration parameters
+  const { getMetadata, isLoading: isLoadingConfig } = useConfiguracion([
+    'precio_minimo_oferta',
+    'precio_maximo_oferta',
+    'garantia_minima_meses',
+    'garantia_maxima_meses',
+    'tiempo_entrega_minimo_dias',
+    'tiempo_entrega_maximo_dias',
+  ]);
+
   const [file, setFile] = useState<File | null>(null);
   const [previewData, setPreviewData] = useState<ExcelRow[]>([]);
   const [isProcessing, setIsProcessing] = useState(false);
@@ -39,6 +50,18 @@ export default function CargaMasivaModal({ open, onClose, onSuccess }: CargaMasi
   const [uploadResult, setUploadResult] = useState<{ success: boolean; message: string } | null>(
     null
   );
+
+  // Get validation ranges from metadata
+  const precioMeta = getMetadata('precio_minimo_oferta');
+  const garantiaMeta = getMetadata('garantia_minima_meses');
+  const tiempoMeta = getMetadata('tiempo_entrega_minimo_dias');
+
+  const precioMin = precioMeta?.min ?? 1000;
+  const precioMax = precioMeta?.max ?? 50000000;
+  const garantiaMin = garantiaMeta?.min ?? 1;
+  const garantiaMax = garantiaMeta?.max ?? 60;
+  const tiempoMin = tiempoMeta?.min ?? 0;
+  const tiempoMax = tiempoMeta?.max ?? 90;
 
   const onDrop = useCallback((acceptedFiles: File[]) => {
     const file = acceptedFiles[0];
@@ -84,18 +107,18 @@ export default function CargaMasivaModal({ open, onClose, onSuccess }: CargaMasi
 
         // Validate ranges
         const precio = parseFloat(row.precio_unitario);
-        if (isNaN(precio) || precio < 1000 || precio > 50000000) {
-          errors.push('precio debe estar entre 1,000 y 50,000,000');
+        if (isNaN(precio) || precio < precioMin || precio > precioMax) {
+          errors.push(`precio debe estar entre ${precioMin.toLocaleString()} y ${precioMax.toLocaleString()}`);
         }
 
         const garantia = parseInt(row.garantia_meses);
-        if (isNaN(garantia) || garantia < 1 || garantia > 60) {
-          errors.push('garantía debe estar entre 1 y 60 meses');
+        if (isNaN(garantia) || garantia < garantiaMin || garantia > garantiaMax) {
+          errors.push(`garantía debe estar entre ${garantiaMin} y ${garantiaMax} meses`);
         }
 
         const tiempo = parseInt(row.tiempo_entrega_dias);
-        if (isNaN(tiempo) || tiempo < 0 || tiempo > 90) {
-          errors.push('tiempo de entrega debe estar entre 0 y 90 días');
+        if (isNaN(tiempo) || tiempo < tiempoMin || tiempo > tiempoMax) {
+          errors.push(`tiempo de entrega debe estar entre ${tiempoMin} y ${tiempoMax} días`);
         }
 
         return {

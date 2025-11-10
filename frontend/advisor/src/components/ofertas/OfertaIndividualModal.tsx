@@ -1,5 +1,6 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Car, AlertCircle } from 'lucide-react';
+import { useConfiguracion } from '@/hooks/useConfiguracion';
 import {
   Dialog,
   DialogContent,
@@ -37,8 +38,21 @@ export default function OfertaIndividualModal({
   onClose,
   onSuccess,
 }: OfertaIndividualModalProps) {
+  // Load configuration parameters
+  const { getMetadata, isLoading: isLoadingConfig } = useConfiguracion([
+    'precio_minimo_oferta',
+    'precio_maximo_oferta',
+    'garantia_minima_meses',
+    'garantia_maxima_meses',
+    'tiempo_entrega_minimo_dias',
+    'tiempo_entrega_maximo_dias',
+  ]);
+
+  // Use repuestos_solicitados or repuestos (backward compatibility)
+  const repuestosSolicitud = solicitud.repuestos_solicitados || solicitud.repuestos || [];
+  
   const [repuestos, setRepuestos] = useState<RepuestoOferta[]>(
-    solicitud.repuestos.map((r) => ({
+    repuestosSolicitud.map((r) => ({
       repuesto_solicitado_id: r.id,
       incluir: true,
       precio_unitario: '',
@@ -51,6 +65,18 @@ export default function OfertaIndividualModal({
   const [error, setError] = useState<string | null>(null);
   const [validationErrors, setValidationErrors] = useState<Record<string, string>>({});
 
+  // Get validation ranges from metadata
+  const precioMeta = getMetadata('precio_minimo_oferta');
+  const garantiaMeta = getMetadata('garantia_minima_meses');
+  const tiempoMeta = getMetadata('tiempo_entrega_minimo_dias');
+
+  const precioMin = precioMeta?.min ?? 1000;
+  const precioMax = precioMeta?.max ?? 50000000;
+  const garantiaMin = garantiaMeta?.min ?? 1;
+  const garantiaMax = garantiaMeta?.max ?? 60;
+  const tiempoMin = tiempoMeta?.min ?? 0;
+  const tiempoMax = tiempoMeta?.max ?? 90;
+
   const validateForm = (): boolean => {
     const errors: Record<string, string> = {};
     
@@ -58,8 +84,8 @@ export default function OfertaIndividualModal({
     const tiempo = parseInt(tiempoEntrega);
     if (!tiempoEntrega || isNaN(tiempo)) {
       errors.tiempo_entrega = 'El tiempo de entrega es requerido';
-    } else if (tiempo < 0 || tiempo > 90) {
-      errors.tiempo_entrega = 'El tiempo de entrega debe estar entre 0 y 90 días';
+    } else if (tiempo < tiempoMin || tiempo > tiempoMax) {
+      errors.tiempo_entrega = `El tiempo de entrega debe estar entre ${tiempoMin} y ${tiempoMax} días`;
     }
 
     // Validate at least one repuesto is included
@@ -76,14 +102,14 @@ export default function OfertaIndividualModal({
 
         if (!repuesto.precio_unitario || isNaN(precio)) {
           errors[`precio_${index}`] = 'Precio requerido';
-        } else if (precio < 1000 || precio > 50000000) {
-          errors[`precio_${index}`] = 'Precio debe estar entre $1,000 y $50,000,000';
+        } else if (precio < precioMin || precio > precioMax) {
+          errors[`precio_${index}`] = `Precio debe estar entre $${precioMin.toLocaleString()} y $${precioMax.toLocaleString()}`;
         }
 
         if (!repuesto.garantia_meses || isNaN(garantia)) {
           errors[`garantia_${index}`] = 'Garantía requerida';
-        } else if (garantia < 1 || garantia > 60) {
-          errors[`garantia_${index}`] = 'Garantía debe estar entre 1 y 60 meses';
+        } else if (garantia < garantiaMin || garantia > garantiaMax) {
+          errors[`garantia_${index}`] = `Garantía debe estar entre ${garantiaMin} y ${garantiaMax} meses`;
         }
       }
     });
@@ -108,7 +134,7 @@ export default function OfertaIndividualModal({
         tiempo_entrega_dias: parseInt(tiempoEntrega),
         observaciones: observaciones || undefined,
         detalles: repuestosIncluidos.map((r) => {
-          const solicitudRepuesto = solicitud.repuestos.find(
+          const solicitudRepuesto = repuestosSolicitud.find(
             (sr) => sr.id === r.repuesto_solicitado_id
           );
           return {
@@ -151,7 +177,7 @@ export default function OfertaIndividualModal({
   const totalEstimado = repuestos
     .filter((r) => r.incluir && r.precio_unitario)
     .reduce((sum, r) => {
-      const solicitudRepuesto = solicitud.repuestos.find(
+      const solicitudRepuesto = repuestosSolicitud.find(
         (sr) => sr.id === r.repuesto_solicitado_id
       );
       return sum + parseFloat(r.precio_unitario) * (solicitudRepuesto?.cantidad || 1);
@@ -169,12 +195,12 @@ export default function OfertaIndividualModal({
 
         <div className="space-y-6">
           {/* Vehicle Info */}
-          {solicitud.repuestos.length > 0 && (
+          {repuestosSolicitud.length > 0 && (
             <div className="flex items-center gap-2 p-3 bg-muted rounded-lg">
               <Car className="h-5 w-5 text-primary" />
               <div>
                 <p className="font-medium">
-                  {solicitud.repuestos[0].marca_vehiculo} {solicitud.repuestos[0].linea_vehiculo} {solicitud.repuestos[0].anio_vehiculo}
+                  {repuestosSolicitud[0].marca_vehiculo} {repuestosSolicitud[0].linea_vehiculo} {repuestosSolicitud[0].anio_vehiculo}
                 </p>
                 <p className="text-sm text-muted-foreground">
                   {solicitud.ciudad_origen}, {solicitud.departamento_origen}
@@ -186,7 +212,7 @@ export default function OfertaIndividualModal({
           {/* Repuestos */}
           <div className="space-y-4">
             <Label className="text-base font-semibold">Repuestos Solicitados</Label>
-            {solicitud.repuestos.map((repuesto, index) => (
+            {repuestosSolicitud.map((repuesto, index) => (
               <div
                 key={repuesto.id}
                 className={`p-4 border rounded-lg space-y-3 ${
@@ -219,13 +245,13 @@ export default function OfertaIndividualModal({
                       <Input
                         id={`precio-${index}`}
                         type="number"
-                        placeholder="1000 - 50000000"
+                        placeholder={`${precioMin} - ${precioMax}`}
                         value={repuestos[index].precio_unitario}
                         onChange={(e) =>
                           handleRepuestoChange(index, 'precio_unitario', e.target.value)
                         }
-                        min="1000"
-                        max="50000000"
+                        min={precioMin}
+                        max={precioMax}
                       />
                       {validationErrors[`precio_${index}`] && (
                         <p className="text-xs text-destructive">
@@ -240,13 +266,13 @@ export default function OfertaIndividualModal({
                       <Input
                         id={`garantia-${index}`}
                         type="number"
-                        placeholder="1 - 60"
+                        placeholder={`${garantiaMin} - ${garantiaMax}`}
                         value={repuestos[index].garantia_meses}
                         onChange={(e) =>
                           handleRepuestoChange(index, 'garantia_meses', e.target.value)
                         }
-                        min="1"
-                        max="60"
+                        min={garantiaMin}
+                        max={garantiaMax}
                       />
                       {validationErrors[`garantia_${index}`] && (
                         <p className="text-xs text-destructive">
@@ -272,7 +298,7 @@ export default function OfertaIndividualModal({
             <Input
               id="tiempo-entrega"
               type="number"
-              placeholder="0 - 90"
+              placeholder={`${tiempoMin} - ${tiempoMax}`}
               value={tiempoEntrega}
               onChange={(e) => {
                 setTiempoEntrega(e.target.value);
@@ -280,8 +306,8 @@ export default function OfertaIndividualModal({
                 delete newErrors.tiempo_entrega;
                 setValidationErrors(newErrors);
               }}
-              min="0"
-              max="90"
+              min={tiempoMin}
+              max={tiempoMax}
             />
             {validationErrors.tiempo_entrega && (
               <p className="text-xs text-destructive">{validationErrors.tiempo_entrega}</p>
