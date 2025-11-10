@@ -7,6 +7,7 @@ from typing import List, Optional, Dict, Any
 from datetime import datetime, timedelta
 from decimal import Decimal
 import uuid
+import logging
 
 from tortoise.expressions import Q
 from tortoise.queryset import QuerySet
@@ -15,6 +16,8 @@ from models.solicitud import Solicitud, RepuestoSolicitado
 from models.user import Cliente
 from models.enums import EstadoSolicitud
 from services.geografia_service import GeografiaService
+
+logger = logging.getLogger(__name__)
 
 
 class SolicitudesService:
@@ -97,6 +100,37 @@ class SolicitudesService:
         # Format response
         items = []
         for sol in solicitudes:
+            # Find mi_oferta if asesor_id is provided
+            mi_oferta = None
+            if asesor_id and hasattr(sol, 'ofertas'):
+                for oferta in sol.ofertas:
+                    if str(oferta.asesor_id) == str(asesor_id):
+                        # Load detalles for the oferta
+                        await oferta.fetch_related('detalles')
+                        mi_oferta = {
+                            "id": str(oferta.id),
+                            "solicitud_id": str(oferta.solicitud_id),
+                            "asesor_id": str(oferta.asesor_id),
+                            "tiempo_entrega_dias": oferta.tiempo_entrega_dias,
+                            "observaciones": oferta.observaciones,
+                            "estado": oferta.estado.value,
+                            "created_at": oferta.created_at.isoformat(),
+                            "updated_at": oferta.updated_at.isoformat(),
+                            "detalles": [
+                                {
+                                    "id": str(det.id),
+                                    "oferta_id": str(det.oferta_id),
+                                    "repuesto_solicitado_id": str(det.repuesto_solicitado_id),
+                                    "precio_unitario": float(det.precio_unitario),
+                                    "cantidad": det.cantidad,
+                                    "garantia_meses": det.garantia_meses,
+                                    "tiempo_entrega_dias": det.tiempo_entrega_dias
+                                }
+                                for det in oferta.detalles
+                            ] if hasattr(oferta, 'detalles') else []
+                        }
+                        break
+            
             items.append({
                 "id": str(sol.id),
                 "cliente_id": str(sol.cliente.id),
@@ -114,6 +148,7 @@ class SolicitudesService:
                 "fecha_expiracion": sol.fecha_expiracion.isoformat() if sol.fecha_expiracion else None,
                 "total_repuestos": sol.total_repuestos,
                 "monto_total_adjudicado": float(sol.monto_total_adjudicado),
+                "mi_oferta": mi_oferta,
                 "repuestos_solicitados": [
                     {
                         "id": str(rep.id),

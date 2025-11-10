@@ -1,0 +1,105 @@
+-- Agregar parámetros configurables para ofertas
+-- Estos parámetros controlan los rangos de validación en los formularios de ofertas
+
+-- Precio mínimo de oferta
+INSERT INTO parametros_config (
+    clave, categoria, descripcion, valor_json, metadata_json
+) VALUES (
+    'precio_minimo_oferta',
+    'PARAMETROS_GENERALES',
+    'Precio mínimo permitido para una oferta de repuesto (en COP)',
+    '1000',
+    '{"min": 100, "max": 10000000, "step": 100, "unit": "COP", "help_text": "Valor mínimo que puede tener el precio de un repuesto en una oferta"}'::jsonb
+) ON CONFLICT (clave) DO UPDATE SET
+    metadata_json = EXCLUDED.metadata_json,
+    descripcion = EXCLUDED.descripcion,
+    updated_at = CURRENT_TIMESTAMP;
+
+-- Precio máximo de oferta
+INSERT INTO parametros_config (
+    clave, categoria, descripcion, valor_json, metadata_json
+) VALUES (
+    'precio_maximo_oferta',
+    'PARAMETROS_GENERALES',
+    'Precio máximo permitido para una oferta de repuesto (en COP)',
+    '50000000',
+    '{"min": 1000000, "max": 100000000, "step": 1000000, "unit": "COP", "help_text": "Valor máximo que puede tener el precio de un repuesto en una oferta"}'::jsonb
+) ON CONFLICT (clave) DO UPDATE SET
+    metadata_json = EXCLUDED.metadata_json,
+    descripcion = EXCLUDED.descripcion,
+    updated_at = CURRENT_TIMESTAMP;
+
+-- Garantía mínima
+INSERT INTO parametros_config (
+    clave, categoria, descripcion, valor_json, metadata_json
+) VALUES (
+    'garantia_minima_meses',
+    'PARAMETROS_GENERALES',
+    'Garantía mínima permitida para un repuesto (en meses)',
+    '1',
+    '{"min": 1, "max": 12, "step": 1, "unit": "meses", "help_text": "Cantidad mínima de meses de garantía que debe ofrecer un asesor"}'::jsonb
+) ON CONFLICT (clave) DO UPDATE SET
+    metadata_json = EXCLUDED.metadata_json,
+    descripcion = EXCLUDED.descripcion,
+    updated_at = CURRENT_TIMESTAMP;
+
+-- Garantía máxima
+INSERT INTO parametros_config (
+    clave, categoria, descripcion, valor_json, metadata_json
+) VALUES (
+    'garantia_maxima_meses',
+    'PARAMETROS_GENERALES',
+    'Garantía máxima permitida para un repuesto (en meses)',
+    '60',
+    '{"min": 12, "max": 120, "step": 6, "unit": "meses", "help_text": "Cantidad máxima de meses de garantía que puede ofrecer un asesor"}'::jsonb
+) ON CONFLICT (clave) DO UPDATE SET
+    metadata_json = EXCLUDED.metadata_json,
+    descripcion = EXCLUDED.descripcion,
+    updated_at = CURRENT_TIMESTAMP;
+
+-- Tiempo de entrega mínimo
+INSERT INTO parametros_config (
+    clave, categoria, descripcion, valor_json, metadata_json
+) VALUES (
+    'tiempo_entrega_minimo_dias',
+    'PARAMETROS_GENERALES',
+    'Tiempo mínimo de entrega permitido (en días)',
+    '0',
+    '{"min": 0, "max": 30, "step": 1, "unit": "días", "help_text": "Cantidad mínima de días para entregar un repuesto"}'::jsonb
+) ON CONFLICT (clave) DO UPDATE SET
+    metadata_json = EXCLUDED.metadata_json,
+    descripcion = EXCLUDED.descripcion,
+    updated_at = CURRENT_TIMESTAMP;
+
+-- Tiempo de entrega máximo
+INSERT INTO parametros_config (
+    clave, categoria, descripcion, valor_json, metadata_json
+) VALUES (
+    'tiempo_entrega_maximo_dias',
+    'PARAMETROS_GENERALES',
+    'Tiempo máximo de entrega permitido (en días)',
+    '90',
+    '{"min": 30, "max": 180, "step": 5, "unit": "días", "help_text": "Cantidad máxima de días para entregar un repuesto"}'::jsonb
+) ON CONFLICT (clave) DO UPDATE SET
+    metadata_json = EXCLUDED.metadata_json,
+    descripcion = EXCLUDED.descripcion,
+    updated_at = CURRENT_TIMESTAMP;
+
+-- Verificar que se insertaron correctamente
+SELECT 
+    clave, 
+    categoria,
+    valor_json,
+    metadata_json->>'min' as min_value,
+    metadata_json->>'max' as max_value,
+    metadata_json->>'unit' as unit
+FROM parametros_config
+WHERE clave IN (
+    'precio_minimo_oferta',
+    'precio_maximo_oferta',
+    'garantia_minima_meses',
+    'garantia_maxima_meses',
+    'tiempo_entrega_minimo_dias',
+    'tiempo_entrega_maximo_dias'
+)
+ORDER BY clave;

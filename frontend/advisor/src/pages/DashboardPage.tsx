@@ -6,8 +6,9 @@ import SolicitudesCerradas from '@/components/solicitudes/SolicitudesCerradas';
 import SolicitudesGanadas from '@/components/solicitudes/SolicitudesGanadas';
 import OfertaIndividualModal from '@/components/ofertas/OfertaIndividualModal';
 import CargaMasivaModal from '@/components/ofertas/CargaMasivaModal';
+import VerOfertaModal from '@/components/ofertas/VerOfertaModal';
 import { AsesorKPIs } from '@/types/kpi';
-import { Solicitud } from '@/types/solicitud';
+import { SolicitudConOferta } from '@/types/solicitud';
 
 export default function DashboardPage() {
   const [kpis, setKpis] = useState<AsesorKPIs>({
@@ -17,9 +18,10 @@ export default function DashboardPage() {
     tasa_conversion: 0,
   });
   const [isLoadingKPIs, setIsLoadingKPIs] = useState(true);
-  const [selectedSolicitud, setSelectedSolicitud] = useState<Solicitud | null>(null);
+  const [selectedSolicitud, setSelectedSolicitud] = useState<SolicitudConOferta | null>(null);
   const [showOfertaModal, setShowOfertaModal] = useState(false);
   const [showCargaMasivaModal, setShowCargaMasivaModal] = useState(false);
+  const [showVerOfertaModal, setShowVerOfertaModal] = useState(false);
 
   useEffect(() => {
     loadKPIs();
@@ -45,9 +47,14 @@ export default function DashboardPage() {
     }
   };
 
-  const handleHacerOferta = (solicitud: Solicitud) => {
+  const handleHacerOferta = (solicitud: SolicitudConOferta) => {
     setSelectedSolicitud(solicitud);
     setShowOfertaModal(true);
+  };
+
+  const handleVerOferta = (solicitud: SolicitudConOferta) => {
+    setSelectedSolicitud(solicitud);
+    setShowVerOfertaModal(true);
   };
 
   const handleCargaMasiva = () => {
@@ -76,6 +83,7 @@ export default function DashboardPage() {
           <SolicitudesAbiertas 
             onHacerOferta={handleHacerOferta}
             onCargaMasiva={handleCargaMasiva}
+            onVerOferta={handleVerOferta}
           />
         </TabsContent>
 
@@ -112,6 +120,16 @@ export default function DashboardPage() {
           // Refresh solicitudes list
           window.location.reload();
         }}
+      />
+
+      {/* Ver Oferta Modal */}
+      <VerOfertaModal
+        open={showVerOfertaModal}
+        onClose={() => {
+          setShowVerOfertaModal(false);
+          setSelectedSolicitud(null);
+        }}
+        solicitud={selectedSolicitud}
       />
     </div>
   );

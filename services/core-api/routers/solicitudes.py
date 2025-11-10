@@ -79,6 +79,7 @@ class SolicitudResponse(BaseModel):
     total_repuestos: int
     monto_total_adjudicado: float
     repuestos_solicitados: List[RepuestoSolicitadoResponse] = []
+    mi_oferta: Optional[Dict[str, Any]] = None
 
 
 class SolicitudesPaginatedResponse(BaseModel):
@@ -262,7 +263,7 @@ async def get_solicitudes(
     try:
         # Get asesor_id if user is an asesor
         asesor_id = None
-        if current_user.rol.value == "ASESOR":
+        if current_user.rol.value == "ADVISOR":
             from models.user import Asesor
             asesor = await Asesor.get_or_none(usuario_id=current_user.id)
             if asesor:
