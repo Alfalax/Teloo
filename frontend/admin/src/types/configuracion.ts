@@ -50,6 +50,14 @@ export interface ParametrosGenerales {
   notificacion_expiracion_horas_antes: number;
 }
 
+export interface ParametroMetadata {
+  min?: number;
+  max?: number;
+  default?: number;
+  unit?: string;
+  description?: string;
+}
+
 export interface ConfiguracionCompleta {
   pesos_escalamiento: PesosEscalamiento;
   umbrales_niveles: UmbralesNiveles;
@@ -57,6 +65,11 @@ export interface ConfiguracionCompleta {
   canales_por_nivel: CanalesPorNivel;
   pesos_evaluacion_ofertas: PesosEvaluacionOfertas;
   parametros_generales: ParametrosGenerales;
+}
+
+export interface ConfiguracionConMetadata {
+  configuracion_completa: ConfiguracionCompleta;
+  metadata: Record<string, ParametroMetadata>;
 }
 
 export interface ConfiguracionSummary {

@@ -10,6 +10,7 @@ import type {
   UmbralesNiveles,
   PesosEvaluacionOfertas,
   ConfiguracionCompleta,
+  ConfiguracionConMetadata,
   ConfiguracionSummary,
   Usuario,
   Rol
@@ -25,11 +26,14 @@ export type CategoriaConfiguracion =
 
 class ConfiguracionService {
   /**
-   * Obtiene la configuración completa del sistema
+   * Obtiene la configuración completa del sistema con metadatos
    */
-  async getConfiguracion(): Promise<ConfiguracionCompleta> {
+  async getConfiguracion(): Promise<ConfiguracionConMetadata> {
     const response = await apiClient.get('/admin/configuracion');
-    return response.data.configuracion_completa;
+    return {
+      configuracion_completa: response.data.configuracion_completa,
+      metadata: response.data.metadata || {}
+    };
   }
 
   /**
