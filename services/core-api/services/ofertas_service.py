@@ -67,6 +67,13 @@ class OfertasService:
             if not (0 <= tiempo_entrega_dias <= 90):
                 raise ValueError("Tiempo de entrega debe estar entre 0 y 90 días")
             
+            # Check if asesor already has an offer for this solicitud
+            # Use filter().first() to handle multiple results (cleanup old duplicates)
+            oferta_existente = await Oferta.filter(
+                solicitud_id=solicitud_id,
+                asesor_id=asesor_id
+            ).first()
+            
             # Calculate expiration date
             from services.configuracion_service import ConfiguracionService
             config = await ConfiguracionService.get_config('parametros_generales')
@@ -79,16 +86,31 @@ class OfertasService:
             
             fecha_expiracion = datetime.now() + timedelta(hours=timeout_horas)
             
-            # Create the main offer
-            oferta = await Oferta.create(
-                solicitud=solicitud,
-                asesor=asesor,
-                tiempo_entrega_dias=tiempo_entrega_dias,
-                observaciones=observaciones,
-                estado=EstadoOferta.ENVIADA,
-                origen=OrigenOferta.FORM,
-                fecha_expiracion=fecha_expiracion
-            )
+            # If exists, update it instead of creating new
+            if oferta_existente:
+                # Update existing offer
+                oferta_existente.tiempo_entrega_dias = tiempo_entrega_dias
+                oferta_existente.observaciones = observaciones
+                oferta_existente.estado = EstadoOferta.ENVIADA
+                oferta_existente.fecha_expiracion = fecha_expiracion
+                oferta_existente.updated_at = datetime.now()
+                await oferta_existente.save()
+                
+                # Delete existing details to replace with new ones
+                await OfertaDetalle.filter(oferta_id=oferta_existente.id).delete()
+                
+                oferta = oferta_existente
+            else:
+                # Create new offer
+                oferta = await Oferta.create(
+                    solicitud=solicitud,
+                    asesor=asesor,
+                    tiempo_entrega_dias=tiempo_entrega_dias,
+                    observaciones=observaciones,
+                    estado=EstadoOferta.ENVIADA,
+                    origen=OrigenOferta.FORM,
+                    fecha_expiracion=fecha_expiracion
+                )
             
             # Process each detail
             monto_total = Decimal('0.00')
@@ -135,11 +157,10 @@ class OfertasService:
                 monto_total += precio_unitario * cantidad
             
             # Update offer totals
-            await oferta.update_from_dict({
-                'monto_total': monto_total,
-                'cantidad_repuestos': len(detalles_creados),
-                'cobertura_porcentaje': await oferta.calcular_cobertura()
-            })
+            oferta.monto_total = monto_total
+            oferta.cantidad_repuestos = len(detalles_creados)
+            oferta.cobertura_porcentaje = await oferta.calcular_cobertura()
+            await oferta.save()
             
             # Publish event to Redis
             if redis_client:
@@ -187,11 +208,11 @@ class OfertasService:
     async def get_oferta_by_id(oferta_id: str) -> Optional[Oferta]:
         """Get offer by ID with all relationships"""
         try:
-            oferta = await Oferta.get_or_none(id=oferta_id).prefetch_related(
+            oferta = await Oferta.filter(id=oferta_id).prefetch_related(
                 'solicitud__repuestos_solicitados',
                 'asesor__usuario',
                 'detalles__repuesto_solicitado'
-            )
+            ).first()
             return oferta
         except Exception as e:
             logger.error(f"Error obteniendo oferta {oferta_id}: {e}")
@@ -631,9 +652,9 @@ class OfertasService:
         """
         try:
             # Get offer with relationships
-            oferta = await Oferta.get_or_none(id=oferta_id).prefetch_related(
+            oferta = await Oferta.filter(id=oferta_id).prefetch_related(
                 'solicitud', 'asesor__usuario'
-            )
+            ).first()
             if not oferta:
                 raise ValueError(f"Oferta {oferta_id} no encontrada")
             

@@ -136,10 +136,10 @@ export function GestionRoles() {
           <DialogContent className="max-w-2xl">
             <DialogHeader>
               <DialogTitle>Crear Nuevo Rol</DialogTitle>
-              <DialogDescription>
-                Defina un nuevo rol del sistema con sus permisos correspondientes
-              </DialogDescription>
             </DialogHeader>
+            <DialogDescription>
+              Defina un nuevo rol del sistema con sus permisos correspondientes
+            </DialogDescription>
             <RolForm
               permisosDisponibles={permisosDisponibles}
               onSubmit={handleCreateRol}
@@ -283,10 +283,10 @@ export function GestionRoles() {
         <DialogContent className="max-w-2xl">
           <DialogHeader>
             <DialogTitle>Editar Rol</DialogTitle>
-            <DialogDescription>
-              Modifique la información y permisos del rol
-            </DialogDescription>
           </DialogHeader>
+          <DialogDescription>
+            Modifique la información y permisos del rol
+          </DialogDescription>
           {editingRol && (
             <RolForm
               initialData={editingRol}

@@ -157,11 +157,11 @@ export function BulkActions({
               {selectedAction && getActionIcon(selectedAction)}
               Confirmar Acción Masiva
             </DialogTitle>
-            <DialogDescription>
-              ¿Estás seguro de que quieres {selectedAction && getActionText(selectedAction)} {selectedAsesores.length} asesor{selectedAsesores.length !== 1 ? 'es' : ''}?
-              Esta acción no se puede deshacer.
-            </DialogDescription>
           </DialogHeader>
+          <DialogDescription>
+            ¿Estás seguro de que quieres {selectedAction && getActionText(selectedAction)} {selectedAsesores.length} asesor{selectedAsesores.length !== 1 ? 'es' : ''}?
+            Esta acción no se puede deshacer.
+          </DialogDescription>
           
           <DialogFooter>
             <Button

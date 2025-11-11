@@ -1,27 +1,10 @@
-import axios from 'axios';
-import { Solicitud, SolicitudConOferta } from '@/types/solicitud';
+/*  */import { apiClient } from '@/lib/axios';
+import { SolicitudConOferta } from '@/types/solicitud';
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000';
-
-const solicitudesApi = axios.create({
-  baseURL: `${API_BASE_URL}/v1`,
-  headers: {
-    'Content-Type': 'application/json',
-  },
-});
-
-// Request interceptor to add auth token
-solicitudesApi.interceptors.request.use((config) => {
-  const token = localStorage.getItem('access_token');
-  if (token) {
-    config.headers.Authorization = `Bearer ${token}`;
-  }
-  return config;
-});
-
+// Service for managing solicitudes with offers
 export const solicitudesService = {
-  async getSolicitudesAbiertas(): Promise<Solicitud[]> {
-    const response = await solicitudesApi.get<{ items: Solicitud[] }>('/solicitudes', {
+  async getSolicitudesAbiertas(): Promise<SolicitudConOferta[]> {
+    const response = await apiClient.get<{ items: SolicitudConOferta[] }>('/v1/solicitudes', {
       params: { estado: 'ABIERTA', page: 1, page_size: 100 },
     });
     return response.data.items || [];
@@ -29,7 +12,7 @@ export const solicitudesService = {
 
   async getSolicitudesCerradas(): Promise<SolicitudConOferta[]> {
     // Cerradas son las rechazadas, expiradas o cerradas sin ofertas
-    const response = await solicitudesApi.get<{ items: SolicitudConOferta[] }>('/solicitudes', {
+    const response = await apiClient.get<{ items: SolicitudConOferta[] }>('/v1/solicitudes', {
       params: { estado: 'RECHAZADA', page: 1, page_size: 100 },
     });
     return response.data.items || [];
@@ -37,14 +20,14 @@ export const solicitudesService = {
 
   async getSolicitudesGanadas(): Promise<SolicitudConOferta[]> {
     // Ganadas son las aceptadas
-    const response = await solicitudesApi.get<{ items: SolicitudConOferta[] }>('/solicitudes', {
+    const response = await apiClient.get<{ items: SolicitudConOferta[] }>('/v1/solicitudes', {
       params: { estado: 'ACEPTADA', page: 1, page_size: 100 },
     });
     return response.data.items || [];
   },
 
-  async getSolicitudById(id: string): Promise<Solicitud> {
-    const response = await solicitudesApi.get<Solicitud>(`/solicitudes/${id}`);
+  async getSolicitudById(id: string): Promise<SolicitudConOferta> {
+    const response = await apiClient.get<SolicitudConOferta>(`/v1/solicitudes/${id}`);
     return response.data;
   },
 
@@ -54,7 +37,23 @@ export const solicitudesService = {
     solicitudes_abiertas: number;
     tasa_conversion: number;
   }> {
-    const response = await solicitudesApi.get('/solicitudes/metrics');
+    const response = await apiClient.get('/v1/solicitudes/metrics');
     return response.data;
+  },
+
+  async descargarPlantillaOferta(solicitudId: string): Promise<void> {
+    const response = await apiClient.get(`/v1/solicitudes/${solicitudId}/plantilla-oferta`, {
+      responseType: 'blob',
+    });
+    
+    // Crear URL del blob y descargar
+    const url = window.URL.createObjectURL(new Blob([response.data]));
+    const link = document.createElement('a');
+    link.href = url;
+    link.setAttribute('download', `plantilla_oferta_${solicitudId}.xlsx`);
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    window.URL.revokeObjectURL(url);
   },
 };

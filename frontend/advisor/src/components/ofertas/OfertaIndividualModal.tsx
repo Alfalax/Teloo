@@ -1,5 +1,6 @@
-import { useState } from 'react';
-import { Car, AlertCircle } from 'lucide-react';
+import { useState, useEffect, useRef } from 'react';
+import { Car, AlertCircle, Download, Upload } from 'lucide-react';
+import { useConfiguracion } from '@/hooks/useConfiguracion';
 import {
   Dialog,
   DialogContent,
@@ -15,7 +16,9 @@ import { Textarea } from '@/components/ui/textarea';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Solicitud, CreateOfertaRequest } from '@/types/solicitud';
 import { ofertasService } from '@/services/ofertas';
+import { solicitudesService } from '@/services/solicitudes';
 import { formatCurrency } from '@/lib/utils';
+import * as XLSX from 'xlsx';
 
 interface OfertaIndividualModalProps {
   solicitud: Solicitud;
@@ -37,19 +40,84 @@ export default function OfertaIndividualModal({
   onClose,
   onSuccess,
 }: OfertaIndividualModalProps) {
-  const [repuestos, setRepuestos] = useState<RepuestoOferta[]>(
-    solicitud.repuestos.map((r) => ({
-      repuesto_solicitado_id: r.id,
-      incluir: true,
-      precio_unitario: '',
-      garantia_meses: '',
-    }))
-  );
+  // Load configuration parameters
+  const { getMetadata } = useConfiguracion([
+    'precio_minimo_oferta',
+    'precio_maximo_oferta',
+    'garantia_minima_meses',
+    'garantia_maxima_meses',
+    'tiempo_entrega_minimo_dias',
+    'tiempo_entrega_maximo_dias',
+  ]);
+
+  // Use repuestos_solicitados or repuestos (backward compatibility)
+  const repuestosSolicitud = solicitud.repuestos_solicitados || solicitud.repuestos || [];
+  
+  const [repuestos, setRepuestos] = useState<RepuestoOferta[]>([]);
   const [tiempoEntrega, setTiempoEntrega] = useState('');
   const [observaciones, setObservaciones] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [validationErrors, setValidationErrors] = useState<Record<string, string>>({});
+
+  // Preload values from existing offer or initialize empty
+  useEffect(() => {
+    if (open) {
+      const miOferta = (solicitud as any).mi_oferta;
+      
+      if (miOferta && miOferta.detalles) {
+        // Preload from existing offer
+        const repuestosConOferta = repuestosSolicitud.map((r) => {
+          const detalle = miOferta.detalles.find(
+            (d: any) => d.repuesto_solicitado_id === r.id
+          );
+          
+          if (detalle) {
+            return {
+              repuesto_solicitado_id: r.id,
+              incluir: true,
+              precio_unitario: detalle.precio_unitario.toString(),
+              garantia_meses: detalle.garantia_meses.toString(),
+            };
+          }
+          
+          return {
+            repuesto_solicitado_id: r.id,
+            incluir: false,
+            precio_unitario: '',
+            garantia_meses: '',
+          };
+        });
+        
+        setRepuestos(repuestosConOferta);
+        setTiempoEntrega(miOferta.tiempo_entrega_dias.toString());
+        setObservaciones(miOferta.observaciones || '');
+      } else {
+        // Initialize empty for new offer
+        setRepuestos(
+          repuestosSolicitud.map((r) => ({
+            repuesto_solicitado_id: r.id,
+            incluir: true,
+            precio_unitario: '',
+            garantia_meses: '',
+          }))
+        );
+        setTiempoEntrega('');
+        setObservaciones('');
+      }
+      
+      setError(null);
+      setValidationErrors({});
+    }
+  }, [open, solicitud]);
+
+  // Get validation ranges from metadata
+  const precioMin = getMetadata('precio_minimo_oferta', 'min') ?? 1000;
+  const precioMax = getMetadata('precio_maximo_oferta', 'max') ?? 50000000;
+  const garantiaMin = getMetadata('garantia_minima_meses', 'min') ?? 1;
+  const garantiaMax = getMetadata('garantia_maxima_meses', 'max') ?? 60;
+  const tiempoMin = getMetadata('tiempo_entrega_minimo_dias', 'min') ?? 0;
+  const tiempoMax = getMetadata('tiempo_entrega_maximo_dias', 'max') ?? 90;
 
   const validateForm = (): boolean => {
     const errors: Record<string, string> = {};
@@ -58,8 +126,8 @@ export default function OfertaIndividualModal({
     const tiempo = parseInt(tiempoEntrega);
     if (!tiempoEntrega || isNaN(tiempo)) {
       errors.tiempo_entrega = 'El tiempo de entrega es requerido';
-    } else if (tiempo < 0 || tiempo > 90) {
-      errors.tiempo_entrega = 'El tiempo de entrega debe estar entre 0 y 90 días';
+    } else if (tiempo < tiempoMin || tiempo > tiempoMax) {
+      errors.tiempo_entrega = `El tiempo de entrega debe estar entre ${tiempoMin} y ${tiempoMax} días`;
     }
 
     // Validate at least one repuesto is included
@@ -76,14 +144,14 @@ export default function OfertaIndividualModal({
 
         if (!repuesto.precio_unitario || isNaN(precio)) {
           errors[`precio_${index}`] = 'Precio requerido';
-        } else if (precio < 1000 || precio > 50000000) {
-          errors[`precio_${index}`] = 'Precio debe estar entre $1,000 y $50,000,000';
+        } else if (precio < precioMin || precio > precioMax) {
+          errors[`precio_${index}`] = `Precio debe estar entre $${precioMin.toLocaleString()} y $${precioMax.toLocaleString()}`;
         }
 
         if (!repuesto.garantia_meses || isNaN(garantia)) {
           errors[`garantia_${index}`] = 'Garantía requerida';
-        } else if (garantia < 1 || garantia > 60) {
-          errors[`garantia_${index}`] = 'Garantía debe estar entre 1 y 60 meses';
+        } else if (garantia < garantiaMin || garantia > garantiaMax) {
+          errors[`garantia_${index}`] = `Garantía debe estar entre ${garantiaMin} y ${garantiaMax} meses`;
         }
       }
     });
@@ -108,7 +176,7 @@ export default function OfertaIndividualModal({
         tiempo_entrega_dias: parseInt(tiempoEntrega),
         observaciones: observaciones || undefined,
         detalles: repuestosIncluidos.map((r) => {
-          const solicitudRepuesto = solicitud.repuestos.find(
+          const solicitudRepuesto = repuestosSolicitud.find(
             (sr) => sr.id === r.repuesto_solicitado_id
           );
           return {
@@ -128,6 +196,58 @@ export default function OfertaIndividualModal({
       console.error('Error creating oferta:', err);
     } finally {
       setIsSubmitting(false);
+    }
+  };
+
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const handleDescargarPlantilla = async () => {
+    try {
+      await solicitudesService.descargarPlantillaOferta(solicitud.id);
+    } catch (err: any) {
+      setError('Error descargando plantilla: ' + (err.response?.data?.detail || err.message));
+    }
+  };
+
+  const handleCargarExcel = () => {
+    fileInputRef.current?.click();
+  };
+
+  const handleFileChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    try {
+      const data = await file.arrayBuffer();
+      const workbook = XLSX.read(data);
+      const worksheet = workbook.Sheets[workbook.SheetNames[0]];
+      const jsonData = XLSX.utils.sheet_to_json(worksheet) as any[];
+
+      // Mapear datos del Excel al estado
+      const nuevosRepuestos = repuestos.map((r) => {
+        const excelRow = jsonData.find((row) => row.repuesto_id === r.repuesto_solicitado_id);
+        
+        if (excelRow && excelRow.precio_unitario && excelRow.garantia_meses) {
+          return {
+            ...r,
+            incluir: true,
+            precio_unitario: excelRow.precio_unitario.toString(),
+            garantia_meses: excelRow.garantia_meses.toString(),
+          };
+        }
+        
+        return r;
+      });
+
+      setRepuestos(nuevosRepuestos);
+      setError(null);
+    } catch (err: any) {
+      setError('Error procesando archivo Excel: ' + err.message);
+    }
+
+    // Reset input
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
     }
   };
 
@@ -151,7 +271,7 @@ export default function OfertaIndividualModal({
   const totalEstimado = repuestos
     .filter((r) => r.incluir && r.precio_unitario)
     .reduce((sum, r) => {
-      const solicitudRepuesto = solicitud.repuestos.find(
+      const solicitudRepuesto = repuestosSolicitud.find(
         (sr) => sr.id === r.repuesto_solicitado_id
       );
       return sum + parseFloat(r.precio_unitario) * (solicitudRepuesto?.cantidad || 1);
@@ -162,19 +282,50 @@ export default function OfertaIndividualModal({
       <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Crear Oferta - Solicitud #{solicitud.id.slice(0, 8)}</DialogTitle>
-          <DialogDescription>
-            Complete la información de su oferta para los repuestos seleccionados
-          </DialogDescription>
         </DialogHeader>
+        <DialogDescription>
+          Complete la información de su oferta para los repuestos seleccionados
+        </DialogDescription>
+          
+        {/* Excel Actions */}
+        <div className="flex gap-2 mt-4">
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={handleDescargarPlantilla}
+            className="flex items-center gap-2"
+          >
+            <Download className="h-4 w-4" />
+            Descargar Plantilla Excel
+          </Button>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={handleCargarExcel}
+            className="flex items-center gap-2"
+          >
+            <Upload className="h-4 w-4" />
+            Cargar desde Excel
+          </Button>
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept=".xlsx,.xls"
+            onChange={handleFileChange}
+            className="hidden"
+          />
+        </div>
 
         <div className="space-y-6">
           {/* Vehicle Info */}
-          {solicitud.repuestos.length > 0 && (
+          {repuestosSolicitud.length > 0 && (
             <div className="flex items-center gap-2 p-3 bg-muted rounded-lg">
               <Car className="h-5 w-5 text-primary" />
               <div>
                 <p className="font-medium">
-                  {solicitud.repuestos[0].marca_vehiculo} {solicitud.repuestos[0].linea_vehiculo} {solicitud.repuestos[0].anio_vehiculo}
+                  {repuestosSolicitud[0].marca_vehiculo} {repuestosSolicitud[0].linea_vehiculo} {repuestosSolicitud[0].anio_vehiculo}
                 </p>
                 <p className="text-sm text-muted-foreground">
                   {solicitud.ciudad_origen}, {solicitud.departamento_origen}
@@ -186,31 +337,35 @@ export default function OfertaIndividualModal({
           {/* Repuestos */}
           <div className="space-y-4">
             <Label className="text-base font-semibold">Repuestos Solicitados</Label>
-            {solicitud.repuestos.map((repuesto, index) => (
-              <div
-                key={repuesto.id}
-                className={`p-4 border rounded-lg space-y-3 ${
-                  !repuestos[index].incluir ? 'opacity-50 bg-muted/50' : ''
-                }`}
-              >
-                <div className="flex items-start gap-3">
-                  <Checkbox
-                    checked={repuestos[index].incluir}
-                    onCheckedChange={(checked) =>
-                      handleRepuestoChange(index, 'incluir', checked)
-                    }
-                    className="mt-1"
-                  />
-                  <div className="flex-1">
-                    <p className="font-medium">{repuesto.nombre}</p>
-                    {repuesto.codigo && (
-                      <p className="text-sm text-muted-foreground">Código: {repuesto.codigo}</p>
-                    )}
-                    <p className="text-sm text-muted-foreground">Cantidad: {repuesto.cantidad}</p>
-                  </div>
+            {repuestosSolicitud.map((repuesto, index) => {
+              const repuestoData = repuestos[index];
+              if (!repuestoData) return null;
+              
+              return (
+                <div
+                  key={repuesto.id}
+                  className={`p-4 border rounded-lg space-y-3 ${
+                    !repuestoData.incluir ? 'opacity-50 bg-muted/50' : ''
+                  }`}
+                >
+                  <div className="flex items-start gap-3">
+                    <Checkbox
+                      checked={repuestoData.incluir}
+                      onCheckedChange={(checked) =>
+                        handleRepuestoChange(index, 'incluir', checked)
+                      }
+                      className="mt-1"
+                    />
+                    <div className="flex-1">
+                      <p className="font-medium">{repuesto.nombre}</p>
+                      {repuesto.codigo && (
+                        <p className="text-sm text-muted-foreground">Código: {repuesto.codigo}</p>
+                      )}
+                      <p className="text-sm text-muted-foreground">Cantidad: {repuesto.cantidad}</p>
+                    </div>
                 </div>
 
-                {repuestos[index].incluir && (
+                {repuestoData.incluir && (
                   <div className="grid grid-cols-2 gap-3 ml-7">
                     <div className="space-y-2">
                       <Label htmlFor={`precio-${index}`}>
@@ -219,13 +374,13 @@ export default function OfertaIndividualModal({
                       <Input
                         id={`precio-${index}`}
                         type="number"
-                        placeholder="1000 - 50000000"
-                        value={repuestos[index].precio_unitario}
+                        placeholder={`${precioMin} - ${precioMax}`}
+                        value={repuestoData.precio_unitario}
                         onChange={(e) =>
                           handleRepuestoChange(index, 'precio_unitario', e.target.value)
                         }
-                        min="1000"
-                        max="50000000"
+                        min={precioMin}
+                        max={precioMax}
                       />
                       {validationErrors[`precio_${index}`] && (
                         <p className="text-xs text-destructive">
@@ -240,13 +395,13 @@ export default function OfertaIndividualModal({
                       <Input
                         id={`garantia-${index}`}
                         type="number"
-                        placeholder="1 - 60"
-                        value={repuestos[index].garantia_meses}
+                        placeholder={`${garantiaMin} - ${garantiaMax}`}
+                        value={repuestoData.garantia_meses}
                         onChange={(e) =>
                           handleRepuestoChange(index, 'garantia_meses', e.target.value)
                         }
-                        min="1"
-                        max="60"
+                        min={garantiaMin}
+                        max={garantiaMax}
                       />
                       {validationErrors[`garantia_${index}`] && (
                         <p className="text-xs text-destructive">
@@ -257,7 +412,8 @@ export default function OfertaIndividualModal({
                   </div>
                 )}
               </div>
-            ))}
+              );
+            })}
             {validationErrors.repuestos && (
               <p className="text-sm text-destructive flex items-center gap-1">
                 <AlertCircle className="h-4 w-4" />
@@ -272,7 +428,7 @@ export default function OfertaIndividualModal({
             <Input
               id="tiempo-entrega"
               type="number"
-              placeholder="0 - 90"
+              placeholder={`${tiempoMin} - ${tiempoMax}`}
               value={tiempoEntrega}
               onChange={(e) => {
                 setTiempoEntrega(e.target.value);
@@ -280,8 +436,8 @@ export default function OfertaIndividualModal({
                 delete newErrors.tiempo_entrega;
                 setValidationErrors(newErrors);
               }}
-              min="0"
-              max="90"
+              min={tiempoMin}
+              max={tiempoMax}
             />
             {validationErrors.tiempo_entrega && (
               <p className="text-xs text-destructive">{validationErrors.tiempo_entrega}</p>

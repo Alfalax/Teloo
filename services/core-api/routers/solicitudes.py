@@ -4,9 +4,10 @@ Endpoints para gestión de solicitudes de crédito
 """
 
 from fastapi import APIRouter, Depends, HTTPException, status, Query
+from fastapi.responses import StreamingResponse
 from typing import List, Optional, Dict, Any
 from tortoise.expressions import Q
-from models.solicitud import Solicitud
+from models.solicitud import Solicitud, RepuestoSolicitado
 from models.enums import EstadoSolicitud
 from models.user import Usuario
 from middleware.auth_middleware import get_current_user
@@ -14,6 +15,8 @@ from services.solicitudes_service import SolicitudesService
 from pydantic import BaseModel, Field
 from datetime import datetime
 import uuid
+import pandas as pd
+import io
 
 router = APIRouter(prefix="/v1/solicitudes", tags=["solicitudes"])
 
@@ -79,6 +82,7 @@ class SolicitudResponse(BaseModel):
     total_repuestos: int
     monto_total_adjudicado: float
     repuestos_solicitados: List[RepuestoSolicitadoResponse] = []
+    mi_oferta: Optional[Dict[str, Any]] = None
 
 
 class SolicitudesPaginatedResponse(BaseModel):
@@ -99,6 +103,74 @@ class SolicitudesStatsResponse(BaseModel):
     rechazadas_expiradas: int
 
 
+class ClienteSearchResponse(BaseModel):
+    """Response model for cliente search by phone"""
+    found: bool
+    cliente_id: Optional[str] = None
+    nombre: Optional[str] = None
+    email: Optional[str] = None
+    telefono: Optional[str] = None
+    ciudad: Optional[str] = None
+    departamento: Optional[str] = None
+
+
+@router.get("/clientes/buscar", response_model=ClienteSearchResponse)
+async def buscar_cliente_por_telefono(
+    telefono: str = Query(..., description="Teléfono del cliente"),
+    current_user: Usuario = Depends(get_current_user)
+):
+    """
+    Buscar cliente por teléfono para autocompletar formulario
+    """
+    try:
+        from models.user import Cliente
+        
+        # Normalize phone number
+        telefono_normalizado = telefono
+        if not telefono.startswith("+57"):
+            telefono_digits = ''.join(filter(str.isdigit, telefono))
+            telefono_normalizado = f"+57{telefono_digits[-10:]}"
+        
+        # Search usuario by phone
+        usuario = await Usuario.get_or_none(telefono=telefono_normalizado).prefetch_related("cliente")
+        
+        if not usuario:
+            return {"found": False}
+        
+        # Get cliente profile
+        cliente = await Cliente.get_or_none(usuario_id=usuario.id)
+        
+        if not cliente:
+            return {
+                "found": True,
+                "cliente_id": None,
+                "nombre": usuario.nombre_completo,
+                "email": usuario.email,
+                "telefono": usuario.telefono,
+                "ciudad": None,
+                "departamento": None
+            }
+        
+        return {
+            "found": True,
+            "cliente_id": str(cliente.id),
+            "nombre": usuario.nombre_completo,
+            "email": usuario.email,
+            "telefono": usuario.telefono,
+            "ciudad": cliente.ciudad,
+            "departamento": cliente.departamento
+        }
+        
+    except Exception as e:
+        import traceback
+        print(f"Error in buscar_cliente_por_telefono: {str(e)}")
+        print(traceback.format_exc())
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error searching cliente: {str(e)}"
+        )
+
+
 @router.get("/metrics")
 async def get_advisor_metrics(
     current_user: Usuario = Depends(get_current_user)
@@ -115,16 +187,23 @@ async def get_advisor_metrics(
         from models.user import Asesor
         from models.oferta import Oferta
         from models.enums import EstadoOferta
+        import logging
+        
+        logger = logging.getLogger(__name__)
+        logger.info(f"🔍 DEBUG METRICS - Usuario logueado: {current_user.email} (ID: {current_user.id})")
         
         # Get asesor
         asesor = await Asesor.get_or_none(usuario_id=current_user.id)
         if not asesor:
+            logger.warning(f"⚠️ No se encontró asesor para usuario {current_user.email}")
             return {
                 "ofertas_asignadas": 0,
                 "monto_total_ganado": 0.0,
                 "solicitudes_abiertas": 0,
                 "tasa_conversion": 0.0
             }
+        
+        logger.info(f"✅ Asesor encontrado: {asesor.id}")
         
         # Contar ofertas enviadas por el asesor
         ofertas_asignadas = await Oferta.filter(asesor_id=asesor.id).count()
@@ -139,12 +218,10 @@ async def get_advisor_metrics(
         for oferta in ofertas_ganadoras:
             monto_total_ganado += float(oferta.monto_total)
         
-        # Contar solicitudes ABIERTAS asignadas al asesor
+        # Contar TODAS las solicitudes ABIERTAS disponibles (marketplace)
         solicitudes_abiertas = await Solicitud.filter(
-            Q(evaluaciones_asesores__asesor_id=asesor.id) |
-            Q(ofertas__asesor_id=asesor.id),
             estado=EstadoSolicitud.ABIERTA
-        ).distinct().count()
+        ).count()
         
         # Calcular tasa de conversión
         ofertas_ganadoras_count = await Oferta.filter(
@@ -194,7 +271,7 @@ async def get_solicitudes(
     try:
         # Get asesor_id if user is an asesor
         asesor_id = None
-        if current_user.rol.value == "ASESOR":
+        if current_user.rol.value == "ADVISOR":
             from models.user import Asesor
             asesor = await Asesor.get_or_none(usuario_id=current_user.id)
             if asesor:
@@ -280,6 +357,86 @@ async def create_solicitud(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Error creating solicitud: {str(e)}"
+        )
+
+
+@router.get("/{solicitud_id}/plantilla-oferta")
+async def descargar_plantilla_oferta(
+    solicitud_id: uuid.UUID,
+    current_user: Usuario = Depends(get_current_user)
+):
+    """
+    Generar plantilla Excel con los repuestos de la solicitud para facilitar la carga de ofertas
+    """
+    try:
+        # Obtener solicitud con repuestos
+        solicitud = await Solicitud.get_or_none(id=solicitud_id).prefetch_related('repuestos_solicitados')
+        
+        if not solicitud:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Solicitud no encontrada"
+            )
+        
+        repuestos = await RepuestoSolicitado.filter(solicitud_id=solicitud_id).order_by('created_at')
+        
+        if not repuestos:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="La solicitud no tiene repuestos"
+            )
+        
+        # Crear DataFrame con los repuestos
+        data = []
+        for repuesto in repuestos:
+            data.append({
+                'repuesto_id': str(repuesto.id),
+                'repuesto_nombre': repuesto.nombre,
+                'cantidad': repuesto.cantidad,
+                'precio_unitario': '',  # Vacío para que el asesor lo complete
+                'garantia_meses': '',   # Vacío para que el asesor lo complete
+                'marca_repuesto': '',
+                'modelo_repuesto': '',
+                'origen_repuesto': '',
+                'observaciones': ''
+            })
+        
+        df = pd.DataFrame(data)
+        
+        # Crear Excel en memoria
+        output = io.BytesIO()
+        with pd.ExcelWriter(output, engine='openpyxl') as writer:
+            df.to_excel(writer, index=False, sheet_name='Oferta')
+            
+            # Ajustar ancho de columnas
+            worksheet = writer.sheets['Oferta']
+            for idx, col in enumerate(df.columns):
+                max_length = max(
+                    df[col].astype(str).apply(len).max(),
+                    len(col)
+                )
+                worksheet.column_dimensions[chr(65 + idx)].width = min(max_length + 2, 50)
+        
+        output.seek(0)
+        
+        # Retornar como descarga
+        filename = f"plantilla_oferta_{solicitud.codigo_solicitud}.xlsx"
+        
+        return StreamingResponse(
+            io.BytesIO(output.getvalue()),
+            media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            headers={"Content-Disposition": f"attachment; filename={filename}"}
+        )
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        import traceback
+        print(f"Error generando plantilla: {str(e)}")
+        print(traceback.format_exc())
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error generando plantilla: {str(e)}"
         )
 
 

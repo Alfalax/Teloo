@@ -116,13 +116,19 @@ class Oferta(BaseModel):
         
     async def calcular_cobertura(self) -> Decimal:
         """Calcula el porcentaje de cobertura de repuestos"""
-        solicitud = await self.solicitud.prefetch_related('repuestos_solicitados')
-        total_repuestos = len(solicitud.repuestos_solicitados)
+        # Cargar la solicitud si no está cargada
+        if not hasattr(self, '_solicitud_id'):
+            await self.fetch_related('solicitud')
+        
+        # Contar repuestos solicitados
+        from models.solicitud import RepuestoSolicitado
+        total_repuestos = await RepuestoSolicitado.filter(solicitud_id=self.solicitud_id).count()
         
         if total_repuestos == 0:
             return Decimal('0.00')
-            
-        repuestos_cubiertos = await self.detalles.count()
+        
+        # Contar detalles de la oferta
+        repuestos_cubiertos = await OfertaDetalle.filter(oferta_id=self.id).count()
         cobertura = (repuestos_cubiertos / total_repuestos) * 100
         return Decimal(str(round(cobertura, 2)))
 

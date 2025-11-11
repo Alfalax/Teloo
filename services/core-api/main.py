@@ -18,6 +18,7 @@ from routers.solicitudes import router as solicitudes_router
 from routers.ofertas import router as ofertas_router
 from routers.asesores import router as asesores_router
 from routers.pqr import router as pqr_router
+from routers.configuracion import router as configuracion_router
 from services.scheduler_service import scheduler_service
 
 # Load environment variables
@@ -61,6 +62,7 @@ app.include_router(solicitudes_router)
 app.include_router(ofertas_router)
 app.include_router(asesores_router)
 app.include_router(pqr_router)
+app.include_router(configuracion_router)
 
 @app.get("/")
 async def root():

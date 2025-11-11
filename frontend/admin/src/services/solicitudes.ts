@@ -73,6 +73,24 @@ export const solicitudesService = {
   },
 
   /**
+   * Search cliente by phone number
+   */
+  async buscarClientePorTelefono(telefono: string): Promise<{
+    found: boolean;
+    cliente_id?: string;
+    nombre?: string;
+    email?: string;
+    telefono?: string;
+    ciudad?: string;
+    departamento?: string;
+  }> {
+    const response = await apiClient.get("/v1/solicitudes/clientes/buscar", {
+      params: { telefono },
+    });
+    return response.data;
+  },
+
+  /**
    * Parse Excel file for repuestos
    */
   parseExcelRepuestos(file: File): Promise<any[]> {

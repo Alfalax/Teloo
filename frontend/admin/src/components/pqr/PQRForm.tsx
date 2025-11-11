@@ -108,10 +108,10 @@ export function PQRForm({ isOpen, onClose, onSubmit, isLoading }: PQRFormProps) 
       <DialogContent className="sm:max-w-[600px]">
         <DialogHeader>
           <DialogTitle>Nueva PQR</DialogTitle>
-          <DialogDescription>
-            Crear una nueva Petición, Queja o Reclamo
-          </DialogDescription>
         </DialogHeader>
+        <DialogDescription>
+          Crear una nueva Petición, Queja o Reclamo
+        </DialogDescription>
 
         <form onSubmit={handleSubmit} className="space-y-4">
           {errors.general && (

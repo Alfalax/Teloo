@@ -2,16 +2,17 @@ import { useState, useEffect } from 'react';
 import { Upload, Package } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import SolicitudCard from './SolicitudCard';
-import { Solicitud } from '@/types/solicitud';
+import { SolicitudConOferta } from '@/types/solicitud';
 import { solicitudesService } from '@/services/solicitudes';
 
 interface SolicitudesAbiertasProps {
-  onHacerOferta: (solicitud: Solicitud) => void;
+  onHacerOferta: (solicitud: SolicitudConOferta) => void;
   onCargaMasiva: () => void;
+  onVerOferta?: (solicitud: SolicitudConOferta) => void;
 }
 
-export default function SolicitudesAbiertas({ onHacerOferta, onCargaMasiva }: SolicitudesAbiertasProps) {
-  const [solicitudes, setSolicitudes] = useState<Solicitud[]>([]);
+export default function SolicitudesAbiertas({ onHacerOferta, onCargaMasiva, onVerOferta }: SolicitudesAbiertasProps) {
+  const [solicitudes, setSolicitudes] = useState<SolicitudConOferta[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -91,6 +92,7 @@ export default function SolicitudesAbiertas({ onHacerOferta, onCargaMasiva }: So
               key={solicitud.id}
               solicitud={solicitud}
               onHacerOferta={onHacerOferta}
+              onVerOferta={onVerOferta}
             />
           ))}
         </div>

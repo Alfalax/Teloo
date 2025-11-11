@@ -234,13 +234,13 @@ export function AsesorForm({
           <DialogTitle>
             {isEditing ? 'Editar Asesor' : 'Crear Nuevo Asesor'}
           </DialogTitle>
-          <DialogDescription>
-            {isEditing 
-              ? 'Modifica la información del asesor'
-              : 'Completa la información para crear un nuevo asesor'
-            }
-          </DialogDescription>
         </DialogHeader>
+        <DialogDescription>
+          {isEditing 
+            ? 'Modifica la información del asesor'
+            : 'Completa la información para crear un nuevo asesor'
+          }
+        </DialogDescription>
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="grid grid-cols-2 gap-4">
