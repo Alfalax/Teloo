@@ -339,14 +339,22 @@ class SolicitudesService:
         # Reload with relations
         await solicitud.fetch_related("cliente", "cliente__usuario", "repuestos_solicitados")
         
-        # Ejecutar escalamiento automáticamente si la solicitud está abierta
+        # Ejecutar escalamiento automáticamente con primera oleada si la solicitud está abierta
         if solicitud.estado == EstadoSolicitud.ABIERTA:
             try:
                 from services.escalamiento_service import EscalamientoService
-                resultado = await EscalamientoService.procesar_escalamiento_completo(solicitud)
-                logger.info(f"Escalamiento automático ejecutado para solicitud {solicitud.id}: {resultado.get('asesores_notificados', 0)} asesores notificados")
+                resultado = await EscalamientoService.ejecutar_escalamiento_con_primera_oleada(str(solicitud.id))
+                
+                if resultado['success']:
+                    # Recargar solicitud para obtener el nivel actualizado
+                    await solicitud.refresh_from_db()
+                    logger.info(f"✅ Escalamiento automático ejecutado para solicitud {solicitud.id}: Nivel {resultado.get('nivel_actual')}, {resultado.get('primera_oleada', {}).get('asesores_notificados', 0)} asesores")
+                else:
+                    logger.warning(f"⚠️ Escalamiento falló para solicitud {solicitud.id}: {resultado.get('error')}")
             except Exception as e:
-                logger.error(f"Error en escalamiento automático para solicitud {solicitud.id}: {e}")
+                logger.error(f"❌ Error en escalamiento automático para solicitud {solicitud.id}: {e}")
+                import traceback
+                logger.error(traceback.format_exc())
                 # No fallar la creación de solicitud por error en escalamiento
         
         return {

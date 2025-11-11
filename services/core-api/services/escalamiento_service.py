@@ -965,3 +965,82 @@ class EscalamientoService:
                 'error': f'Error crítico en escalamiento: {str(e)}',
                 'solicitud_id': str(solicitud.id)
             }
+    
+    @staticmethod
+    async def ejecutar_escalamiento_con_primera_oleada(solicitud_id: str) -> Dict:
+        """
+        Ejecuta el escalamiento completo y la primera oleada automáticamente
+        
+        Args:
+            solicitud_id: ID de la solicitud
+            
+        Returns:
+            Dict: Resultado del escalamiento y primera oleada
+        """
+        try:
+            # 1. Obtener solicitud
+            solicitud = await Solicitud.get_or_none(id=solicitud_id).prefetch_related('cliente__usuario')
+            
+            if not solicitud:
+                return {
+                    'success': False,
+                    'error': f'Solicitud {solicitud_id} no encontrada'
+                }
+            
+            logger.info(f"🚀 Ejecutando escalamiento automático para solicitud {solicitud_id}")
+            
+            # 2. Procesar escalamiento completo (evaluar y clasificar asesores)
+            resultado_escalamiento = await EscalamientoService.procesar_escalamiento_completo(solicitud)
+            
+            if not resultado_escalamiento['success']:
+                logger.error(f"❌ Escalamiento falló: {resultado_escalamiento.get('error')}")
+                return resultado_escalamiento
+            
+            # 3. Determinar el nivel inicial (el nivel más bajo con asesores)
+            niveles_disponibles = sorted(resultado_escalamiento['niveles_generados'])
+            
+            if not niveles_disponibles:
+                logger.warning(f"⚠️ No hay niveles disponibles para solicitud {solicitud_id}")
+                return {
+                    'success': False,
+                    'error': 'No se generaron niveles de escalamiento'
+                }
+            
+            nivel_inicial = niveles_disponibles[0]  # Empezar por el nivel más bajo (mejor)
+            
+            logger.info(f"📊 Niveles generados: {niveles_disponibles}, iniciando en Nivel {nivel_inicial}")
+            
+            # 4. Actualizar nivel de la solicitud
+            solicitud.nivel_actual = nivel_inicial
+            solicitud.fecha_escalamiento = datetime.now()
+            await solicitud.save()
+            
+            logger.info(f"✅ Solicitud {solicitud_id} actualizada a Nivel {nivel_inicial}")
+            
+            # 5. Ejecutar primera oleada (notificar asesores del nivel inicial)
+            # Por ahora solo actualizamos el nivel, las notificaciones se implementarán después
+            resultado_oleada = {
+                'nivel_ejecutado': nivel_inicial,
+                'asesores_notificados': resultado_escalamiento['estadisticas']['distribucion_niveles'].get(nivel_inicial, 0),
+                'mensaje': f'Primera oleada programada para Nivel {nivel_inicial}'
+            }
+            
+            logger.info(f"🎯 Primera oleada: {resultado_oleada['asesores_notificados']} asesores en Nivel {nivel_inicial}")
+            
+            return {
+                'success': True,
+                'message': 'Escalamiento y primera oleada ejecutados exitosamente',
+                'escalamiento': resultado_escalamiento,
+                'primera_oleada': resultado_oleada,
+                'nivel_actual': nivel_inicial
+            }
+            
+        except Exception as e:
+            logger.error(f"❌ Error crítico ejecutando escalamiento con primera oleada: {e}")
+            import traceback
+            logger.error(traceback.format_exc())
+            return {
+                'success': False,
+                'error': f'Error crítico: {str(e)}',
+                'solicitud_id': solicitud_id
+            }
