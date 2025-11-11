@@ -40,14 +40,23 @@ export interface PesosEvaluacionOfertas {
 
 export interface ParametrosGenerales {
   ofertas_minimas_deseadas: number;
-  timeout_evaluacion_seg: number;
+  precio_minimo_oferta: number;
+  precio_maximo_oferta: number;
+  garantia_minima_meses: number;
+  garantia_maxima_meses: number;
+  tiempo_entrega_minimo_dias: number;
+  tiempo_entrega_maximo_dias: number;
+  cobertura_minima_porcentaje: number;
+  timeout_evaluacion_segundos: number;
   vigencia_auditoria_dias: number;
-  periodo_actividad_dias: number;
-  periodo_desempeno_meses: number;
-  confianza_minima_operar: number;
-  cobertura_minima_pct: number;
   timeout_ofertas_horas: number;
   notificacion_expiracion_horas_antes: number;
+  confianza_minima_operar: number;
+  periodo_actividad_reciente_dias: number;
+  periodo_desempeno_historico_meses: number;
+  fallback_actividad_asesores_nuevos: number;
+  fallback_desempeno_asesores_nuevos: number;
+  puntaje_defecto_asesores_nuevos: number;
 }
 
 export interface ParametroMetadata {

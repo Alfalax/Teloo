@@ -29,7 +29,8 @@ class AsesoresService:
         try:
             # Read Excel file
             content = await file.read()
-            df = pd.read_excel(BytesIO(content))
+            # Force telefono column to be read as string to preserve + sign
+            df = pd.read_excel(BytesIO(content), dtype={'telefono': str})
             
             # Validate required columns
             required_columns = [

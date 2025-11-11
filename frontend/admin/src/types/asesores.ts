@@ -34,6 +34,7 @@ export interface AsesorCreate {
   punto_venta: string;
   direccion_punto_venta?: string;
   password: string;
+  confianza?: number;
 }
 
 export interface AsesorUpdate {
@@ -46,6 +47,7 @@ export interface AsesorUpdate {
   punto_venta?: string;
   direccion_punto_venta?: string;
   estado?: 'ACTIVO' | 'INACTIVO' | 'SUSPENDIDO';
+  confianza?: number;
 }
 
 export interface AsesoresKPIs {

@@ -29,6 +29,7 @@ class AsesorCreate(BaseModel):
     punto_venta: str
     direccion_punto_venta: Optional[str] = None
     password: str
+    confianza: Optional[float] = 3.0
 
 class AsesorUpdate(BaseModel):
     nombre: Optional[str] = None
@@ -40,6 +41,7 @@ class AsesorUpdate(BaseModel):
     punto_venta: Optional[str] = None
     direccion_punto_venta: Optional[str] = None
     estado: Optional[EstadoAsesor] = None
+    confianza: Optional[float] = None
 
 class AsesorResponse(BaseModel):
     id: str
@@ -183,12 +185,16 @@ async def create_asesor(
         )
         
         # Create asesor
+        from decimal import Decimal
+        confianza = Decimal(str(asesor_data.confianza)) if asesor_data.confianza is not None else Decimal('3.0')
+        
         asesor = await Asesor.create(
             usuario=usuario,
             ciudad=asesor_data.ciudad,
             departamento=asesor_data.departamento,
             punto_venta=asesor_data.punto_venta,
             direccion_punto_venta=asesor_data.direccion_punto_venta,
+            confianza=confianza,
             estado=EstadoAsesor.ACTIVO
         )
         
@@ -274,6 +280,10 @@ async def update_asesor(
             asesor_updated = True
         if asesor_data.estado is not None:
             asesor.estado = asesor_data.estado
+            asesor_updated = True
+        if asesor_data.confianza is not None:
+            from decimal import Decimal
+            asesor.confianza = Decimal(str(asesor_data.confianza))
             asesor_updated = True
         
         if asesor_updated:

@@ -3,7 +3,7 @@
  * Handles all system parameter categories
  */
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 
@@ -78,8 +78,12 @@ const renderComponent = (categoria: any, configuracion: any) => {
   const Component = categoria.component;
   const data = configuracion[categoria.key];
   
+  // Use JSON.stringify as key to force re-render when data changes
+  const dataKey = JSON.stringify(data);
+  
   return (
     <Component 
+      key={dataKey}
       data={data} 
       categoria={categoria.key}
     />
@@ -88,7 +92,17 @@ const renderComponent = (categoria: any, configuracion: any) => {
 
 export function ConfiguracionSistema() {
   const [activeCategory, setActiveCategory] = useState<CategoriaConfiguracion>('pesos_escalamiento');
-  const { configuracion, summary, loading, error, resetConfiguracion } = useConfiguracion();
+  const { configuracion, summary, loading, error, resetConfiguracion, loadConfiguracion } = useConfiguracion();
+
+  // Reload configuration when component mounts
+  useEffect(() => {
+    loadConfiguracion();
+  }, [loadConfiguracion]);
+
+  // Reload configuration when switching tabs
+  useEffect(() => {
+    loadConfiguracion();
+  }, [activeCategory, loadConfiguracion]);
 
   const handleResetCategoria = async (categoria: CategoriaConfiguracion) => {
     if (confirm(`¿Está seguro de que desea resetear la configuración de "${CATEGORIAS.find(c => c.key === categoria)?.title}" a valores por defecto?`)) {

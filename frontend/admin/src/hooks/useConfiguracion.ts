@@ -49,6 +49,9 @@ export function useConfiguracion() {
       
       const result = await configuracionService.updateConfiguracion(categoria, valores);
       
+      // Small delay to ensure DB is updated before reloading
+      await new Promise(resolve => setTimeout(resolve, 100));
+      
       // Reload configuration after update
       await loadConfiguracion();
       

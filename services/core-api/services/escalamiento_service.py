@@ -830,6 +830,7 @@ class EscalamientoService:
     async def aplicar_fallbacks_metricas(asesor_id: str) -> Dict[str, Decimal]:
         """
         Aplica valores fallback para métricas faltantes
+        Lee valores configurables desde BD, con fallback a 3.0 si no existen
         
         Args:
             asesor_id: ID del asesor
@@ -837,14 +838,30 @@ class EscalamientoService:
         Returns:
             Dict: Métricas con fallbacks aplicados
         """
+        from models.configuracion import ParametroConfig
+        
+        # Obtener valores configurables desde BD
+        try:
+            fallback_actividad = await ParametroConfig.get_valor(
+                'fallback_actividad_asesores_nuevos',
+                default=3.0
+            )
+            fallback_desempeno = await ParametroConfig.get_valor(
+                'fallback_desempeno_asesores_nuevos',
+                default=3.0
+            )
+        except Exception as e:
+            logger.warning(f"Error obteniendo fallbacks configurables: {e}. Usando valores por defecto.")
+            fallback_actividad = 3.0
+            fallback_desempeno = 3.0
         
         fallbacks = {
-            'actividad_reciente': Decimal('1.0'),
-            'desempeno_historico': Decimal('1.0'),
-            'nivel_confianza': Decimal('3.0')
+            'actividad_reciente': Decimal(str(fallback_actividad)),
+            'desempeno_historico': Decimal(str(fallback_desempeno)),
+            'nivel_confianza': Decimal('3.0')  # Este siempre es 3.0 por defecto
         }
         
-        logger.info(f"Aplicando fallbacks para asesor {asesor_id}: {fallbacks}")
+        logger.info(f"Aplicando fallbacks configurables para asesor {asesor_id}: {fallbacks}")
         
         return fallbacks
     

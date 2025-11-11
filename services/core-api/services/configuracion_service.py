@@ -53,14 +53,23 @@ class ConfiguracionService:
         },
         'parametros_generales': {
             'ofertas_minimas_deseadas': 2,
-            'timeout_evaluacion_seg': 5,
+            'precio_minimo_oferta': 1000,
+            'precio_maximo_oferta': 50000000,
+            'garantia_minima_meses': 1,
+            'garantia_maxima_meses': 60,
+            'tiempo_entrega_minimo_dias': 0,
+            'tiempo_entrega_maximo_dias': 90,
+            'cobertura_minima_porcentaje': 50,
+            'timeout_evaluacion_segundos': 5,
             'vigencia_auditoria_dias': 30,
-            'periodo_actividad_dias': 30,
-            'periodo_desempeno_meses': 6,
-            'confianza_minima_operar': 2.0,
-            'cobertura_minima_pct': 50.0,
             'timeout_ofertas_horas': 20,
-            'notificacion_expiracion_horas_antes': 2
+            'notificacion_expiracion_horas_antes': 2,
+            'confianza_minima_operar': 2.0,
+            'periodo_actividad_reciente_dias': 30,
+            'periodo_desempeno_historico_meses': 6,
+            'fallback_actividad_asesores_nuevos': 3.0,
+            'fallback_desempeno_asesores_nuevos': 3.0,
+            'puntaje_defecto_asesores_nuevos': 50
         }
     }
     
@@ -77,17 +86,34 @@ class ConfiguracionService:
         """
         
         if categoria:
-            # Obtener configuración específica
-            config = await ParametroConfig.get_valor(
-                categoria, 
-                ConfiguracionService.DEFAULT_CONFIG.get(categoria, {})
-            )
-            return config
+            # Para parametros_generales, construir desde registros individuales
+            if categoria == 'parametros_generales':
+                parametros = {}
+                default_params = ConfiguracionService.DEFAULT_CONFIG.get('parametros_generales', {})
+                for key in default_params.keys():
+                    valor = await ParametroConfig.get_valor(key, default_params.get(key))
+                    parametros[key] = valor
+                return parametros
+            else:
+                # Obtener configuración específica
+                config = await ParametroConfig.get_valor(
+                    categoria, 
+                    ConfiguracionService.DEFAULT_CONFIG.get(categoria, {})
+                )
+                return config
         else:
             # Obtener toda la configuración
             config_completa = {}
             for cat, default_val in ConfiguracionService.DEFAULT_CONFIG.items():
-                config_completa[cat] = await ParametroConfig.get_valor(cat, default_val)
+                if cat == 'parametros_generales':
+                    # Construir parametros_generales desde registros individuales
+                    parametros = {}
+                    for key in default_val.keys():
+                        valor = await ParametroConfig.get_valor(key, default_val.get(key))
+                        parametros[key] = valor
+                    config_completa[cat] = parametros
+                else:
+                    config_completa[cat] = await ParametroConfig.get_valor(cat, default_val)
             
             return config_completa
     
@@ -132,8 +158,18 @@ class ConfiguracionService:
             ConfiguracionService._validar_canales_nivel(nuevos_valores)
         elif categoria == 'parametros_generales':
             ConfiguracionService._validar_parametros_generales(nuevos_valores)
+            # Para parametros_generales, guardar cada parámetro individualmente
+            for clave, valor in nuevos_valores.items():
+                await ParametroConfig.set_valor(
+                    clave,
+                    valor,
+                    usuario,
+                    f"Parámetro {clave} actualizado"
+                )
+            logger.info(f"Parámetros generales actualizados por {usuario.nombre_completo if usuario else 'Sistema'}")
+            return nuevos_valores
         
-        # Guardar configuración
+        # Guardar configuración (para otras categorías que usan JSON)
         await ParametroConfig.set_valor(
             categoria,
             nuevos_valores,
@@ -240,16 +276,29 @@ class ConfiguracionService:
     def _validar_tiempos_espera(tiempos: Dict[int, int]) -> None:
         """Valida tiempos de espera por nivel"""
         
+        # Convertir claves a enteros si vienen como strings
+        tiempos_int = {}
+        for key, value in tiempos.items():
+            try:
+                nivel_int = int(key) if isinstance(key, str) else key
+                tiempo_int = int(value) if isinstance(value, str) else value
+                tiempos_int[nivel_int] = tiempo_int
+            except (ValueError, TypeError):
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Nivel '{key}' y tiempo '{value}' deben ser números"
+                )
+        
         required_keys = {1, 2, 3, 4, 5}
-        if set(tiempos.keys()) != required_keys:
+        if set(tiempos_int.keys()) != required_keys:
             raise HTTPException(
                 status_code=400,
-                detail=f"Tiempos deben incluir niveles: {required_keys}"
+                detail=f"Tiempos deben incluir niveles: {required_keys}. Recibido: {set(tiempos_int.keys())}"
             )
         
         # Validar que todos sean números positivos
-        for nivel, tiempo in tiempos.items():
-            if not isinstance(tiempo, int) or tiempo <= 0:
+        for nivel, tiempo in tiempos_int.items():
+            if tiempo <= 0:
                 raise HTTPException(
                     status_code=400,
                     detail=f"Tiempo para nivel {nivel} debe ser un entero positivo (minutos)"
@@ -265,16 +314,28 @@ class ConfiguracionService:
     def _validar_canales_nivel(canales: Dict[int, str]) -> None:
         """Valida canales de notificación por nivel"""
         
+        # Convertir claves a enteros si vienen como strings
+        canales_int = {}
+        for key, value in canales.items():
+            try:
+                nivel_int = int(key) if isinstance(key, str) else key
+                canales_int[nivel_int] = value
+            except (ValueError, TypeError):
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Nivel '{key}' debe ser un número"
+                )
+        
         required_keys = {1, 2, 3, 4, 5}
-        if set(canales.keys()) != required_keys:
+        if set(canales_int.keys()) != required_keys:
             raise HTTPException(
                 status_code=400,
-                detail=f"Canales deben incluir niveles: {required_keys}"
+                detail=f"Canales deben incluir niveles: {required_keys}. Recibido: {set(canales_int.keys())}"
             )
         
         valid_channels = {'WHATSAPP', 'PUSH', 'EMAIL', 'SMS'}
         
-        for nivel, canal in canales.items():
+        for nivel, canal in canales_int.items():
             if canal not in valid_channels:
                 raise HTTPException(
                     status_code=400,
@@ -367,8 +428,16 @@ class ConfiguracionService:
         total_params = sum(len(cat_config) if isinstance(cat_config, dict) else 1 
                           for cat_config in config.values())
         
-        # Obtener última modificación
-        ultimo_cambio = await ParametroConfig.all().order_by('-updated_at').first()
+        # Obtener última modificación con relación de usuario
+        ultimo_cambio = await ParametroConfig.all().order_by('-updated_at').prefetch_related('modificado_por').first()
+        
+        # Obtener nombre del usuario que modificó
+        modificado_por_nombre = None
+        if ultimo_cambio and ultimo_cambio.modificado_por:
+            try:
+                modificado_por_nombre = ultimo_cambio.modificado_por.nombre_completo
+            except Exception:
+                modificado_por_nombre = "Sistema"
         
         return {
             'configuracion_actual': config,
@@ -376,7 +445,7 @@ class ConfiguracionService:
                 'total_categorias': len(config),
                 'total_parametros': total_params,
                 'ultima_modificacion': ultimo_cambio.updated_at if ultimo_cambio else None,
-                'modificado_por': ultimo_cambio.modificado_por.nombre_completo if ultimo_cambio and ultimo_cambio.modificado_por else None
+                'modificado_por': modificado_por_nombre
             },
             'validaciones_activas': {
                 'pesos_suman_1': True,
