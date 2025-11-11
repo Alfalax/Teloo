@@ -46,7 +46,7 @@ class SolicitudesService:
         query = Solicitud.all()
         
         # For advisors, filter by assigned solicitudes (evaluated or offered)
-        if user_rol == "ASESOR" and asesor_id:
+        if user_rol == "ADVISOR" and asesor_id:
             # Solicitudes where the asesor was evaluated/notified OR made an offer
             query = query.filter(
                 Q(evaluaciones_asesores__asesor_id=asesor_id) |
@@ -244,8 +244,6 @@ class SolicitudesService:
         
         if not ciudad_valida:
             # Log warning but allow creation for development
-            import logging
-            logger = logging.getLogger(__name__)
             logger.warning(f"Ciudad {ciudad_origen} no encontrada en base de datos geográfica. Ciudades disponibles: BOGOTA, MEDELLIN, CALI, BARRANQUILLA")
             # TODO: Enable strict validation in production
             # raise ValueError(f"Ciudad {ciudad_origen} no válida. Ciudades disponibles: BOGOTA, MEDELLIN, CALI, BARRANQUILLA")
@@ -283,16 +281,34 @@ class SolicitudesService:
             # Get existing cliente
             cliente = await Cliente.get_or_none(usuario=usuario)
             if not cliente:
+                # Buscar municipio para el cliente
+                from models.geografia import Municipio
+                ciudad_norm = Municipio.normalizar_ciudad(ciudad_origen)
+                municipio = await Municipio.get_or_none(municipio_norm=ciudad_norm)
+                
+                if not municipio:
+                    raise ValueError(f"Municipio {ciudad_origen} no encontrado en base de datos DIVIPOLA")
+                
                 # Create cliente profile if doesn't exist
                 cliente = await Cliente.create(
                     usuario=usuario,
+                    municipio=municipio,
                     ciudad=ciudad_origen,
                     departamento=departamento_origen
                 )
         
+        # Buscar municipio para la solicitud
+        from models.geografia import Municipio
+        ciudad_norm = Municipio.normalizar_ciudad(ciudad_origen)
+        municipio = await Municipio.get_or_none(municipio_norm=ciudad_norm)
+        
+        if not municipio:
+            raise ValueError(f"Municipio {ciudad_origen} no encontrado en base de datos DIVIPOLA")
+        
         # Create solicitud
         solicitud = await Solicitud.create(
             cliente=cliente,
+            municipio=municipio,
             estado=EstadoSolicitud.ABIERTA,
             nivel_actual=1,
             ciudad_origen=ciudad_origen,
@@ -327,9 +343,8 @@ class SolicitudesService:
         if solicitud.estado == EstadoSolicitud.ABIERTA:
             try:
                 from services.escalamiento_service import EscalamientoService
-                escalamiento_service = EscalamientoService()
-                await escalamiento_service.ejecutar_escalamiento(solicitud.id)
-                logger.info(f"Escalamiento automático ejecutado para solicitud {solicitud.id}")
+                resultado = await EscalamientoService.procesar_escalamiento_completo(solicitud)
+                logger.info(f"Escalamiento automático ejecutado para solicitud {solicitud.id}: {resultado.get('asesores_notificados', 0)} asesores notificados")
             except Exception as e:
                 logger.error(f"Error en escalamiento automático para solicitud {solicitud.id}: {e}")
                 # No fallar la creación de solicitud por error en escalamiento

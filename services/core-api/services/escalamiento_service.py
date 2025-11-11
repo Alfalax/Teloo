@@ -28,9 +28,13 @@ class EscalamientoService:
     """
     
     @staticmethod
-    async def calcular_proximidad(ciudad_solicitud: str, ciudad_asesor: str) -> Tuple[Decimal, str]:
+    async def calcular_proximidad(
+        municipio_solicitud: Municipio, 
+        municipio_asesor: Municipio
+    ) -> Tuple[Decimal, str]:
         """
-        Calcula proximidad geográfica entre ciudad de solicitud y asesor
+        Calcula proximidad geográfica entre municipio de solicitud y asesor
+        USANDO OBJETOS Municipio directamente - Fuente única de verdad
         
         Niveles de proximidad:
         - 5.0: Misma ciudad
@@ -39,40 +43,25 @@ class EscalamientoService:
         - 3.0: Otras ciudades (fallback)
         
         Args:
-            ciudad_solicitud: Ciudad donde se originó la solicitud
-            ciudad_asesor: Ciudad donde está ubicado el asesor
+            municipio_solicitud: Municipio donde se originó la solicitud
+            municipio_asesor: Municipio donde está ubicado el asesor
             
         Returns:
             Tuple[Decimal, str]: (puntaje_proximidad, criterio_aplicado)
         """
         
-        # Normalizar nombres de ciudades
-        ciudad_sol_norm = Municipio.normalizar_ciudad(ciudad_solicitud)
-        ciudad_ase_norm = Municipio.normalizar_ciudad(ciudad_asesor)
-        
         # Nivel 1: Misma ciudad (5.0)
-        if ciudad_sol_norm == ciudad_ase_norm:
+        if municipio_solicitud.id == municipio_asesor.id:
             return Decimal('5.0'), "misma_ciudad"
         
-        # Obtener municipio de la solicitud para determinar área metropolitana y hub
-        municipio_solicitud = await Municipio.get_or_none(municipio_norm=ciudad_sol_norm)
-        
-        if not municipio_solicitud:
-            # Fallback: ciudad no encontrada en base de datos
-            logger.warning(f"Ciudad {ciudad_solicitud} no encontrada en base de datos de municipios")
-            return Decimal('3.0'), "ciudad_no_encontrada"
-        
         # Nivel 2: Área metropolitana (4.0)
-        if municipio_solicitud.area_metropolitana:
-            # Buscar si el asesor está en la misma área metropolitana
-            municipio_asesor = await Municipio.get_or_none(municipio_norm=ciudad_ase_norm)
-            if municipio_asesor and municipio_asesor.area_metropolitana == municipio_solicitud.area_metropolitana:
-                return Decimal('4.0'), "area_metropolitana"
+        if (municipio_solicitud.area_metropolitana and 
+            municipio_solicitud.area_metropolitana != 'NO' and
+            municipio_solicitud.area_metropolitana == municipio_asesor.area_metropolitana):
+            return Decimal('4.0'), "area_metropolitana"
         
         # Nivel 3: Hub logístico (3.5)
-        # Buscar si el asesor está en el mismo hub logístico
-        municipio_asesor = await Municipio.get_or_none(municipio_norm=ciudad_ase_norm)
-        if municipio_asesor and municipio_asesor.hub_logistico == municipio_solicitud.hub_logistico:
+        if municipio_solicitud.hub_logistico == municipio_asesor.hub_logistico:
             return Decimal('3.5'), "hub_logistico"
         
         # Nivel 4: Fallback para ciudades sin cobertura (3.0)
@@ -226,6 +215,7 @@ class EscalamientoService:
     async def determinar_asesores_elegibles(solicitud: Solicitud) -> List[Asesor]:
         """
         Determina asesores elegibles basado en 3 características geográficas
+        USANDO FK municipio_id - Fuente única de verdad
         
         Características:
         1. Asesores de misma ciudad
@@ -240,74 +230,77 @@ class EscalamientoService:
         """
         
         ciudad_solicitud = solicitud.ciudad_origen
+        departamento_solicitud = solicitud.departamento_origen
+        
+        # Normalizar ciudad y departamento de la solicitud
+        ciudad_norm = Municipio.normalizar_ciudad(ciudad_solicitud)
+        departamento_norm = Municipio.normalizar_ciudad(departamento_solicitud)
+        
+        # Obtener municipio de la solicitud usando ciudad Y departamento
+        municipio_solicitud = await Municipio.get_or_none(
+            municipio_norm=ciudad_norm,
+            departamento=departamento_norm
+        )
+        
+        if not municipio_solicitud:
+            logger.warning(f"Ciudad {ciudad_solicitud}, {departamento_solicitud} no encontrada en base de datos de municipios")
+            # Fallback: buscar todos los asesores activos
+            asesores_fallback = await Asesor.filter(
+                estado=EstadoAsesor.ACTIVO,
+                usuario__estado=EstadoUsuario.ACTIVO
+            ).prefetch_related('usuario', 'municipio').all()
+            logger.info(f"Fallback: {len(asesores_fallback)} asesores activos")
+            return asesores_fallback
+        
+        logger.info(f"📍 Municipio solicitud: {municipio_solicitud.municipio} ({municipio_solicitud.departamento})")
+        logger.info(f"   Hub: {municipio_solicitud.hub_logistico}, Área Metro: {municipio_solicitud.area_metropolitana}")
+        
         asesores_elegibles = set()
         
-        # Característica 1: Asesores de misma ciudad
-        ciudad_norm = Municipio.normalizar_ciudad(ciudad_solicitud)
+        # Característica 1: Asesores de misma ciudad (JOIN directo por FK)
         asesores_misma_ciudad = await Asesor.filter(
-            ciudad=ciudad_norm,
+            municipio_id=municipio_solicitud.id,
             estado=EstadoAsesor.ACTIVO,
             usuario__estado=EstadoUsuario.ACTIVO
-        ).prefetch_related('usuario').all()
+        ).prefetch_related('usuario', 'municipio').all()
         
         for asesor in asesores_misma_ciudad:
             asesores_elegibles.add(asesor.id)
         
-        logger.info(f"Característica 1 - Misma ciudad ({ciudad_norm}): {len(asesores_misma_ciudad)} asesores")
+        logger.info(f"✅ Característica 1 - Misma ciudad ({municipio_solicitud.municipio}): {len(asesores_misma_ciudad)} asesores")
         
-        # Obtener municipio de la solicitud
-        municipio_solicitud = await Municipio.get_or_none(municipio_norm=ciudad_norm)
+        # Característica 2: Asesores de TODAS las áreas metropolitanas nacionales
+        # IMPORTANTE: Esto se aplica SIEMPRE, sin importar si la solicitud viene de área metropolitana o no
+        asesores_areas_metro = await Asesor.filter(
+            municipio__area_metropolitana__isnull=False,
+            municipio__area_metropolitana__not='NO',
+            estado=EstadoAsesor.ACTIVO,
+            usuario__estado=EstadoUsuario.ACTIVO
+        ).prefetch_related('usuario', 'municipio').all()
         
-        if not municipio_solicitud:
-            logger.warning(f"Ciudad {ciudad_solicitud} no encontrada en base de datos de municipios")
-            return list(asesores_elegibles)
+        for asesor in asesores_areas_metro:
+            asesores_elegibles.add(asesor.id)
         
-        # Característica 2: Asesores de todas las áreas metropolitanas nacionales
-        if municipio_solicitud.area_metropolitana:
-            # Obtener todos los municipios de la misma área metropolitana
-            municipios_am = await Municipio.filter(
-                area_metropolitana=municipio_solicitud.area_metropolitana
-            ).values_list('municipio_norm', flat=True)
-            
-            if municipios_am:
-                asesores_am = await Asesor.filter(
-                    ciudad__in=municipios_am,
-                    estado=EstadoAsesor.ACTIVO,
-                    usuario__estado=EstadoUsuario.ACTIVO
-                ).prefetch_related('usuario').all()
-                
-                for asesor in asesores_am:
-                    asesores_elegibles.add(asesor.id)
-                
-                logger.info(f"Característica 2 - Área metropolitana ({municipio_solicitud.area_metropolitana}): {len(asesores_am)} asesores")
+        logger.info(f"✅ Característica 2 - Áreas metropolitanas nacionales (SIEMPRE): {len(asesores_areas_metro)} asesores, {len(asesores_elegibles)} acumulados")
         
-        # Característica 3: Asesores del hub logístico de la ciudad
-        # Obtener todos los municipios del mismo hub logístico
-        municipios_hub = await Municipio.filter(
-            hub_logistico=municipio_solicitud.hub_logistico
-        ).values_list('municipio_norm', flat=True)
+        # Característica 3: Asesores del hub logístico de la ciudad (JOIN directo)
+        asesores_hub = await Asesor.filter(
+            municipio__hub_logistico=municipio_solicitud.hub_logistico,
+            estado=EstadoAsesor.ACTIVO,
+            usuario__estado=EstadoUsuario.ACTIVO
+        ).prefetch_related('usuario', 'municipio').all()
         
-        if municipios_hub:
-            asesores_hub = await Asesor.filter(
-                ciudad__in=municipios_hub,
-                estado=EstadoAsesor.ACTIVO,
-                usuario__estado=EstadoUsuario.ACTIVO
-            ).prefetch_related('usuario').all()
-            
-            for asesor in asesores_hub:
-                asesores_elegibles.add(asesor.id)
-            
-            logger.info(f"Característica 3 - Hub logístico ({municipio_solicitud.hub_logistico}): {len(asesores_hub)} asesores")
+        for asesor in asesores_hub:
+            asesores_elegibles.add(asesor.id)
         
-        # Obtener objetos Asesor únicos
+        logger.info(f"✅ Característica 3 - Hub logístico ({municipio_solicitud.hub_logistico}): {len(asesores_hub)} asesores, {len(asesores_elegibles)} acumulados")
+        
+        # Obtener objetos Asesor únicos con todas las relaciones
         asesores_finales = await Asesor.filter(
             id__in=list(asesores_elegibles)
-        ).prefetch_related('usuario').all()
+        ).prefetch_related('usuario', 'municipio').all()
         
-        logger.info(f"Total asesores elegibles (sin duplicados): {len(asesores_finales)}")
-        
-        # TODO: Registrar en auditoría el conjunto final
-        # Esto se implementará en una función separada de auditoría
+        logger.info(f"🎯 Total asesores elegibles (sin duplicados): {len(asesores_finales)}")
         
         return asesores_finales
     
@@ -350,12 +343,26 @@ class EscalamientoService:
         
         # 1. Calcular proximidad geográfica (crítica - no puede fallar)
         try:
-            proximidad, criterio_prox = await EscalamientoService.calcular_proximidad(
-                solicitud.ciudad_origen, 
-                asesor.ciudad
-            )
-            variables['proximidad'] = proximidad
-            variables['criterio_proximidad'] = criterio_prox
+            # Obtener municipios con FK - fuente única de verdad
+            ciudad_norm = Municipio.normalizar_ciudad(solicitud.ciudad_origen)
+            municipio_solicitud = await Municipio.get_or_none(municipio_norm=ciudad_norm)
+            
+            if not municipio_solicitud:
+                logger.warning(f"Municipio solicitud {solicitud.ciudad_origen} no encontrado")
+                variables['proximidad'] = Decimal('3.0')
+                variables['criterio_proximidad'] = "municipio_no_encontrado"
+            elif not asesor.municipio:
+                logger.warning(f"Asesor {asesor.id} sin municipio asignado")
+                variables['proximidad'] = Decimal('3.0')
+                variables['criterio_proximidad'] = "asesor_sin_municipio"
+            else:
+                # Usar objetos Municipio directamente
+                proximidad, criterio_prox = await EscalamientoService.calcular_proximidad(
+                    municipio_solicitud, 
+                    asesor.municipio
+                )
+                variables['proximidad'] = proximidad
+                variables['criterio_proximidad'] = criterio_prox
         except Exception as e:
             logger.error(f"Error calculando proximidad para asesor {asesor.id}: {e}")
             # Fallback crítico - proximidad por defecto
@@ -766,7 +773,8 @@ class EscalamientoService:
             return False, f"Usuario inactivo (estado: {asesor.usuario.estado})"
         
         # Verificar confianza mínima
-        confianza_minima = await ParametroConfig.get_valor('parametros_generales', {}).get('confianza_minima_operar', 2.0)
+        parametros_generales = await ParametroConfig.get_valor('parametros_generales', {})
+        confianza_minima = parametros_generales.get('confianza_minima_operar', 2.0)
         
         if not asesor.cumple_confianza_minima(confianza_minima):
             return False, f"Confianza insuficiente ({asesor.confianza} < {confianza_minima})"
@@ -838,8 +846,6 @@ class EscalamientoService:
         Returns:
             Dict: Métricas con fallbacks aplicados
         """
-        from models.configuracion import ParametroConfig
-        
         # Obtener valores configurables desde BD
         try:
             fallback_actividad = await ParametroConfig.get_valor(

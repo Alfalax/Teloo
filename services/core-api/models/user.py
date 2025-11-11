@@ -77,8 +77,25 @@ class Cliente(BaseModel):
         related_name="cliente",
         on_delete=fields.CASCADE
     )
-    ciudad = fields.CharField(max_length=100)
-    departamento = fields.CharField(max_length=100)
+    
+    # Ubicación geográfica - FUENTE ÚNICA DE VERDAD
+    municipio = fields.ForeignKeyField(
+        "models.Municipio",
+        related_name="clientes",
+        on_delete=fields.RESTRICT,
+        description="Municipio del cliente (FK a tabla municipios - fuente única de verdad)"
+    )
+    
+    # Campos de texto para display (NO usar para lógica de negocio)
+    ciudad = fields.CharField(
+        max_length=100,
+        description="Nombre de ciudad para display (NO usar para lógica)"
+    )
+    departamento = fields.CharField(
+        max_length=100,
+        description="Nombre de departamento para display (NO usar para lógica)"
+    )
+    
     direccion = fields.TextField(null=True)
     
     # Métricas del cliente
@@ -114,8 +131,25 @@ class Asesor(BaseModel):
         related_name="asesor", 
         on_delete=fields.CASCADE
     )
-    ciudad = fields.CharField(max_length=100)
-    departamento = fields.CharField(max_length=100)
+    
+    # Ubicación geográfica - FUENTE ÚNICA DE VERDAD
+    municipio = fields.ForeignKeyField(
+        "models.Municipio",
+        related_name="asesores",
+        on_delete=fields.RESTRICT,
+        description="Municipio del asesor (FK a tabla municipios - fuente única de verdad)"
+    )
+    
+    # Campos de texto para display (NO usar para lógica de negocio)
+    ciudad = fields.CharField(
+        max_length=100,
+        description="Nombre de ciudad para display (NO usar para lógica)"
+    )
+    departamento = fields.CharField(
+        max_length=100,
+        description="Nombre de departamento para display (NO usar para lógica)"
+    )
+    
     punto_venta = fields.CharField(max_length=200)
     direccion_punto_venta = fields.TextField(null=True)
     

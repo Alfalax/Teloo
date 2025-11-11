@@ -218,10 +218,13 @@ async def get_advisor_metrics(
         for oferta in ofertas_ganadoras:
             monto_total_ganado += float(oferta.monto_total)
         
-        # Contar TODAS las solicitudes ABIERTAS disponibles (marketplace)
+        # Contar solicitudes ABIERTAS asignadas al asesor (evaluadas o con oferta)
+        from models.geografia import EvaluacionAsesorTemp
         solicitudes_abiertas = await Solicitud.filter(
+            Q(evaluaciones_asesores__asesor_id=asesor.id) |
+            Q(ofertas__asesor_id=asesor.id),
             estado=EstadoSolicitud.ABIERTA
-        ).count()
+        ).distinct().count()
         
         # Calcular tasa de conversión
         ofertas_ganadoras_count = await Oferta.filter(
