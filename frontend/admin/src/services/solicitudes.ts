@@ -81,6 +81,7 @@ export const solicitudesService = {
     nombre?: string;
     email?: string;
     telefono?: string;
+    municipio_id?: string;
     ciudad?: string;
     departamento?: string;
   }> {

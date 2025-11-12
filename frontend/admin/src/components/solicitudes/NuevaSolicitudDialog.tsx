@@ -30,6 +30,7 @@ interface ClienteData {
   nombre: string;
   telefono: string;
   email?: string;
+  municipio_id: string;
   ciudad_origen: string;
   departamento_origen: string;
 }
@@ -38,6 +39,7 @@ const initialClienteData: ClienteData = {
   nombre: "",
   telefono: "",
   email: "",
+  municipio_id: "",
   ciudad_origen: "",
   departamento_origen: "",
 };
@@ -94,6 +96,7 @@ export function NuevaSolicitudDialog({
           telefono: clienteData.telefono,
           email: clienteData.email,
         },
+        municipio_id: clienteData.municipio_id,
         ciudad_origen: clienteData.ciudad_origen,
         departamento_origen: clienteData.departamento_origen,
         repuestos,
@@ -115,7 +118,7 @@ export function NuevaSolicitudDialog({
     return (
       clienteData.nombre.trim() !== "" &&
       clienteData.telefono.trim() !== "" &&
-      clienteData.ciudad_origen.trim() !== "" &&
+      clienteData.municipio_id.trim() !== "" &&
       clienteData.departamento_origen.trim() !== ""
     );
   };

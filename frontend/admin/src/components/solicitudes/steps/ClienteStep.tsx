@@ -14,13 +14,14 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
-import { geografiaService } from "@/services/geografia";
+import { geografiaService, Municipio } from "@/services/geografia";
 import { solicitudesService } from "@/services/solicitudes";
 
 interface ClienteData {
   nombre: string;
   telefono: string;
   email?: string;
+  municipio_id: string;
   ciudad_origen: string;
   departamento_origen: string;
 }
@@ -34,9 +35,9 @@ interface ClienteStepProps {
 
 export function ClienteStep({ data, onChange }: ClienteStepProps) {
   const [departamentos, setDepartamentos] = useState<string[]>([]);
-  const [ciudades, setCiudades] = useState<string[]>([]);
+  const [municipios, setMunicipios] = useState<Municipio[]>([]);
   const [loadingDepartamentos, setLoadingDepartamentos] = useState(false);
-  const [loadingCiudades, setLoadingCiudades] = useState(false);
+  const [loadingMunicipios, setLoadingMunicipios] = useState(false);
   const [searchingCliente, setSearchingCliente] = useState(false);
   const [clienteFound, setClienteFound] = useState(false);
 
@@ -45,12 +46,12 @@ export function ClienteStep({ data, onChange }: ClienteStepProps) {
     loadDepartamentos();
   }, []);
 
-  // Load ciudades when departamento changes
+  // Load municipios when departamento changes
   useEffect(() => {
     if (data.departamento_origen) {
-      loadCiudades(data.departamento_origen);
+      loadMunicipios(data.departamento_origen);
     } else {
-      setCiudades([]);
+      setMunicipios([]);
     }
   }, [data.departamento_origen]);
 
@@ -66,15 +67,15 @@ export function ClienteStep({ data, onChange }: ClienteStepProps) {
     }
   };
 
-  const loadCiudades = async (departamento: string) => {
-    setLoadingCiudades(true);
+  const loadMunicipios = async (departamento: string) => {
+    setLoadingMunicipios(true);
     try {
-      const ciud = await geografiaService.getCiudadesByDepartamento(departamento);
-      setCiudades(ciud);
+      const munis = await geografiaService.buscarMunicipios(undefined, departamento, 200);
+      setMunicipios(munis);
     } catch (error) {
-      console.error('Error loading ciudades:', error);
+      console.error('Error loading municipios:', error);
     } finally {
-      setLoadingCiudades(false);
+      setLoadingMunicipios(false);
     }
   };
 
@@ -82,7 +83,16 @@ export function ClienteStep({ data, onChange }: ClienteStepProps) {
     const newData = { ...data, [field]: value };
     
     if (field === "departamento_origen") {
+      newData.municipio_id = "";
       newData.ciudad_origen = "";
+    }
+    
+    // When municipio_id changes, update ciudad_origen
+    if (field === "municipio_id") {
+      const municipio = municipios.find(m => m.id === value);
+      if (municipio) {
+        newData.ciudad_origen = municipio.municipio;
+      }
     }
     
     // Reset cliente found flag when phone changes
@@ -108,6 +118,7 @@ export function ClienteStep({ data, onChange }: ClienteStepProps) {
           nombre: result.nombre || data.nombre,
           telefono: result.telefono || data.telefono,
           email: result.email || data.email,
+          municipio_id: result.municipio_id || data.municipio_id,
           ciudad_origen: result.ciudad || data.ciudad_origen,
           departamento_origen: result.departamento || data.departamento_origen,
         });
@@ -223,40 +234,40 @@ export function ClienteStep({ data, onChange }: ClienteStepProps) {
         </div>
 
         <div className="space-y-2 md:col-span-2">
-          <Label>Ciudad *</Label>
+          <Label>Ciudad/Municipio *</Label>
           <Select
-            value={data.ciudad_origen}
-            onValueChange={(value) => handleChange("ciudad_origen", value)}
-            disabled={!data.departamento_origen || loadingCiudades}
+            value={data.municipio_id}
+            onValueChange={(value) => handleChange("municipio_id", value)}
+            disabled={!data.departamento_origen || loadingMunicipios}
           >
             <SelectTrigger>
               <SelectValue 
                 placeholder={
                   !data.departamento_origen 
                     ? "Primero selecciona un departamento" 
-                    : loadingCiudades 
-                    ? "Cargando ciudades..." 
-                    : "Seleccionar ciudad"
+                    : loadingMunicipios 
+                    ? "Cargando municipios..." 
+                    : "Seleccionar municipio"
                 } 
               />
             </SelectTrigger>
             <SelectContent>
-              {ciudades.map((ciudad) => (
-                <SelectItem key={ciudad} value={ciudad}>
-                  {ciudad}
+              {municipios.map((municipio) => (
+                <SelectItem key={municipio.id} value={municipio.id}>
+                  {municipio.municipio}
                 </SelectItem>
               ))}
             </SelectContent>
           </Select>
-          {loadingCiudades && (
+          {loadingMunicipios && (
             <p className="text-xs text-muted-foreground flex items-center gap-1">
               <Loader2 className="h-3 w-3 animate-spin" />
-              Cargando ciudades del departamento...
+              Cargando municipios del departamento...
             </p>
           )}
-          {data.departamento_origen && ciudades.length === 0 && !loadingCiudades && (
+          {data.departamento_origen && municipios.length === 0 && !loadingMunicipios && (
             <p className="text-xs text-muted-foreground">
-              No se encontraron ciudades para este departamento
+              No se encontraron municipios para este departamento
             </p>
           )}
         </div>

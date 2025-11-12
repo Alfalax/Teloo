@@ -45,13 +45,40 @@ class SolicitudesService:
         # Build query
         query = Solicitud.all()
         
-        # For advisors, filter by assigned solicitudes (evaluated or offered)
+        # For advisors, filter by assigned solicitudes
         if user_rol == "ADVISOR" and asesor_id:
-            # Solicitudes where the asesor was evaluated/notified OR made an offer
-            query = query.filter(
-                Q(evaluaciones_asesores__asesor_id=asesor_id) |
-                Q(ofertas__asesor_id=asesor_id)
-            ).distinct()
+            # Only show OPEN solicitudes where:
+            # 1. The asesor was evaluated AND solicitud.nivel_actual >= evaluacion.nivel_entrega (acumulativo)
+            # 2. OR the asesor made an offer (can still see it even if level changed)
+            
+            # Get IDs of solicitudes where nivel matches
+            from tortoise import connections
+            conn = connections.get("default")
+            
+            # Query to get solicitudes where nivel_actual >= asesor's nivel_entrega (acumulativo)
+            nivel_match_ids = await conn.execute_query_dict("""
+                SELECT DISTINCT s.id 
+                FROM solicitudes s
+                INNER JOIN evaluaciones_asesores_temp e ON e.solicitud_id = s.id
+                WHERE e.asesor_id = $1
+                AND s.nivel_actual >= e.nivel_entrega
+                AND s.estado = 'ABIERTA'
+            """, [str(asesor_id)])
+            
+            nivel_match_uuids = [row['id'] for row in nivel_match_ids]
+            
+            # Filter: solicitudes with matching nivel OR where asesor made an offer
+            if nivel_match_uuids:
+                query = query.filter(
+                    Q(id__in=nivel_match_uuids) |
+                    Q(ofertas__asesor_id=asesor_id, estado=EstadoSolicitud.ABIERTA)
+                ).distinct()
+            else:
+                # Only show solicitudes where they made an offer
+                query = query.filter(
+                    ofertas__asesor_id=asesor_id,
+                    estado=EstadoSolicitud.ABIERTA
+                ).distinct()
         
         # Apply filters
         if estado:
@@ -228,6 +255,7 @@ class SolicitudesService:
     @staticmethod
     async def create_solicitud(
         cliente_data: Dict[str, Any],
+        municipio_id: str,
         ciudad_origen: str,
         departamento_origen: str,
         repuestos: List[Dict[str, Any]]
@@ -297,13 +325,12 @@ class SolicitudesService:
                     departamento=departamento_origen
                 )
         
-        # Buscar municipio para la solicitud
+        # Buscar municipio por ID
         from models.geografia import Municipio
-        ciudad_norm = Municipio.normalizar_ciudad(ciudad_origen)
-        municipio = await Municipio.get_or_none(municipio_norm=ciudad_norm)
+        municipio = await Municipio.get_or_none(id=municipio_id)
         
         if not municipio:
-            raise ValueError(f"Municipio {ciudad_origen} no encontrado en base de datos DIVIPOLA")
+            raise ValueError(f"Municipio con ID {municipio_id} no encontrado en base de datos")
         
         # Create solicitud
         solicitud = await Solicitud.create(

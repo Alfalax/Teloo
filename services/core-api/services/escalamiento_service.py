@@ -186,30 +186,25 @@ class EscalamientoService:
         vigencia_dias: int = 30
     ) -> Decimal:
         """
-        Obtiene el nivel de confianza más reciente del asesor
+        Obtiene el nivel de confianza del asesor desde la tabla asesores
         
         Args:
             asesor_id: ID del asesor
-            vigencia_dias: Días de vigencia de la auditoría (default 30)
+            vigencia_dias: Días de vigencia de la auditoría (no usado actualmente)
             
         Returns:
             Decimal: Nivel de confianza en escala 1-5
         """
+        from models.user import Asesor
         
-        fecha_limite = datetime.now() - timedelta(days=vigencia_dias)
+        # Leer directamente el campo confianza de la tabla asesores
+        asesor = await Asesor.get_or_none(id=asesor_id)
         
-        # Buscar auditoría más reciente y vigente
-        auditoria = await AuditoriaTienda.filter(
-            asesor_id=asesor_id,
-            fecha_revision__gte=fecha_limite
-        ).order_by('-fecha_revision').first()
+        if asesor and asesor.confianza:
+            return Decimal(str(asesor.confianza))
         
-        if auditoria and auditoria.is_vigente():
-            return auditoria.puntaje_confianza
-        
-        # Fallback: Sin auditoría vigente = 3.0
-        fallbacks = await EscalamientoService.aplicar_fallbacks_metricas(asesor_id)
-        return fallbacks['nivel_confianza']
+        # Fallback: Si no existe el asesor o no tiene confianza = 3.0
+        return Decimal('3.0')
     
     @staticmethod
     async def determinar_asesores_elegibles(solicitud: Solicitud) -> List[Asesor]:

@@ -58,6 +58,7 @@ class ClienteInput(BaseModel):
 class CreateSolicitudRequest(BaseModel):
     """Request model for creating solicitud"""
     cliente: ClienteInput
+    municipio_id: str = Field(..., description="ID del municipio de origen")
     ciudad_origen: str = Field(..., min_length=1, max_length=100)
     departamento_origen: str = Field(..., min_length=1, max_length=100)
     repuestos: List[RepuestoSolicitadoInput] = Field(..., min_items=1)
@@ -110,6 +111,7 @@ class ClienteSearchResponse(BaseModel):
     nombre: Optional[str] = None
     email: Optional[str] = None
     telefono: Optional[str] = None
+    municipio_id: Optional[str] = None
     ciudad: Optional[str] = None
     departamento: Optional[str] = None
 
@@ -147,6 +149,7 @@ async def buscar_cliente_por_telefono(
                 "nombre": usuario.nombre_completo,
                 "email": usuario.email,
                 "telefono": usuario.telefono,
+                "municipio_id": None,
                 "ciudad": None,
                 "departamento": None
             }
@@ -157,6 +160,7 @@ async def buscar_cliente_por_telefono(
             "nombre": usuario.nombre_completo,
             "email": usuario.email,
             "telefono": usuario.telefono,
+            "municipio_id": str(cliente.municipio_id) if cliente.municipio_id else None,
             "ciudad": cliente.ciudad,
             "departamento": cliente.departamento
         }
@@ -341,6 +345,7 @@ async def create_solicitud(
         
         solicitud = await SolicitudesService.create_solicitud(
             cliente_data=cliente_data,
+            municipio_id=request.municipio_id,
             ciudad_origen=request.ciudad_origen,
             departamento_origen=request.departamento_origen,
             repuestos=repuestos_data
