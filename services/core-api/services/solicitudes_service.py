@@ -45,13 +45,40 @@ class SolicitudesService:
         # Build query
         query = Solicitud.all()
         
-        # For advisors, filter by assigned solicitudes (evaluated or offered)
-        if user_rol == "ASESOR" and asesor_id:
-            # Solicitudes where the asesor was evaluated/notified OR made an offer
-            query = query.filter(
-                Q(evaluaciones_asesores__asesor_id=asesor_id) |
-                Q(ofertas__asesor_id=asesor_id)
-            ).distinct()
+        # For advisors, filter by assigned solicitudes
+        if user_rol == "ADVISOR" and asesor_id:
+            # Only show OPEN solicitudes where:
+            # 1. The asesor was evaluated AND solicitud.nivel_actual >= evaluacion.nivel_entrega (acumulativo)
+            # 2. OR the asesor made an offer (can still see it even if level changed)
+            
+            # Get IDs of solicitudes where nivel matches
+            from tortoise import connections
+            conn = connections.get("default")
+            
+            # Query to get solicitudes where nivel_actual >= asesor's nivel_entrega (acumulativo)
+            nivel_match_ids = await conn.execute_query_dict("""
+                SELECT DISTINCT s.id 
+                FROM solicitudes s
+                INNER JOIN evaluaciones_asesores_temp e ON e.solicitud_id = s.id
+                WHERE e.asesor_id = $1
+                AND s.nivel_actual >= e.nivel_entrega
+                AND s.estado = 'ABIERTA'
+            """, [str(asesor_id)])
+            
+            nivel_match_uuids = [row['id'] for row in nivel_match_ids]
+            
+            # Filter: solicitudes with matching nivel OR where asesor made an offer
+            if nivel_match_uuids:
+                query = query.filter(
+                    Q(id__in=nivel_match_uuids) |
+                    Q(ofertas__asesor_id=asesor_id, estado=EstadoSolicitud.ABIERTA)
+                ).distinct()
+            else:
+                # Only show solicitudes where they made an offer
+                query = query.filter(
+                    ofertas__asesor_id=asesor_id,
+                    estado=EstadoSolicitud.ABIERTA
+                ).distinct()
         
         # Apply filters
         if estado:
@@ -228,6 +255,7 @@ class SolicitudesService:
     @staticmethod
     async def create_solicitud(
         cliente_data: Dict[str, Any],
+        municipio_id: str,
         ciudad_origen: str,
         departamento_origen: str,
         repuestos: List[Dict[str, Any]]
@@ -244,8 +272,6 @@ class SolicitudesService:
         
         if not ciudad_valida:
             # Log warning but allow creation for development
-            import logging
-            logger = logging.getLogger(__name__)
             logger.warning(f"Ciudad {ciudad_origen} no encontrada en base de datos geográfica. Ciudades disponibles: BOGOTA, MEDELLIN, CALI, BARRANQUILLA")
             # TODO: Enable strict validation in production
             # raise ValueError(f"Ciudad {ciudad_origen} no válida. Ciudades disponibles: BOGOTA, MEDELLIN, CALI, BARRANQUILLA")
@@ -283,16 +309,33 @@ class SolicitudesService:
             # Get existing cliente
             cliente = await Cliente.get_or_none(usuario=usuario)
             if not cliente:
+                # Buscar municipio para el cliente
+                from models.geografia import Municipio
+                ciudad_norm = Municipio.normalizar_ciudad(ciudad_origen)
+                municipio = await Municipio.get_or_none(municipio_norm=ciudad_norm)
+                
+                if not municipio:
+                    raise ValueError(f"Municipio {ciudad_origen} no encontrado en base de datos DIVIPOLA")
+                
                 # Create cliente profile if doesn't exist
                 cliente = await Cliente.create(
                     usuario=usuario,
+                    municipio=municipio,
                     ciudad=ciudad_origen,
                     departamento=departamento_origen
                 )
         
+        # Buscar municipio por ID
+        from models.geografia import Municipio
+        municipio = await Municipio.get_or_none(id=municipio_id)
+        
+        if not municipio:
+            raise ValueError(f"Municipio con ID {municipio_id} no encontrado en base de datos")
+        
         # Create solicitud
         solicitud = await Solicitud.create(
             cliente=cliente,
+            municipio=municipio,
             estado=EstadoSolicitud.ABIERTA,
             nivel_actual=1,
             ciudad_origen=ciudad_origen,
@@ -322,6 +365,24 @@ class SolicitudesService:
         
         # Reload with relations
         await solicitud.fetch_related("cliente", "cliente__usuario", "repuestos_solicitados")
+        
+        # Ejecutar escalamiento automáticamente con primera oleada si la solicitud está abierta
+        if solicitud.estado == EstadoSolicitud.ABIERTA:
+            try:
+                from services.escalamiento_service import EscalamientoService
+                resultado = await EscalamientoService.ejecutar_escalamiento_con_primera_oleada(str(solicitud.id))
+                
+                if resultado['success']:
+                    # Recargar solicitud para obtener el nivel actualizado
+                    await solicitud.refresh_from_db()
+                    logger.info(f"✅ Escalamiento automático ejecutado para solicitud {solicitud.id}: Nivel {resultado.get('nivel_actual')}, {resultado.get('primera_oleada', {}).get('asesores_notificados', 0)} asesores")
+                else:
+                    logger.warning(f"⚠️ Escalamiento falló para solicitud {solicitud.id}: {resultado.get('error')}")
+            except Exception as e:
+                logger.error(f"❌ Error en escalamiento automático para solicitud {solicitud.id}: {e}")
+                import traceback
+                logger.error(traceback.format_exc())
+                # No fallar la creación de solicitud por error en escalamiento
         
         return {
             "id": str(solicitud.id),

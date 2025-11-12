@@ -57,6 +57,23 @@ const estadoBadgeColor = (estado: string) => {
   }
 };
 
+const getNivelBadgeColor = (nivel: number) => {
+  switch (nivel) {
+    case 1:
+      return "bg-green-100 text-green-800 hover:bg-green-200 dark:bg-green-900 dark:text-green-200";
+    case 2:
+      return "bg-blue-100 text-blue-800 hover:bg-blue-200 dark:bg-blue-900 dark:text-blue-200";
+    case 3:
+      return "bg-yellow-100 text-yellow-800 hover:bg-yellow-200 dark:bg-yellow-900 dark:text-yellow-200";
+    case 4:
+      return "bg-orange-100 text-orange-800 hover:bg-orange-200 dark:bg-orange-900 dark:text-orange-200";
+    case 5:
+      return "bg-red-100 text-red-800 hover:bg-red-200 dark:bg-red-900 dark:text-red-200";
+    default:
+      return "bg-gray-100 text-gray-800 hover:bg-gray-200 dark:bg-gray-900 dark:text-gray-200";
+  }
+};
+
 export function SolicitudesTable({
   solicitudes,
   loading,
@@ -99,6 +116,7 @@ export function SolicitudesTable({
             <TableHead>Ubicación</TableHead>
             <TableHead>Repuestos</TableHead>
             <TableHead>Estado</TableHead>
+            <TableHead>Nivel</TableHead>
             <TableHead>Fecha</TableHead>
             <TableHead>Monto</TableHead>
             <TableHead className="text-right">Acciones</TableHead>
@@ -135,6 +153,11 @@ export function SolicitudesTable({
                   className={estadoBadgeColor(solicitud.estado)}
                 >
                   {solicitud.estado}
+                </Badge>
+              </TableCell>
+              <TableCell>
+                <Badge className={getNivelBadgeColor(solicitud.nivel_actual)}>
+                  Nivel {solicitud.nivel_actual}
                 </Badge>
               </TableCell>
               <TableCell className="text-sm text-muted-foreground">

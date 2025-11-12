@@ -5,11 +5,14 @@ Handles administrative functions including geographic data import
 
 from fastapi import APIRouter, UploadFile, File, HTTPException, Depends, Query
 from typing import Dict, Any, Optional
+import logging
 from services.geografia_service import GeografiaService
 from services.configuracion_service import ConfiguracionService
 from services.scheduler_service import scheduler_service
 from middleware.auth_middleware import RequireAdmin, RequireSystemManagement, get_current_active_user
 from models.user import Usuario
+
+logger = logging.getLogger(__name__)
 
 # Helper function for admin user dependency
 async def get_current_admin_user(current_user: Usuario = Depends(get_current_active_user)) -> Usuario:
@@ -302,6 +305,9 @@ async def get_configuracion_summary(
         return summary
         
     except Exception as e:
+        import traceback
+        logger.error(f"Error en get_configuracion_summary: {str(e)}")
+        logger.error(traceback.format_exc())
         raise HTTPException(
             status_code=500,
             detail=f"Error obteniendo resumen de configuración: {str(e)}"

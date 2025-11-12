@@ -50,6 +50,7 @@ export interface CreateSolicitudData {
     telefono: string;
     email?: string;
   };
+  municipio_id: string;
   ciudad_origen: string;
   departamento_origen: string;
   repuestos: Omit<RepuestoSolicitado, "id">[];

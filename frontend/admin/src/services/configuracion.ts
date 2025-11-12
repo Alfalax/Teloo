@@ -29,7 +29,12 @@ class ConfiguracionService {
    * Obtiene la configuración completa del sistema con metadatos
    */
   async getConfiguracion(): Promise<ConfiguracionConMetadata> {
-    const response = await apiClient.get('/admin/configuracion');
+    const response = await apiClient.get(`/admin/configuracion?_t=${Date.now()}`, {
+      headers: {
+        'Cache-Control': 'no-cache',
+        'Pragma': 'no-cache'
+      }
+    });
     return {
       configuracion_completa: response.data.configuracion_completa,
       metadata: response.data.metadata || {}
@@ -72,7 +77,12 @@ class ConfiguracionService {
    * Obtiene resumen de configuración con metadatos
    */
   async getConfiguracionSummary(): Promise<ConfiguracionSummary> {
-    const response = await apiClient.get('/admin/configuracion/summary');
+    const response = await apiClient.get(`/admin/configuracion/summary?_t=${Date.now()}`, {
+      headers: {
+        'Cache-Control': 'no-cache',
+        'Pragma': 'no-cache'
+      }
+    });
     return response.data;
   }
 

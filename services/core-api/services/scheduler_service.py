@@ -119,6 +119,15 @@ class SchedulerService:
             replace_existing=True
         )
         
+        # Job 4: Verify escalamiento timeouts every minute
+        self.scheduler.add_job(
+            func=self._verificar_timeouts_escalamiento,
+            trigger=IntervalTrigger(minutes=1),
+            id='verificar_timeouts_escalamiento',
+            name='Verificar timeouts de escalamiento',
+            replace_existing=True
+        )
+        
         logger.info("Scheduled jobs configured")
     
     async def _procesar_expiracion_ofertas(self):
@@ -174,6 +183,24 @@ class SchedulerService:
         except Exception as e:
             logger.error(f"Error ejecutando job de limpieza: {e}")
     
+    async def _verificar_timeouts_escalamiento(self):
+        """
+        Verify escalamiento timeouts and escalate to next level if needed
+        Runs every minute to check for expired timeouts
+        """
+        try:
+            from jobs.scheduled_jobs import verificar_timeouts_escalamiento
+            result = await verificar_timeouts_escalamiento(redis_client=self.redis_client)
+            
+            if result['success']:
+                if result['solicitudes_escaladas'] > 0 or result['solicitudes_cerradas'] > 0:
+                    logger.info(f"Job escalamiento completado: {result['solicitudes_escaladas']} escaladas, {result['solicitudes_cerradas']} cerradas")
+            else:
+                logger.error(f"Job escalamiento falló: {result.get('error', 'Error desconocido')}")
+            
+        except Exception as e:
+            logger.error(f"Error ejecutando job de escalamiento: {e}")
+    
     def get_job_status(self) -> dict:
         """Get status of all scheduled jobs"""
         if not self.scheduler:
@@ -218,7 +245,8 @@ class SchedulerService:
             job_mapping = {
                 'procesar_expiracion_ofertas': 'procesar_expiracion_ofertas',
                 'advertencias_expiracion': 'enviar_notificaciones_expiracion',
-                'limpiar_notificaciones': 'limpiar_datos_temporales'
+                'limpiar_notificaciones': 'limpiar_datos_temporales',
+                'verificar_timeouts_escalamiento': 'verificar_timeouts_escalamiento'
             }
             
             if job_id not in job_mapping:

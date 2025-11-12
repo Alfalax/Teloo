@@ -285,6 +285,8 @@ async def ejecutar_job_manual(job_name: str, **kwargs) -> Dict[str, Any]:
             return await enviar_notificaciones_expiracion(**kwargs)
         elif job_name == 'limpiar_datos_temporales':
             return await limpiar_datos_temporales()
+        elif job_name == 'verificar_timeouts_escalamiento':
+            return await verificar_timeouts_escalamiento(**kwargs)
         else:
             raise ValueError(f"Job desconocido: {job_name}")
             
@@ -295,4 +297,211 @@ async def ejecutar_job_manual(job_name: str, **kwargs) -> Dict[str, Any]:
             'job_name': job_name,
             'error': str(e),
             'timestamp': datetime.now().isoformat()
+        }
+
+
+async def verificar_timeouts_escalamiento(
+    redis_client: Optional[redis.Redis] = None
+) -> Dict[str, Any]:
+    """
+    Verifica timeouts de escalamiento y ejecuta siguiente oleada si es necesario
+    
+    Este job se ejecuta cada minuto y verifica:
+    1. Si han pasado los minutos configurados desde el último escalamiento
+    2. Si no se han alcanzado las ofertas mínimas
+    3. Escala al siguiente nivel o cierra la solicitud
+    
+    Args:
+        redis_client: Cliente Redis para eventos (opcional)
+        
+    Returns:
+        Dict con resultado del procesamiento
+    """
+    try:
+        logger.debug("🔍 Verificando timeouts de escalamiento...")
+        
+        from models.solicitud import Solicitud
+        from models.enums import EstadoSolicitud
+        from models.oferta import Oferta
+        from services.escalamiento_service import EscalamientoService
+        
+        # Obtener configuración de tiempos por nivel
+        config = await ConfiguracionService.get_config('tiempos_espera_nivel')
+        
+        # Convertir claves de string a int si es necesario
+        if config and isinstance(config, dict):
+            tiempos_nivel = {int(k): v for k, v in config.items()}
+            logger.info(f"⚙️ Tiempos configurados por nivel: {tiempos_nivel}")
+        else:
+            tiempos_nivel = {
+                1: 15,  # minutos (fallback)
+                2: 20,
+                3: 25,
+                4: 30,
+                5: 35
+            }
+            logger.warning(f"⚠️ Usando tiempos por defecto: {tiempos_nivel}")
+        
+        # Buscar solicitudes ABIERTAS que puedan necesitar escalamiento
+        solicitudes_abiertas = await Solicitud.filter(
+            estado=EstadoSolicitud.ABIERTA,
+            fecha_escalamiento__isnull=False  # Solo las que ya tienen escalamiento inicial
+        ).all()
+        
+        logger.info(f"📋 Encontradas {len(solicitudes_abiertas)} solicitudes abiertas con escalamiento")
+        
+        solicitudes_escaladas = 0
+        solicitudes_cerradas = 0
+        
+        for solicitud in solicitudes_abiertas:
+            try:
+                # Calcular tiempo transcurrido desde último escalamiento
+                from datetime import timezone
+                ahora = datetime.now(timezone.utc)
+                tiempo_transcurrido = ahora - solicitud.fecha_escalamiento
+                minutos_transcurridos = int(tiempo_transcurrido.total_seconds() / 60)
+                
+                # Obtener tiempo de espera para el nivel actual
+                tiempo_espera_nivel = tiempos_nivel.get(solicitud.nivel_actual, 30)
+                
+                logger.debug(f"🔍 Solicitud {str(solicitud.id)[:8]}: Nivel {solicitud.nivel_actual}, {minutos_transcurridos} min / {tiempo_espera_nivel} min")
+                
+                # Verificar si ya pasó el timeout
+                if minutos_transcurridos < tiempo_espera_nivel:
+                    continue  # Aún no ha expirado el timeout
+                
+                logger.info(f"⏰ Timeout alcanzado para solicitud {solicitud.id}: {minutos_transcurridos} min >= {tiempo_espera_nivel} min")
+                
+                # Contar ofertas recibidas
+                ofertas_count = await Oferta.filter(solicitud_id=solicitud.id).count()
+                
+                # Verificar si se alcanzó el mínimo de ofertas (cierre anticipado)
+                if ofertas_count >= solicitud.ofertas_minimas_deseadas:
+                    logger.info(f"✅ Cierre anticipado: {ofertas_count} ofertas >= {solicitud.ofertas_minimas_deseadas} mínimas")
+                    solicitud.estado = EstadoSolicitud.EVALUADA
+                    await solicitud.save()
+                    solicitudes_cerradas += 1
+                    continue
+                
+                # Verificar si hay siguiente nivel disponible (máximo nivel 5)
+                NIVEL_MAXIMO = 5
+                
+                if solicitud.nivel_actual >= NIVEL_MAXIMO:
+                    # Ya está en el nivel máximo, cerrar solicitud sin ofertas
+                    logger.warning(f"❌ Solicitud {solicitud.id} en nivel máximo ({NIVEL_MAXIMO}), cerrando sin ofertas")
+                    solicitud.estado = EstadoSolicitud.CERRADA_SIN_OFERTAS
+                    await solicitud.save()
+                    solicitudes_cerradas += 1
+                    
+                    # Publicar evento
+                    if redis_client:
+                        try:
+                            event_data = {
+                                'tipo_evento': 'solicitud.cerrada_sin_ofertas',
+                                'solicitud_id': str(solicitud.id),
+                                'nivel_final': solicitud.nivel_actual,
+                                'ofertas_recibidas': ofertas_count,
+                                'timestamp': datetime.now(timezone.utc).isoformat()
+                            }
+                            await redis_client.publish('solicitud.cerrada_sin_ofertas', str(event_data))
+                        except Exception as e:
+                            logger.error(f"Error publicando evento: {e}")
+                    
+                    continue
+                
+                # Escalar al siguiente nivel
+                siguiente_nivel = solicitud.nivel_actual + 1
+                logger.info(f"📈 Escalando solicitud {solicitud.id} de Nivel {solicitud.nivel_actual} → Nivel {siguiente_nivel}")
+                
+                # Verificar si hay asesores disponibles en el siguiente nivel
+                from models.user import Asesor
+                from models.enums import EstadoUsuario
+                
+                asesores_disponibles = await Asesor.filter(
+                    nivel_actual=siguiente_nivel,
+                    estado=EstadoUsuario.ACTIVO
+                ).count()
+                
+                if asesores_disponibles == 0:
+                    logger.warning(f"⚠️ No hay asesores en Nivel {siguiente_nivel}")
+                    
+                    # Si es el nivel máximo, cerrar la solicitud
+                    if siguiente_nivel >= NIVEL_MAXIMO:
+                        logger.warning(f"❌ Nivel máximo alcanzado sin asesores, cerrando solicitud {solicitud.id}")
+                        solicitud.estado = EstadoSolicitud.CERRADA_SIN_OFERTAS
+                        solicitud.nivel_actual = siguiente_nivel
+                        await solicitud.save()
+                        solicitudes_cerradas += 1
+                        
+                        # Publicar evento
+                        if redis_client:
+                            try:
+                                event_data = {
+                                    'tipo_evento': 'solicitud.cerrada_sin_ofertas',
+                                    'solicitud_id': str(solicitud.id),
+                                    'nivel_final': siguiente_nivel,
+                                    'ofertas_recibidas': ofertas_count,
+                                    'razon': f'No hay asesores en nivel máximo {siguiente_nivel}',
+                                    'timestamp': datetime.now(timezone.utc).isoformat()
+                                }
+                                await redis_client.publish('solicitud.cerrada_sin_ofertas', str(event_data))
+                            except Exception as e:
+                                logger.error(f"Error publicando evento: {e}")
+                        
+                        continue
+                    
+                    # No es el nivel máximo, escalar inmediatamente sin esperar timeout
+                    # (el próximo ciclo del job lo escalará de nuevo si sigue sin asesores)
+                    logger.info(f"⏭️ Escalando sin esperar timeout (no hay asesores en nivel {siguiente_nivel})")
+                
+                # Escalar al siguiente nivel (con o sin asesores)
+                logger.info(f"✅ {asesores_disponibles} asesores disponibles en Nivel {siguiente_nivel}" if asesores_disponibles > 0 else f"⏭️ Escalando a Nivel {siguiente_nivel} (sin asesores)")
+                solicitud.nivel_actual = siguiente_nivel
+                solicitud.fecha_escalamiento = datetime.now(timezone.utc)
+                await solicitud.save()
+                
+                solicitudes_escaladas += 1
+                
+                # Publicar evento de escalamiento
+                if redis_client:
+                    try:
+                        event_data = {
+                            'tipo_evento': 'solicitud.escalada',
+                            'solicitud_id': str(solicitud.id),
+                            'nivel_anterior': solicitud.nivel_actual - 1,
+                            'nivel_nuevo': siguiente_nivel,
+                            'ofertas_actuales': ofertas_count,
+                            'timestamp': datetime.now().isoformat()
+                        }
+                        await redis_client.publish('solicitud.escalada', str(event_data))
+                    except Exception as e:
+                        logger.error(f"Error publicando evento: {e}")
+                
+                logger.info(f"✅ Solicitud {solicitud.id} escalada exitosamente a Nivel {siguiente_nivel}")
+                
+            except Exception as e:
+                logger.error(f"Error procesando solicitud {solicitud.id}: {e}")
+                continue
+        
+        # Log resumen
+        if solicitudes_escaladas > 0 or solicitudes_cerradas > 0:
+            logger.info(f"📊 Resumen: {solicitudes_escaladas} escaladas, {solicitudes_cerradas} cerradas")
+        
+        return {
+            'success': True,
+            'solicitudes_escaladas': solicitudes_escaladas,
+            'solicitudes_cerradas': solicitudes_cerradas,
+            'timestamp': datetime.now().isoformat(),
+            'message': f'Verificación completada: {solicitudes_escaladas} escaladas, {solicitudes_cerradas} cerradas'
+        }
+        
+    except Exception as e:
+        logger.error(f"❌ Error en verificación de timeouts de escalamiento: {e}")
+        import traceback
+        logger.error(traceback.format_exc())
+        return {
+            'success': False,
+            'error': str(e),
+            'timestamp': datetime.now().isoformat(),
+            'message': 'Error verificando timeouts de escalamiento'
         }

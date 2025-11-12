@@ -31,9 +31,23 @@ class Solicitud(BaseModel):
     estado = fields.CharEnumField(EstadoSolicitud, default=EstadoSolicitud.ABIERTA)
     nivel_actual = fields.IntField(default=1)  # 1-5 para escalamiento
     
-    # Información geográfica
-    ciudad_origen = fields.CharField(max_length=100)
-    departamento_origen = fields.CharField(max_length=100)
+    # Ubicación geográfica - FUENTE ÚNICA DE VERDAD
+    municipio = fields.ForeignKeyField(
+        "models.Municipio",
+        related_name="solicitudes",
+        on_delete=fields.RESTRICT,
+        description="Municipio de origen (FK a tabla municipios - fuente única de verdad)"
+    )
+    
+    # Campos de texto para display (NO usar para lógica de negocio)
+    ciudad_origen = fields.CharField(
+        max_length=100,
+        description="Nombre de ciudad para display (NO usar para lógica)"
+    )
+    departamento_origen = fields.CharField(
+        max_length=100,
+        description="Nombre de departamento para display (NO usar para lógica)"
+    )
     
     # Configuración de escalamiento
     ofertas_minimas_deseadas = fields.IntField(default=2)

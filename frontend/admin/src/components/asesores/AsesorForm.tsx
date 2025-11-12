@@ -45,6 +45,7 @@ export function AsesorForm({
     punto_venta: '',
     direccion_punto_venta: '',
     password: '',
+    confianza: 3.0,
   });
 
   const [ciudades, setCiudades] = useState<string[]>([]);
@@ -76,6 +77,7 @@ export function AsesorForm({
         punto_venta: asesor.punto_venta,
         direccion_punto_venta: asesor.direccion_punto_venta || '',
         password: '', // Password is not required for editing
+        confianza: asesor.confianza || 3.0,
       });
     } else {
       setFormData({
@@ -88,6 +90,7 @@ export function AsesorForm({
         punto_venta: '',
         direccion_punto_venta: '',
         password: '',
+        confianza: 3.0,
       });
     }
     setErrors({});
@@ -177,6 +180,11 @@ export function AsesorForm({
       newErrors.password = 'La contraseña debe tener al menos 8 caracteres';
     }
 
+    const confianza = formData.confianza ?? 3.0;
+    if (confianza < 1.0 || confianza > 5.0) {
+      newErrors.confianza = 'La calificación debe estar entre 1.0 y 5.0';
+    }
+
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
@@ -200,6 +208,7 @@ export function AsesorForm({
           departamento: formData.departamento,
           punto_venta: formData.punto_venta,
           direccion_punto_venta: formData.direccion_punto_venta || undefined,
+          confianza: formData.confianza,
         };
         await onSubmit(updateData);
       } else {
@@ -384,6 +393,29 @@ export function AsesorForm({
               placeholder="Dirección completa (opcional)"
               disabled={loadingData || isLoading}
             />
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="confianza">
+              Calificación de Confianza *
+              <span className="text-xs text-muted-foreground ml-2">(1.0 - 5.0)</span>
+            </Label>
+            <Input
+              id="confianza"
+              type="number"
+              step="0.1"
+              min="1.0"
+              max="5.0"
+              value={formData.confianza}
+              onChange={(e) => handleInputChange('confianza', parseFloat(e.target.value) || 3.0)}
+              disabled={loadingData || isLoading}
+            />
+            {errors.confianza && (
+              <p className="text-sm text-destructive">{errors.confianza}</p>
+            )}
+            <p className="text-xs text-muted-foreground">
+              Calificación de confianza del asesor (usada en el algoritmo de escalamiento)
+            </p>
           </div>
 
           {!isEditing && (
