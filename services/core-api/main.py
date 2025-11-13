@@ -5,10 +5,12 @@ Motor central del sistema - gestión de solicitudes, ofertas, evaluación y esca
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 import os
 from dotenv import load_dotenv
 import asyncio
 import logging
+from pathlib import Path
 
 # Import database and routers
 from database import init_db
@@ -63,6 +65,11 @@ app.include_router(ofertas_router)
 app.include_router(asesores_router)
 app.include_router(pqr_router)
 app.include_router(configuracion_router)
+
+# Mount static files for uploads
+uploads_dir = Path("uploads")
+uploads_dir.mkdir(exist_ok=True)
+app.mount("/uploads", StaticFiles(directory="uploads"), name="uploads")
 
 @app.get("/")
 async def root():
