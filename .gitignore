@@ -232,3 +232,17 @@ files/
 # Local development
 .local/
 local/
+# 
+Logo configuration files (not used)
+LOGO_CONFIGURABLE_*.md
+CAMBIAR_LOGO_GUIA.md
+frontend/admin/public/Logo.png
+frontend/admin/src/components/ui/logo.tsx
+frontend/admin/src/components/configuracion/BrandingForm.tsx
+frontend/advisor/public/logo.png
+frontend/advisor/public/Logo.png
+frontend/advisor/src/components/ui/logo.tsx
+scripts/add_branding_config.sql
+
+# Excel temp files
+data/~$*.xlsx

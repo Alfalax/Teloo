@@ -7,6 +7,7 @@ import logging
 from typing import Dict, Any, Optional
 from datetime import datetime, timedelta
 import asyncio
+import json
 import redis.asyncio as redis
 
 from services.ofertas_service import OfertasService
@@ -300,6 +301,49 @@ async def ejecutar_job_manual(job_name: str, **kwargs) -> Dict[str, Any]:
         }
 
 
+async def _publicar_evento_evaluacion_completada(
+    solicitud,
+    resultado_evaluacion: Dict[str, Any],
+    redis_client: redis.Redis
+):
+    """
+    Publica evento de evaluación completada para que Agent IA notifique al cliente
+    
+    Args:
+        solicitud: Instancia de Solicitud
+        resultado_evaluacion: Resultado de la evaluación
+        redis_client: Cliente Redis para publicar eventos
+    """
+    try:
+        # Preparar datos del evento
+        evento_data = {
+            'tipo_evento': 'evaluacion.completada_automatica',
+            'solicitud_id': str(solicitud.id),
+            'cliente_telefono': solicitud.cliente.usuario.telefono,
+            'cliente_nombre': solicitud.cliente.usuario.nombre_completo,
+            'repuestos_adjudicados': resultado_evaluacion['repuestos_adjudicados'],
+            'repuestos_totales': resultado_evaluacion['repuestos_totales'],
+            'monto_total': resultado_evaluacion['monto_total_adjudicado'],
+            'es_adjudicacion_mixta': resultado_evaluacion['es_adjudicacion_mixta'],
+            'asesores_ganadores': resultado_evaluacion['asesores_ganadores'],
+            'adjudicaciones': resultado_evaluacion['adjudicaciones'],
+            'timestamp': datetime.now().isoformat()
+        }
+        
+        # Publicar a Redis para que Agent IA lo procese
+        await redis_client.publish(
+            'evaluacion.completada_automatica',
+            json.dumps(evento_data)
+        )
+        
+        logger.info(f"📢 Evento de evaluación publicado para solicitud {solicitud.id}")
+        
+    except Exception as e:
+        logger.error(f"Error publicando evento de evaluación: {e}")
+        import traceback
+        logger.error(traceback.format_exc())
+
+
 async def verificar_timeouts_escalamiento(
     redis_client: Optional[redis.Redis] = None
 ) -> Dict[str, Any]:
@@ -372,40 +416,149 @@ async def verificar_timeouts_escalamiento(
                 
                 logger.info(f"⏰ Timeout alcanzado para solicitud {solicitud.id}: {minutos_transcurridos} min >= {tiempo_espera_nivel} min")
                 
-                # Contar ofertas recibidas
-                ofertas_count = await Oferta.filter(solicitud_id=solicitud.id).count()
+                # Contar ofertas con cobertura 100% (ofertas completas)
+                from models.solicitud import RepuestoSolicitado
+                from models.oferta import OfertaDetalle
                 
-                # Verificar si se alcanzó el mínimo de ofertas (cierre anticipado)
-                if ofertas_count >= solicitud.ofertas_minimas_deseadas:
-                    logger.info(f"✅ Cierre anticipado: {ofertas_count} ofertas >= {solicitud.ofertas_minimas_deseadas} mínimas")
-                    solicitud.estado = EstadoSolicitud.EVALUADA
-                    await solicitud.save()
-                    solicitudes_cerradas += 1
+                # Obtener total de repuestos solicitados
+                total_repuestos = await RepuestoSolicitado.filter(solicitud_id=solicitud.id).count()
+                
+                # Contar ofertas que cubren el 100% de los repuestos
+                ofertas = await Oferta.filter(solicitud_id=solicitud.id).prefetch_related('detalles')
+                ofertas_completas = 0
+                
+                for oferta in ofertas:
+                    # Contar cuántos repuestos diferentes cubre esta oferta
+                    repuestos_cubiertos = len(set([detalle.repuesto_solicitado_id for detalle in oferta.detalles]))
+                    if repuestos_cubiertos == total_repuestos:
+                        ofertas_completas += 1
+                
+                logger.info(f"📊 Ofertas completas (100% cobertura): {ofertas_completas}/{len(ofertas)} ofertas totales")
+                
+                # Verificar si se alcanzó el mínimo de ofertas COMPLETAS (cierre anticipado con evaluación)
+                if ofertas_completas >= solicitud.ofertas_minimas_deseadas:
+                    logger.info(f"✅ Ofertas mínimas completas alcanzadas: {ofertas_completas} >= {solicitud.ofertas_minimas_deseadas}")
+                    
+                    # Verificar si ya fue evaluada (evitar duplicaciones)
+                    from models.oferta import AdjudicacionRepuesto
+                    adjudicaciones_existentes = await AdjudicacionRepuesto.filter(solicitud_id=solicitud.id).count()
+                    if adjudicaciones_existentes > 0:
+                        logger.info(f"⚠️ Solicitud {solicitud.id} ya tiene adjudicaciones, omitiendo evaluación")
+                        continue
+                    
+                    # EJECUTAR EVALUACIÓN AUTOMÁTICA
+                    try:
+                        from services.evaluacion_service import EvaluacionService
+                        await solicitud.fetch_related('cliente__usuario')
+                        
+                        resultado_eval = await EvaluacionService.evaluar_solicitud(str(solicitud.id))
+                        
+                        if resultado_eval['success']:
+                            logger.info(f"✅ Evaluación automática exitosa: {resultado_eval['repuestos_adjudicados']}/{resultado_eval['repuestos_totales']} adjudicados")
+                            
+                            # Publicar evento de evaluación completada
+                            if redis_client:
+                                await _publicar_evento_evaluacion_completada(solicitud, resultado_eval, redis_client)
+                            
+                            solicitudes_cerradas += 1
+                        else:
+                            logger.error(f"❌ Evaluación automática falló: {resultado_eval.get('message')}")
+                            # Marcar como evaluada de todas formas
+                            solicitud.estado = EstadoSolicitud.EVALUADA
+                            await solicitud.save()
+                            solicitudes_cerradas += 1
+                            
+                    except Exception as e:
+                        logger.error(f"❌ Error en evaluación automática: {e}")
+                        import traceback
+                        logger.error(traceback.format_exc())
+                        # No fallar el job, solo registrar el error y marcar como evaluada
+                        solicitud.estado = EstadoSolicitud.EVALUADA
+                        await solicitud.save()
+                        solicitudes_cerradas += 1
+                    
                     continue
                 
                 # Verificar si hay siguiente nivel disponible (máximo nivel 5)
                 NIVEL_MAXIMO = 5
                 
                 if solicitud.nivel_actual >= NIVEL_MAXIMO:
-                    # Ya está en el nivel máximo, cerrar solicitud sin ofertas
-                    logger.warning(f"❌ Solicitud {solicitud.id} en nivel máximo ({NIVEL_MAXIMO}), cerrando sin ofertas")
-                    solicitud.estado = EstadoSolicitud.CERRADA_SIN_OFERTAS
-                    await solicitud.save()
-                    solicitudes_cerradas += 1
+                    # Ya está en el nivel máximo, evaluar con ofertas disponibles o cerrar sin ofertas
+                    logger.warning(f"❌ Nivel máximo alcanzado para solicitud {solicitud.id}")
                     
-                    # Publicar evento
-                    if redis_client:
+                    if len(ofertas) > 0:
+                        # Verificar si ya fue evaluada (evitar duplicaciones)
+                        from models.oferta import AdjudicacionRepuesto
+                        adjudicaciones_existentes = await AdjudicacionRepuesto.filter(solicitud_id=solicitud.id).count()
+                        if adjudicaciones_existentes > 0:
+                            logger.info(f"⚠️ Solicitud {solicitud.id} ya tiene adjudicaciones, omitiendo evaluación")
+                            continue
+                        
+                        # EJECUTAR EVALUACIÓN AUTOMÁTICA con las ofertas disponibles
+                        logger.info(f"📊 Evaluando solicitud en nivel máximo con {len(ofertas)} ofertas ({ofertas_completas} completas)")
                         try:
-                            event_data = {
-                                'tipo_evento': 'solicitud.cerrada_sin_ofertas',
-                                'solicitud_id': str(solicitud.id),
-                                'nivel_final': solicitud.nivel_actual,
-                                'ofertas_recibidas': ofertas_count,
-                                'timestamp': datetime.now(timezone.utc).isoformat()
-                            }
-                            await redis_client.publish('solicitud.cerrada_sin_ofertas', str(event_data))
+                            from services.evaluacion_service import EvaluacionService
+                            await solicitud.fetch_related('cliente__usuario')
+                            
+                            resultado_eval = await EvaluacionService.evaluar_solicitud(str(solicitud.id))
+                            
+                            if resultado_eval['success'] and resultado_eval['repuestos_adjudicados'] > 0:
+                                logger.info(f"✅ Evaluación en nivel máximo: {resultado_eval['repuestos_adjudicados']} repuestos adjudicados")
+                                
+                                # Publicar evento de evaluación completada
+                                if redis_client:
+                                    await _publicar_evento_evaluacion_completada(solicitud, resultado_eval, redis_client)
+                                
+                                solicitudes_cerradas += 1
+                            else:
+                                # Sin adjudicaciones exitosas, cerrar sin ofertas
+                                logger.warning(f"⚠️ Evaluación sin adjudicaciones, cerrando sin ofertas")
+                                solicitud.estado = EstadoSolicitud.CERRADA_SIN_OFERTAS
+                                await solicitud.save()
+                                solicitudes_cerradas += 1
+                                
+                                if redis_client:
+                                    try:
+                                        event_data = {
+                                            'tipo_evento': 'solicitud.cerrada_sin_ofertas',
+                                            'solicitud_id': str(solicitud.id),
+                                            'nivel_final': solicitud.nivel_actual,
+                                            'ofertas_recibidas': len(ofertas),
+                                            'razon': 'Evaluación sin adjudicaciones exitosas',
+                                            'timestamp': datetime.now(timezone.utc).isoformat()
+                                        }
+                                        await redis_client.publish('solicitud.cerrada_sin_ofertas', json.dumps(event_data))
+                                    except Exception as e:
+                                        logger.error(f"Error publicando evento: {e}")
+                                
                         except Exception as e:
-                            logger.error(f"Error publicando evento: {e}")
+                            logger.error(f"❌ Error evaluando en nivel máximo: {e}")
+                            import traceback
+                            logger.error(traceback.format_exc())
+                            # Cerrar sin ofertas por error
+                            solicitud.estado = EstadoSolicitud.CERRADA_SIN_OFERTAS
+                            await solicitud.save()
+                            solicitudes_cerradas += 1
+                    else:
+                        # Sin ofertas, cerrar directamente
+                        logger.warning(f"❌ Sin ofertas en nivel máximo, cerrando solicitud {solicitud.id}")
+                        solicitud.estado = EstadoSolicitud.CERRADA_SIN_OFERTAS
+                        await solicitud.save()
+                        solicitudes_cerradas += 1
+                        
+                        # Publicar evento
+                        if redis_client:
+                            try:
+                                event_data = {
+                                    'tipo_evento': 'solicitud.cerrada_sin_ofertas',
+                                    'solicitud_id': str(solicitud.id),
+                                    'nivel_final': solicitud.nivel_actual,
+                                    'ofertas_recibidas': len(ofertas),
+                                    'timestamp': datetime.now(timezone.utc).isoformat()
+                                }
+                                await redis_client.publish('solicitud.cerrada_sin_ofertas', json.dumps(event_data))
+                            except Exception as e:
+                                logger.error(f"Error publicando evento: {e}")
                     
                     continue
                 
@@ -425,28 +578,72 @@ async def verificar_timeouts_escalamiento(
                 if asesores_disponibles == 0:
                     logger.warning(f"⚠️ No hay asesores en Nivel {siguiente_nivel}")
                     
-                    # Si es el nivel máximo, cerrar la solicitud
+                    # Si es el nivel máximo, evaluar con ofertas disponibles o cerrar sin ofertas
                     if siguiente_nivel >= NIVEL_MAXIMO:
-                        logger.warning(f"❌ Nivel máximo alcanzado sin asesores, cerrando solicitud {solicitud.id}")
-                        solicitud.estado = EstadoSolicitud.CERRADA_SIN_OFERTAS
-                        solicitud.nivel_actual = siguiente_nivel
-                        await solicitud.save()
-                        solicitudes_cerradas += 1
+                        logger.warning(f"❌ Nivel máximo alcanzado sin asesores para nivel {siguiente_nivel}")
                         
-                        # Publicar evento
-                        if redis_client:
+                        if len(ofertas) > 0:
+                            # Hay ofertas disponibles, evaluar con ellas
+                            logger.info(f"📊 Evaluando solicitud en nivel máximo con {len(ofertas)} ofertas disponibles")
+                            
+                            # Verificar si ya fue evaluada (evitar duplicaciones)
+                            from models.oferta import AdjudicacionRepuesto
+                            adjudicaciones_existentes = await AdjudicacionRepuesto.filter(solicitud_id=solicitud.id).count()
+                            if adjudicaciones_existentes > 0:
+                                logger.info(f"⚠️ Solicitud {solicitud.id} ya tiene adjudicaciones, omitiendo evaluación")
+                                continue
+                            
                             try:
-                                event_data = {
-                                    'tipo_evento': 'solicitud.cerrada_sin_ofertas',
-                                    'solicitud_id': str(solicitud.id),
-                                    'nivel_final': siguiente_nivel,
-                                    'ofertas_recibidas': ofertas_count,
-                                    'razon': f'No hay asesores en nivel máximo {siguiente_nivel}',
-                                    'timestamp': datetime.now(timezone.utc).isoformat()
-                                }
-                                await redis_client.publish('solicitud.cerrada_sin_ofertas', str(event_data))
+                                from services.evaluacion_service import EvaluacionService
+                                await solicitud.fetch_related('cliente__usuario')
+                                
+                                resultado_eval = await EvaluacionService.evaluar_solicitud(str(solicitud.id))
+                                
+                                if resultado_eval['success'] and resultado_eval['repuestos_adjudicados'] > 0:
+                                    logger.info(f"✅ Evaluación en nivel máximo: {resultado_eval['repuestos_adjudicados']} repuestos adjudicados")
+                                    
+                                    # Publicar evento de evaluación completada
+                                    if redis_client:
+                                        await _publicar_evento_evaluacion_completada(solicitud, resultado_eval, redis_client)
+                                    
+                                    solicitudes_cerradas += 1
+                                else:
+                                    # Evaluación sin adjudicaciones exitosas
+                                    logger.warning(f"⚠️ Evaluación completada pero sin adjudicaciones exitosas")
+                                    solicitud.estado = EstadoSolicitud.CERRADA_SIN_OFERTAS
+                                    await solicitud.save()
+                                    solicitudes_cerradas += 1
+                                    
                             except Exception as e:
-                                logger.error(f"Error publicando evento: {e}")
+                                logger.error(f"❌ Error evaluando en nivel máximo: {e}")
+                                import traceback
+                                logger.error(traceback.format_exc())
+                                # Cerrar sin ofertas por error
+                                solicitud.estado = EstadoSolicitud.CERRADA_SIN_OFERTAS
+                                await solicitud.save()
+                                solicitudes_cerradas += 1
+                        else:
+                            # Sin ofertas, cerrar directamente
+                            logger.warning(f"❌ Sin ofertas disponibles, cerrando solicitud {solicitud.id}")
+                            solicitud.estado = EstadoSolicitud.CERRADA_SIN_OFERTAS
+                            solicitud.nivel_actual = siguiente_nivel
+                            await solicitud.save()
+                            solicitudes_cerradas += 1
+                            
+                            # Publicar evento
+                            if redis_client:
+                                try:
+                                    event_data = {
+                                        'tipo_evento': 'solicitud.cerrada_sin_ofertas',
+                                        'solicitud_id': str(solicitud.id),
+                                        'nivel_final': siguiente_nivel,
+                                        'ofertas_recibidas': len(ofertas),
+                                        'razon': f'No hay asesores en nivel máximo {siguiente_nivel}',
+                                        'timestamp': datetime.now(timezone.utc).isoformat()
+                                    }
+                                    await redis_client.publish('solicitud.cerrada_sin_ofertas', str(event_data))
+                                except Exception as e:
+                                    logger.error(f"Error publicando evento: {e}")
                         
                         continue
                     
@@ -470,7 +667,7 @@ async def verificar_timeouts_escalamiento(
                             'solicitud_id': str(solicitud.id),
                             'nivel_anterior': solicitud.nivel_actual - 1,
                             'nivel_nuevo': siguiente_nivel,
-                            'ofertas_actuales': ofertas_count,
+                            'ofertas_actuales': len(ofertas),
                             'timestamp': datetime.now().isoformat()
                         }
                         await redis_client.publish('solicitud.escalada', str(event_data))

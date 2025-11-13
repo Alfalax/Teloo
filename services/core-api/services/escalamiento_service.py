@@ -338,9 +338,12 @@ class EscalamientoService:
         
         # 1. Calcular proximidad geográfica (crítica - no puede fallar)
         try:
-            # Obtener municipios con FK - fuente única de verdad
-            ciudad_norm = Municipio.normalizar_ciudad(solicitud.ciudad_origen)
-            municipio_solicitud = await Municipio.get_or_none(municipio_norm=ciudad_norm)
+            # Obtener municipio de la solicitud usando FK directo
+            municipio_solicitud = solicitud.municipio if hasattr(solicitud, 'municipio') and solicitud.municipio else None
+            
+            # Si no está precargado, obtenerlo por ID
+            if not municipio_solicitud and solicitud.municipio_id:
+                municipio_solicitud = await Municipio.get_or_none(id=solicitud.municipio_id)
             
             if not municipio_solicitud:
                 logger.warning(f"Municipio solicitud {solicitud.ciudad_origen} no encontrado")
@@ -974,7 +977,7 @@ class EscalamientoService:
         """
         try:
             # 1. Obtener solicitud
-            solicitud = await Solicitud.get_or_none(id=solicitud_id).prefetch_related('cliente__usuario')
+            solicitud = await Solicitud.get_or_none(id=solicitud_id).prefetch_related('cliente__usuario', 'municipio')
             
             if not solicitud:
                 return {
