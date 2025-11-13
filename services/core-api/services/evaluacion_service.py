@@ -191,7 +191,14 @@ class EvaluacionService:
         total_repuestos_solicitud: int
     ) -> Dict[str, Any]:
         """
-        Evaluate offers for a repuesto applying minimum coverage rule and cascade logic
+        Evaluate offers for a repuesto applying minimum coverage rule
+        
+        ALGORITMO CORRECTO:
+        1. Filtrar ofertas por cobertura >= 50% (a nivel de oferta completa)
+        2. De las ofertas que pasan el filtro, evaluar solo las que tienen este repuesto
+        3. Calcular puntajes con fórmula (precio + tiempo + garantía)
+        4. Adjudicar al mejor puntaje
+        5. Excepción: Si solo hay un oferente, adjudicar sin importar cobertura
         
         Args:
             repuesto: The repuesto to evaluate
@@ -204,131 +211,134 @@ class EvaluacionService:
         try:
             # Get minimum coverage from configuration
             config = await ConfiguracionService.get_config('parametros_generales')
-            cobertura_minima_pct = Decimal(str(config['cobertura_minima_pct']))
+            cobertura_minima_pct = Decimal(str(config['cobertura_minima_porcentaje']))
             
-            # Filter offers that include this specific repuesto
-            ofertas_con_repuesto = []
+            # PASO 1: Calcular cobertura de cada oferta y filtrar por cobertura mínima
+            ofertas_con_cobertura_suficiente = []
+            ofertas_con_cobertura_insuficiente = []
+            
             for oferta in ofertas_disponibles:
+                # Calculate coverage: (repuestos_cubiertos / total_repuestos) * 100
+                repuestos_cubiertos = await OfertaDetalle.filter(oferta=oferta).count()
+                cobertura_pct = Decimal(str((repuestos_cubiertos / total_repuestos_solicitud) * 100))
+                
+                oferta_data = {
+                    'oferta': oferta,
+                    'cobertura_pct': cobertura_pct
+                }
+                
+                if cobertura_pct >= cobertura_minima_pct:
+                    ofertas_con_cobertura_suficiente.append(oferta_data)
+                else:
+                    ofertas_con_cobertura_insuficiente.append(oferta_data)
+            
+            # PASO 2: De las ofertas con cobertura suficiente, filtrar las que tienen este repuesto
+            ofertas_con_repuesto = []
+            for oferta_data in ofertas_con_cobertura_suficiente:
+                oferta = oferta_data['oferta']
                 detalle = await OfertaDetalle.get_or_none(
                     oferta=oferta,
                     repuesto_solicitado=repuesto
                 )
                 if detalle:
-                    ofertas_con_repuesto.append((oferta, detalle))
+                    ofertas_con_repuesto.append({
+                        'oferta': oferta,
+                        'detalle': detalle,
+                        'cobertura_pct': oferta_data['cobertura_pct']
+                    })
             
+            # PASO 3: Si no hay ofertas con cobertura suficiente, aplicar excepción
             if not ofertas_con_repuesto:
-                return {
-                    'success': False,
-                    'repuesto_id': str(repuesto.id),
-                    'repuesto_nombre': repuesto.nombre,
-                    'ofertas_evaluadas': 0,
-                    'ganador': None,
-                    'motivo': 'no_ofertas_disponibles',
-                    'cobertura_aplicada': None,
-                    'message': f'No hay ofertas disponibles para {repuesto.nombre}'
-                }
-            
-            # Calculate coverage for each offer
-            ofertas_con_cobertura = []
-            for oferta, detalle in ofertas_con_repuesto:
-                # Calculate coverage: (repuestos_cubiertos / total_repuestos) * 100
-                repuestos_cubiertos = await OfertaDetalle.filter(oferta=oferta).count()
-                cobertura_pct = (repuestos_cubiertos / total_repuestos_solicitud) * 100
-                
-                ofertas_con_cobertura.append({
-                    'oferta': oferta,
-                    'detalle': detalle,
-                    'cobertura_pct': Decimal(str(cobertura_pct))
-                })
-            
-            # Sort by coverage descending to try best coverage first
-            ofertas_con_cobertura.sort(key=lambda x: x['cobertura_pct'], reverse=True)
-            
-            # Apply cascade logic: try offers in order until one meets coverage requirement
-            for i, oferta_data in enumerate(ofertas_con_cobertura):
-                oferta = oferta_data['oferta']
-                detalle = oferta_data['detalle']
-                cobertura_pct = oferta_data['cobertura_pct']
-                
-                # Check if this is the only offer available (exception rule)
-                es_unica_oferta = len(ofertas_con_cobertura) == 1
-                
-                # Apply coverage rule
-                cumple_cobertura = cobertura_pct >= cobertura_minima_pct
-                
-                if cumple_cobertura or es_unica_oferta:
-                    # This offer wins - calculate detailed scores
-                    evaluacion_detallada = await EvaluacionService.evaluar_repuesto(
-                        repuesto, [oferta]
+                # Buscar en ofertas con cobertura insuficiente (excepción: único oferente)
+                ofertas_excepcion = []
+                for oferta_data in ofertas_con_cobertura_insuficiente:
+                    oferta = oferta_data['oferta']
+                    detalle = await OfertaDetalle.get_or_none(
+                        oferta=oferta,
+                        repuesto_solicitado=repuesto
                     )
-                    
-                    if evaluacion_detallada['success']:
-                        ganador_info = evaluacion_detallada['ganador']
-                        ganador_info['cobertura_pct'] = float(cobertura_pct)
-                        ganador_info['cumple_cobertura_minima'] = cumple_cobertura
-                        ganador_info['es_adjudicacion_por_excepcion'] = es_unica_oferta
-                        
-                        motivo = 'mejor_puntaje_con_cobertura'
-                        if es_unica_oferta and not cumple_cobertura:
-                            motivo = 'unica_oferta_disponible'
-                        elif not cumple_cobertura:
-                            motivo = 'cascada_cobertura_insuficiente'
-                        
-                        logger.info(
-                            f"Repuesto {repuesto.nombre} adjudicado por {motivo}: "
-                            f"cobertura {cobertura_pct:.1f}% (mínimo {cobertura_minima_pct}%), "
-                            f"asesor: {oferta.asesor.usuario.nombre_completo}"
-                        )
-                        
-                        return {
-                            'success': True,
-                            'repuesto_id': str(repuesto.id),
-                            'repuesto_nombre': repuesto.nombre,
-                            'ofertas_evaluadas': len(ofertas_con_cobertura),
-                            'ganador': ganador_info,
-                            'motivo': motivo,
-                            'cobertura_aplicada': {
-                                'cobertura_minima_requerida': float(cobertura_minima_pct),
-                                'cobertura_obtenida': float(cobertura_pct),
-                                'cumple_cobertura': cumple_cobertura,
-                                'es_unica_oferta': es_unica_oferta
-                            },
-                            'ofertas_descartadas_por_cobertura': i,  # Number of offers tried before this one
-                            'todas_coberturas': [
-                                {
-                                    'oferta_id': str(od['oferta'].id),
-                                    'asesor_nombre': od['oferta'].asesor.usuario.nombre_completo,
-                                    'cobertura_pct': float(od['cobertura_pct']),
-                                    'cumple_minimo': od['cobertura_pct'] >= cobertura_minima_pct
-                                }
-                                for od in ofertas_con_cobertura
-                            ]
-                        }
-                    else:
-                        logger.error(f"Error en evaluación detallada para repuesto {repuesto.id}")
-                        continue
+                    if detalle:
+                        ofertas_excepcion.append({
+                            'oferta': oferta,
+                            'detalle': detalle,
+                            'cobertura_pct': oferta_data['cobertura_pct']
+                        })
+                
+                # Si solo hay una oferta (único oferente), adjudicar por excepción
+                if len(ofertas_excepcion) == 1:
+                    ofertas_con_repuesto = ofertas_excepcion
+                    logger.info(
+                        f"Aplicando excepción de único oferente para {repuesto.nombre}: "
+                        f"{ofertas_excepcion[0]['oferta'].asesor.usuario.nombre_completo} "
+                        f"con cobertura {ofertas_excepcion[0]['cobertura_pct']:.1f}%"
+                    )
                 else:
-                    # This offer doesn't meet coverage requirement, try next one (cascade)
-                    logger.debug(
-                        f"Oferta de {oferta.asesor.usuario.nombre_completo} para {repuesto.nombre} "
-                        f"descartada por cobertura insuficiente: {cobertura_pct:.1f}% < {cobertura_minima_pct}%"
-                    )
-                    continue
+                    return {
+                        'success': False,
+                        'repuesto_id': str(repuesto.id),
+                        'repuesto_nombre': repuesto.nombre,
+                        'ofertas_evaluadas': 0,
+                        'ganador': None,
+                        'motivo': 'no_ofertas_con_cobertura_suficiente',
+                        'cobertura_aplicada': {
+                            'cobertura_minima_requerida': float(cobertura_minima_pct),
+                            'ofertas_totales': len(ofertas_disponibles),
+                            'ofertas_con_cobertura': len(ofertas_con_cobertura_suficiente),
+                            'ofertas_con_repuesto': 0
+                        },
+                        'message': f'No hay ofertas con cobertura suficiente para {repuesto.nombre}'
+                    }
             
-            # If we get here, no offer met the coverage requirement and none was unique
+            # PASO 4: Evaluar ofertas que pasaron el filtro usando la fórmula
+            # Extraer solo las ofertas para evaluar
+            ofertas_a_evaluar = [od['oferta'] for od in ofertas_con_repuesto]
+            
+            evaluacion_detallada = await EvaluacionService.evaluar_repuesto(
+                repuesto, ofertas_a_evaluar
+            )
+            
+            if not evaluacion_detallada['success']:
+                return evaluacion_detallada
+            
+            # PASO 5: Agregar información de cobertura al ganador
+            ganador_info = evaluacion_detallada['ganador']
+            ganador_oferta_id = ganador_info['oferta_id']
+            
+            # Buscar la cobertura del ganador
+            cobertura_ganador = next(
+                (od['cobertura_pct'] for od in ofertas_con_repuesto if str(od['oferta'].id) == ganador_oferta_id),
+                Decimal('0')
+            )
+            
+            ganador_info['cobertura_pct'] = float(cobertura_ganador)
+            ganador_info['cumple_cobertura_minima'] = cobertura_ganador >= cobertura_minima_pct
+            ganador_info['es_adjudicacion_por_excepcion'] = cobertura_ganador < cobertura_minima_pct
+            
+            motivo = 'mejor_puntaje_con_cobertura'
+            if cobertura_ganador < cobertura_minima_pct:
+                motivo = 'unica_oferta_disponible'
+            
+            logger.info(
+                f"Repuesto {repuesto.nombre} adjudicado por {motivo}: "
+                f"cobertura {cobertura_ganador:.1f}% (mínimo {cobertura_minima_pct}%), "
+                f"asesor: {ganador_info['asesor_nombre']}, "
+                f"puntaje: {ganador_info['puntaje_total']:.3f}"
+            )
+            
             return {
-                'success': False,
+                'success': True,
                 'repuesto_id': str(repuesto.id),
                 'repuesto_nombre': repuesto.nombre,
-                'ofertas_evaluadas': len(ofertas_con_cobertura),
-                'ganador': None,
-                'motivo': 'ninguna_oferta_cumple_cobertura',
+                'ofertas_evaluadas': len(ofertas_con_repuesto),
+                'ganador': ganador_info,
+                'motivo': motivo,
                 'cobertura_aplicada': {
                     'cobertura_minima_requerida': float(cobertura_minima_pct),
-                    'mejor_cobertura_disponible': float(max(od['cobertura_pct'] for od in ofertas_con_cobertura)),
-                    'cumple_cobertura': False,
-                    'es_unica_oferta': False
+                    'cobertura_obtenida': float(cobertura_ganador),
+                    'cumple_cobertura': cobertura_ganador >= cobertura_minima_pct,
+                    'es_unica_oferta': len(ofertas_con_repuesto) == 1
                 },
+                'todas_evaluaciones': evaluacion_detallada.get('todas_evaluaciones', []),
                 'todas_coberturas': [
                     {
                         'oferta_id': str(od['oferta'].id),
@@ -336,9 +346,8 @@ class EvaluacionService:
                         'cobertura_pct': float(od['cobertura_pct']),
                         'cumple_minimo': od['cobertura_pct'] >= cobertura_minima_pct
                     }
-                    for od in ofertas_con_cobertura
-                ],
-                'message': f'Ninguna oferta para {repuesto.nombre} cumple cobertura mínima de {cobertura_minima_pct}%'
+                    for od in ofertas_con_repuesto
+                ]
             }
             
         except Exception as e:
@@ -427,7 +436,7 @@ class EvaluacionService:
                     ganador = evaluacion_repuesto['ganador']
                     
                     # Get the winning offer and detail
-                    oferta_ganadora = await Oferta.get(id=ganador['oferta_id'])
+                    oferta_ganadora = await Oferta.get(id=ganador['oferta_id']).prefetch_related('asesor__usuario')
                     detalle_ganador = await OfertaDetalle.get(id=ganador['detalle_id'])
                     
                     # Create adjudication
@@ -483,6 +492,7 @@ class EvaluacionService:
                 'fecha_evaluacion': datetime.now(),
                 'monto_total_adjudicado': monto_total_adjudicado
             })
+            await solicitud.save()
             
             # Calculate evaluation metrics
             end_time = datetime.now()
@@ -495,12 +505,12 @@ class EvaluacionService:
             # Count offers by coverage compliance
             ofertas_con_cobertura_suficiente = sum(
                 1 for eval_rep in evaluaciones_repuestos 
-                if eval_rep.get('cobertura_aplicada', {}).get('cumple_cobertura', False)
+                if eval_rep and eval_rep.get('cobertura_aplicada', {}).get('cumple_cobertura', False)
             )
             
             ofertas_por_excepcion = sum(
                 1 for eval_rep in evaluaciones_repuestos 
-                if eval_rep.get('ganador', {}).get('es_adjudicacion_por_excepcion', False)
+                if eval_rep and eval_rep.get('ganador') and eval_rep.get('ganador', {}).get('es_adjudicacion_por_excepcion', False)
             )
             
             # Create evaluation record for audit
@@ -512,7 +522,7 @@ class EvaluacionService:
                 peso_precio=Decimal(str(config_evaluacion['precio'])),
                 peso_tiempo=Decimal(str(config_evaluacion['tiempo_entrega'])),
                 peso_garantia=Decimal(str(config_evaluacion['garantia'])),
-                cobertura_minima=Decimal(str(config_general['cobertura_minima_pct'])) / 100,
+                cobertura_minima=Decimal(str(config_general['cobertura_minima_porcentaje'])) / 100,
                 tiempo_evaluacion_ms=tiempo_evaluacion_ms,
                 ofertas_con_cobertura_suficiente=ofertas_con_cobertura_suficiente,
                 ofertas_por_excepcion=ofertas_por_excepcion,
@@ -570,7 +580,7 @@ class EvaluacionService:
                 'evaluaciones_detalladas': evaluaciones_repuestos,
                 'configuracion_usada': {
                     'pesos_evaluacion': config_evaluacion,
-                    'cobertura_minima_pct': config_general['cobertura_minima_pct']
+                    'cobertura_minima_pct': config_general['cobertura_minima_porcentaje']
                 },
                 'metricas': {
                     'ofertas_con_cobertura_suficiente': ofertas_con_cobertura_suficiente,
