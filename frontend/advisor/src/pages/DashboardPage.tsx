@@ -9,10 +9,11 @@ import { SolicitudConOferta } from '@/types/solicitud';
 
 export default function DashboardPage() {
   const [kpis, setKpis] = useState<AsesorKPIs>({
-    ofertas_asignadas: 0,
+    repuestos_adjudicados: 0,
     monto_total_ganado: 0,
-    solicitudes_abiertas: 0,
+    pendientes_por_oferta: 0,
     tasa_conversion: 0,
+    tasa_oferta: 0,
   });
   const [isLoadingKPIs, setIsLoadingKPIs] = useState(true);
   const [selectedSolicitud, setSelectedSolicitud] = useState<SolicitudConOferta | null>(null);
@@ -34,10 +35,11 @@ export default function DashboardPage() {
       console.error('Error loading KPIs:', error);
       // Fallback to zeros if error
       setKpis({
-        ofertas_asignadas: 0,
+        repuestos_adjudicados: 0,
         monto_total_ganado: 0,
-        solicitudes_abiertas: 0,
+        pendientes_por_oferta: 0,
         tasa_conversion: 0,
+        tasa_oferta: 0,
       });
     } finally {
       setIsLoadingKPIs(false);

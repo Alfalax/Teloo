@@ -180,71 +180,143 @@ async def get_advisor_metrics(
     current_user: Usuario = Depends(get_current_user)
 ):
     """
-    Obtener métricas del asesor para el dashboard
+    Obtener métricas del asesor para el dashboard (MES ACTUAL)
     
-    - ofertas_asignadas: Número de ofertas que el asesor ha enviado
-    - monto_total_ganado: Suma de montos de ofertas ganadoras aceptadas
-    - solicitudes_abiertas: Solicitudes ABIERTAS asignadas al asesor
-    - tasa_conversion: Porcentaje de ofertas ganadoras vs enviadas
+    - repuestos_adjudicados: Total de repuestos en TODAS las solicitudes asignadas
+    - monto_total_ganado: Suma de montos que los clientes han aceptado (solo ganadas)
+    - pendientes_por_oferta: Solicitudes asignadas pendientes por ofertar
+    - tasa_conversion: Porcentaje de monto aceptado vs monto ofertado
+    - tasa_oferta: Porcentaje de repuestos ofertados vs repuestos asignados
     """
     try:
         from models.user import Asesor
-        from models.oferta import Oferta
+        from models.oferta import Oferta, AdjudicacionRepuesto
         from models.enums import EstadoOferta
+        from models.geografia import EvaluacionAsesorTemp
+        from utils.datetime_utils import now_utc
+        from datetime import datetime
         import logging
         
         logger = logging.getLogger(__name__)
-        logger.info(f"🔍 DEBUG METRICS - Usuario logueado: {current_user.email} (ID: {current_user.id})")
+        logger.info(f"🔍 Calculando métricas para: {current_user.email}")
         
         # Get asesor
         asesor = await Asesor.get_or_none(usuario_id=current_user.id)
         if not asesor:
             logger.warning(f"⚠️ No se encontró asesor para usuario {current_user.email}")
             return {
-                "ofertas_asignadas": 0,
+                "repuestos_adjudicados": 0,
                 "monto_total_ganado": 0.0,
-                "solicitudes_abiertas": 0,
-                "tasa_conversion": 0.0
+                "pendientes_por_oferta": 0,
+                "tasa_conversion": 0.0,
+                "tasa_oferta": 0.0
             }
         
-        logger.info(f"✅ Asesor encontrado: {asesor.id}")
+        # Obtener fecha de inicio del mes actual
+        now = now_utc()
+        inicio_mes = datetime(now.year, now.month, 1, tzinfo=now.tzinfo)
         
-        # Contar ofertas enviadas por el asesor
-        ofertas_asignadas = await Oferta.filter(asesor_id=asesor.id).count()
+        logger.info(f"📅 Calculando métricas del mes: {inicio_mes.strftime('%Y-%m')}")
         
-        # Calcular monto total ganado (ofertas ACEPTADAS)
-        ofertas_ganadoras = await Oferta.filter(
+        # 1. REPUESTOS ASIGNADOS (mes actual)
+        # Total de repuestos en TODAS las solicitudes asignadas al asesor
+        from tortoise import connections
+        conn = connections.get("default")
+        
+        repuestos_query = """
+            SELECT COALESCE(SUM(rs.cantidad), 0) as total_repuestos
+            FROM solicitudes s
+            JOIN evaluaciones_asesores_temp e ON e.solicitud_id = s.id
+            JOIN repuestos_solicitados rs ON rs.solicitud_id = s.id
+            WHERE e.asesor_id = $1
+              AND s.created_at >= $2
+        """
+        
+        result = await conn.execute_query_dict(repuestos_query, [str(asesor.id), inicio_mes])
+        repuestos_adjudicados = result[0]['total_repuestos'] if result else 0
+        
+        # 2. MONTO TOTAL GANADO (mes actual)
+        # Suma de montos de adjudicaciones donde la oferta fue ACEPTADA
+        adjudicaciones_aceptadas = await AdjudicacionRepuesto.filter(
+            oferta__asesor_id=asesor.id,
+            oferta__estado=EstadoOferta.ACEPTADA,
+            created_at__gte=inicio_mes
+        ).all()
+        
+        monto_total_ganado = sum(
+            float(adj.precio_adjudicado) * adj.cantidad_adjudicada 
+            for adj in adjudicaciones_aceptadas
+        )
+        
+        # 3. PENDIENTES POR OFERTA (mes actual)
+        # Solicitudes ABIERTAS asignadas al asesor que NO tienen oferta aún
+        from tortoise import connections
+        conn = connections.get("default")
+        
+        pendientes_query = """
+            SELECT COUNT(DISTINCT s.id)
+            FROM solicitudes s
+            JOIN evaluaciones_asesores_temp e ON e.solicitud_id = s.id
+            WHERE e.asesor_id = $1
+              AND s.estado = 'ABIERTA'
+              AND s.nivel_actual >= e.nivel_entrega
+              AND s.created_at >= $2
+              AND NOT EXISTS (
+                SELECT 1 FROM ofertas o 
+                WHERE o.solicitud_id = s.id 
+                AND o.asesor_id = $1
+              )
+        """
+        
+        result = await conn.execute_query_dict(pendientes_query, [str(asesor.id), inicio_mes])
+        pendientes_por_oferta = result[0]['count'] if result else 0
+        
+        # 4. TASA DE CONVERSIÓN (mes actual)
+        # Porcentaje de monto aceptado vs monto ofertado
+        ofertas_mes = await Oferta.filter(
             asesor_id=asesor.id,
-            estado=EstadoOferta.ACEPTADA
-        ).prefetch_related("detalles")
+            created_at__gte=inicio_mes
+        ).all()
         
-        monto_total_ganado = 0.0
-        for oferta in ofertas_ganadoras:
-            monto_total_ganado += float(oferta.monto_total)
+        monto_ofertado = sum(float(o.monto_total) for o in ofertas_mes)
         
-        # Contar solicitudes ABIERTAS asignadas al asesor (evaluadas o con oferta)
-        from models.geografia import EvaluacionAsesorTemp
-        solicitudes_abiertas = await Solicitud.filter(
-            Q(evaluaciones_asesores__asesor_id=asesor.id) |
-            Q(ofertas__asesor_id=asesor.id),
-            estado=EstadoSolicitud.ABIERTA
-        ).distinct().count()
-        
-        # Calcular tasa de conversión
-        ofertas_ganadoras_count = await Oferta.filter(
+        ofertas_aceptadas_mes = await Oferta.filter(
             asesor_id=asesor.id,
-            estado__in=[EstadoOferta.GANADORA, EstadoOferta.ACEPTADA]
-        ).count()
+            estado=EstadoOferta.ACEPTADA,
+            created_at__gte=inicio_mes
+        ).all()
+        
+        monto_aceptado = sum(float(o.monto_total) for o in ofertas_aceptadas_mes)
         
         tasa_conversion = 0.0
-        if ofertas_asignadas > 0:
-            tasa_conversion = (ofertas_ganadoras_count / ofertas_asignadas) * 100
+        if monto_ofertado > 0:
+            tasa_conversion = (monto_aceptado / monto_ofertado) * 100
+        
+        # 5. TASA DE OFERTA (mes actual)
+        # Porcentaje de repuestos ofertados vs repuestos asignados
+        repuestos_ofertados_query = """
+            SELECT COALESCE(SUM(od.cantidad), 0) as total_ofertados
+            FROM ofertas o
+            JOIN ofertas_detalle od ON od.oferta_id = o.id
+            WHERE o.asesor_id = $1
+              AND o.created_at >= $2
+        """
+        
+        result = await conn.execute_query_dict(repuestos_ofertados_query, [str(asesor.id), inicio_mes])
+        repuestos_ofertados = result[0]['total_ofertados'] if result else 0
+        
+        tasa_oferta = 0.0
+        if repuestos_adjudicados > 0:
+            tasa_oferta = (repuestos_ofertados / repuestos_adjudicados) * 100
+        
+        logger.info(f"✅ Métricas calculadas - Asignados: {repuestos_adjudicados}, Ofertados: {repuestos_ofertados}, Tasa Oferta: {tasa_oferta:.1f}%, Monto: ${monto_total_ganado:,.0f}, Pendientes: {pendientes_por_oferta}, Conversión: {tasa_conversion:.1f}%")
         
         return {
-            "ofertas_asignadas": ofertas_asignadas,
+            "repuestos_adjudicados": repuestos_adjudicados,
             "monto_total_ganado": round(monto_total_ganado, 2),
-            "solicitudes_abiertas": solicitudes_abiertas,
-            "tasa_conversion": round(tasa_conversion, 2)
+            "pendientes_por_oferta": pendientes_por_oferta,
+            "tasa_conversion": round(tasa_conversion, 2),
+            "tasa_oferta": round(tasa_oferta, 2)
         }
         
     except Exception as e:

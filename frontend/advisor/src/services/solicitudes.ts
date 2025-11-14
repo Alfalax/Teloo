@@ -40,10 +40,11 @@ export const solicitudesService = {
   },
 
   async getMetrics(): Promise<{
-    ofertas_asignadas: number;
+    repuestos_adjudicados: number;
     monto_total_ganado: number;
-    solicitudes_abiertas: number;
+    pendientes_por_oferta: number;
     tasa_conversion: number;
+    tasa_oferta: number;
   }> {
     const response = await apiClient.get('/v1/solicitudes/metrics');
     return response.data;

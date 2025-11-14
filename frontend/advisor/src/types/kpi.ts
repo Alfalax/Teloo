@@ -1,6 +1,7 @@
 export interface AsesorKPIs {
-  ofertas_asignadas: number;
+  repuestos_adjudicados: number;
   monto_total_ganado: number;
-  solicitudes_abiertas: number;
+  pendientes_por_oferta: number;
   tasa_conversion: number;
+  tasa_oferta: number;
 }

@@ -131,7 +131,6 @@ async def get_asesores(
                 "punto_venta": asesor.punto_venta,
                 "direccion_punto_venta": asesor.direccion_punto_venta,
                 "confianza": float(asesor.confianza),
-                "nivel_actual": asesor.nivel_actual,
                 "actividad_reciente_pct": float(asesor.actividad_reciente_pct),
                 "desempeno_historico_pct": float(asesor.desempeno_historico_pct),
                 "estado": asesor.estado.value,
@@ -680,7 +679,6 @@ async def get_asesor_metrics(
                     "monto_total_ventas": float(asesor.monto_total_ventas),
                     "tasa_adjudicacion_historica": asesor.tasa_adjudicacion,
                     "confianza": float(asesor.confianza),
-                    "nivel_actual": asesor.nivel_actual,
                     "actividad_reciente_pct": float(asesor.actividad_reciente_pct),
                     "desempeno_historico_pct": float(asesor.desempeno_historico_pct)
                 }
@@ -725,7 +723,6 @@ async def get_asesor(
                 "punto_venta": asesor.punto_venta,
                 "direccion_punto_venta": asesor.direccion_punto_venta,
                 "confianza": float(asesor.confianza),
-                "nivel_actual": asesor.nivel_actual,
                 "actividad_reciente_pct": float(asesor.actividad_reciente_pct),
                 "desempeno_historico_pct": float(asesor.desempeno_historico_pct),
                 "estado": asesor.estado.value,

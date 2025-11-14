@@ -166,7 +166,6 @@ class AsesoresService:
                     'direccion_punto_venta': asesor.direccion_punto_venta or '',
                     'estado': asesor.estado.value,
                     'confianza': float(asesor.confianza),
-                    'nivel_actual': asesor.nivel_actual,
                     'actividad_reciente_pct': float(asesor.actividad_reciente_pct),
                     'desempeno_historico_pct': float(asesor.desempeno_historico_pct),
                     'total_ofertas': asesor.total_ofertas,

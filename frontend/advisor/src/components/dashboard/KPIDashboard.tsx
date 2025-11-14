@@ -11,8 +11,8 @@ interface KPIDashboardProps {
 export default function KPIDashboard({ kpis, isLoading }: KPIDashboardProps) {
   const kpiCards = [
     {
-      title: 'Ofertas Asignadas',
-      value: kpis.ofertas_asignadas,
+      title: 'Repuestos Asignados',
+      value: kpis.repuestos_adjudicados,
       icon: Package,
       color: 'text-blue-600',
       bgColor: 'bg-blue-50',
@@ -25,8 +25,8 @@ export default function KPIDashboard({ kpis, isLoading }: KPIDashboardProps) {
       bgColor: 'bg-green-50',
     },
     {
-      title: 'Solicitudes Abiertas',
-      value: kpis.solicitudes_abiertas,
+      title: 'Pendientes por Oferta',
+      value: kpis.pendientes_por_oferta,
       icon: TrendingUp,
       color: 'text-amber-600',
       bgColor: 'bg-amber-50',
@@ -38,12 +38,19 @@ export default function KPIDashboard({ kpis, isLoading }: KPIDashboardProps) {
       color: 'text-purple-600',
       bgColor: 'bg-purple-50',
     },
+    {
+      title: 'Tasa de Oferta',
+      value: `${kpis.tasa_oferta.toFixed(1)}%`,
+      icon: Target,
+      color: 'text-indigo-600',
+      bgColor: 'bg-indigo-50',
+    },
   ];
 
   if (isLoading) {
     return (
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-        {[1, 2, 3, 4].map((i) => (
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-5">
+        {[1, 2, 3, 4, 5].map((i) => (
           <Card key={i}>
             <CardContent className="p-6">
               <div className="animate-pulse space-y-3">
@@ -58,7 +65,7 @@ export default function KPIDashboard({ kpis, isLoading }: KPIDashboardProps) {
   }
 
   return (
-    <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+    <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-5">
       {kpiCards.map((kpi) => {
         const Icon = kpi.icon;
         return (
