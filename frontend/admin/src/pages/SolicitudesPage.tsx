@@ -70,9 +70,9 @@ export default function SolicitudesPage() {
       total: allSolicitudes.length,
       abiertas: allSolicitudes.filter((s) => s.estado === "ABIERTA").length,
       evaluadas: allSolicitudes.filter((s) => s.estado === "EVALUADA").length,
-      aceptadas: allSolicitudes.filter((s) => s.estado === "ACEPTADA").length,
+      aceptadas: 0, // Estado ACEPTADA no existe para solicitudes
       rechazadas_expiradas: allSolicitudes.filter(
-        (s) => s.estado === "RECHAZADA" || s.estado === "EXPIRADA" || s.estado === "CERRADA_SIN_OFERTAS"
+        (s) => s.estado === "CERRADA_SIN_OFERTAS"
       ).length,
     };
     setStats(newStats);
@@ -134,14 +134,8 @@ export default function SolicitudesPage() {
               {stats.evaluadas}
             </Badge>
           </TabsTrigger>
-          <TabsTrigger value="ACEPTADA">
-            Aceptadas
-            <Badge variant="default" className="ml-2 bg-blue-500">
-              {stats.aceptadas}
-            </Badge>
-          </TabsTrigger>
-          <TabsTrigger value="RECHAZADA">
-            Rechazadas/Expiradas
+          <TabsTrigger value="CERRADA_SIN_OFERTAS">
+            Cerradas sin Ofertas
             <Badge variant="default" className="ml-2 bg-red-500">
               {stats.rechazadas_expiradas}
             </Badge>

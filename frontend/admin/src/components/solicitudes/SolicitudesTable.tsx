@@ -29,10 +29,6 @@ const estadoBadgeVariant = (estado: string) => {
       return "default";
     case "EVALUADA":
       return "secondary";
-    case "ACEPTADA":
-      return "default";
-    case "RECHAZADA":
-    case "EXPIRADA":
     case "CERRADA_SIN_OFERTAS":
       return "destructive";
     default:
@@ -46,10 +42,6 @@ const estadoBadgeColor = (estado: string) => {
       return "bg-green-500 hover:bg-green-600";
     case "EVALUADA":
       return "bg-yellow-500 hover:bg-yellow-600";
-    case "ACEPTADA":
-      return "bg-blue-500 hover:bg-blue-600";
-    case "RECHAZADA":
-    case "EXPIRADA":
     case "CERRADA_SIN_OFERTAS":
       return "bg-red-500 hover:bg-red-600";
     default:

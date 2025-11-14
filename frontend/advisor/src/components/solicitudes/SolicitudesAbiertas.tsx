@@ -76,9 +76,7 @@ export default function SolicitudesAbiertas({ onHacerOferta, onCargaMasiva, onVe
     const variants: Record<string, 'default' | 'success' | 'warning' | 'destructive'> = {
       'ABIERTA': 'success',
       'EVALUADA': 'warning',
-      'ACEPTADA': 'default',
-      'RECHAZADA': 'destructive',
-      'EXPIRADA': 'destructive',
+      'CERRADA_SIN_OFERTAS': 'destructive',
     };
     return <Badge variant={variants[estado] || 'default'}>{estado}</Badge>;
   };

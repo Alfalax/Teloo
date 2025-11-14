@@ -53,9 +53,10 @@ describe('Navigation between tabs', () => {
       departamento_origen: 'Cundinamarca',
       created_at: '2024-01-01T00:00:00Z',
       updated_at: '2024-01-01T00:00:00Z',
-      repuestos: [
+      repuestos_solicitados: [
         {
           id: 'REP-001',
+          solicitud_id: 'SOL-001',
           nombre: 'Filtro de aceite',
           codigo: 'FO-123',
           marca_vehiculo: 'Toyota',
@@ -77,7 +78,7 @@ describe('Navigation between tabs', () => {
       departamento_origen: 'Antioquia',
       created_at: '2024-01-01T00:00:00Z',
       updated_at: '2024-01-02T00:00:00Z',
-      repuestos: [],
+      repuestos_solicitados: [],
     },
   ];
 
@@ -85,13 +86,13 @@ describe('Navigation between tabs', () => {
     {
       id: 'SOL-003',
       cliente_id: 'CLI-003',
-      estado: 'ACEPTADA' as const,
+      estado: 'EVALUADA' as const,
       nivel_actual: 1,
       ciudad_origen: 'Cali',
       departamento_origen: 'Valle del Cauca',
       created_at: '2024-01-01T00:00:00Z',
       updated_at: '2024-01-03T00:00:00Z',
-      repuestos: [],
+      repuestos_solicitados: [],
       oferta_ganadora: {
         id: 'OFE-001',
         estado: 'ACEPTADA',
