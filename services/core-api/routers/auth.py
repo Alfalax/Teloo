@@ -35,7 +35,8 @@ async def login(login_data: LoginRequest):
         )
     
     # Update last login
-    user.ultimo_login = datetime.utcnow()
+    from utils.datetime_utils import now_utc
+    user.ultimo_login = now_utc()
     await user.save()
     
     # Create token pair

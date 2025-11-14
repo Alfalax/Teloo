@@ -5,7 +5,8 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { SolicitudConOferta } from '@/types/solicitud';
 import { solicitudesService } from '@/services/solicitudes';
-import { formatRelativeTime, formatCurrency } from '@/lib/utils';
+import { formatCurrency } from '@/lib/utils';
+import { formatRelativeTime } from '@/utils/dateUtils';
 
 export default function SolicitudesGanadas() {
   const [solicitudes, setSolicitudes] = useState<SolicitudConOferta[]>([]);

@@ -84,7 +84,8 @@ class OfertasService:
             if solicitud_timeout:
                 timeout_horas = solicitud_timeout
             
-            fecha_expiracion = datetime.now() + timedelta(hours=timeout_horas)
+            from utils.datetime_utils import now_utc, add_hours
+            fecha_expiracion = add_hours(now_utc(), timeout_horas)
             
             # If exists, update it instead of creating new
             if oferta_existente:
@@ -93,7 +94,7 @@ class OfertasService:
                 oferta_existente.observaciones = observaciones
                 oferta_existente.estado = EstadoOferta.ENVIADA
                 oferta_existente.fecha_expiracion = fecha_expiracion
-                oferta_existente.updated_at = datetime.now()
+                oferta_existente.updated_at = now_utc()
                 await oferta_existente.save()
                 
                 # Delete existing details to replace with new ones
@@ -834,7 +835,8 @@ class OfertasService:
             from datetime import timedelta
             
             # Calculate expiration cutoff
-            cutoff_time = datetime.now() - timedelta(hours=horas_expiracion)
+            from utils.datetime_utils import now_utc, add_hours
+            cutoff_time = add_hours(now_utc(), -horas_expiracion)
             
             # Find offers to expire
             ofertas_a_expirar = await Oferta.filter(

@@ -257,7 +257,8 @@ class PQRService:
             pqr.detalle = pqr_data.detalle
         if pqr_data.respuesta is not None:
             pqr.respuesta = pqr_data.respuesta
-            pqr.fecha_respuesta = datetime.now()
+            from utils.datetime_utils import now_utc
+            pqr.fecha_respuesta = now_utc()
             pqr.respondido_por_id = usuario_id
             pqr.estado = EstadoPQR.EN_PROCESO
             pqr.calcular_tiempo_resolucion()

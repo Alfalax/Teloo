@@ -374,7 +374,8 @@ class EvaluacionService:
             Dict with complete evaluation results and adjudications
         """
         try:
-            start_time = datetime.now()
+            from utils.datetime_utils import now_utc
+            start_time = now_utc()
             
             # Get solicitud with all relationships
             solicitud = await Solicitud.get_or_none(id=solicitud_id).prefetch_related(
@@ -399,7 +400,7 @@ class EvaluacionService:
                 # No offers to evaluate - close solicitud without offers
                 await solicitud.update_from_dict({
                     'estado': EstadoSolicitud.CERRADA_SIN_OFERTAS,
-                    'fecha_evaluacion': datetime.now()
+                    'fecha_evaluacion': now_utc()
                 })
                 
                 return {
@@ -482,6 +483,18 @@ class EvaluacionService:
                 for adj in adjudicaciones_creadas
             )
             
+            # Update offer states based on evaluation results
+            ofertas_ganadoras_ids = set(adj.oferta.id for adj in adjudicaciones_creadas)
+            
+            for oferta in ofertas_activas:
+                if oferta.id in ofertas_ganadoras_ids:
+                    # Offer won at least one repuesto
+                    oferta.estado = EstadoOferta.GANADORA
+                else:
+                    # Offer didn't win any repuesto
+                    oferta.estado = EstadoOferta.NO_SELECCIONADA
+                await oferta.save()
+            
             # Update solicitud state
             nuevo_estado = EstadoSolicitud.EVALUADA
             if len(adjudicaciones_creadas) == 0:
@@ -495,7 +508,7 @@ class EvaluacionService:
             await solicitud.save()
             
             # Calculate evaluation metrics
-            end_time = datetime.now()
+            end_time = now_utc()
             tiempo_evaluacion_ms = int((end_time - start_time).total_seconds() * 1000)
             
             # Determine if it's a mixed adjudication (multiple different asesores won)
@@ -829,7 +842,8 @@ class EvaluacionService:
             from datetime import timedelta
             
             # Calculate expiration cutoff time
-            cutoff_time = datetime.now() - timedelta(hours=horas_expiracion)
+            from utils.datetime_utils import add_hours
+            cutoff_time = add_hours(now_utc(), -horas_expiracion)
             
             # Find offers to expire (ENVIADA state and created before cutoff)
             ofertas_a_expirar = await Oferta.filter(

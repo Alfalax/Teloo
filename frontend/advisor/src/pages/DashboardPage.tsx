@@ -1,9 +1,6 @@
 import { useState, useEffect } from 'react';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import KPIDashboard from '@/components/dashboard/KPIDashboard';
-import SolicitudesAbiertas from '@/components/solicitudes/SolicitudesAbiertas';
-import SolicitudesCerradas from '@/components/solicitudes/SolicitudesCerradas';
-import SolicitudesGanadas from '@/components/solicitudes/SolicitudesGanadas';
+import SolicitudesUnificadas from '@/components/solicitudes/SolicitudesUnificadas';
 import OfertaIndividualModal from '@/components/ofertas/OfertaIndividualModal';
 import CargaMasivaModal from '@/components/ofertas/CargaMasivaModal';
 import VerOfertaModal from '@/components/ofertas/VerOfertaModal';
@@ -72,29 +69,12 @@ export default function DashboardPage() {
 
       <KPIDashboard kpis={kpis} isLoading={isLoadingKPIs} />
 
-      <Tabs defaultValue="abiertas" className="space-y-4">
-        <TabsList>
-          <TabsTrigger value="abiertas">Abiertas</TabsTrigger>
-          <TabsTrigger value="cerradas">Cerradas</TabsTrigger>
-          <TabsTrigger value="ganadas">Ganadas</TabsTrigger>
-        </TabsList>
-
-        <TabsContent value="abiertas" className="space-y-4">
-          <SolicitudesAbiertas 
-            onHacerOferta={handleHacerOferta}
-            onCargaMasiva={handleCargaMasiva}
-            onVerOferta={handleVerOferta}
-          />
-        </TabsContent>
-
-        <TabsContent value="cerradas" className="space-y-4">
-          <SolicitudesCerradas />
-        </TabsContent>
-
-        <TabsContent value="ganadas" className="space-y-4">
-          <SolicitudesGanadas />
-        </TabsContent>
-      </Tabs>
+      {/* Solicitudes Unificadas con filtros */}
+      <SolicitudesUnificadas 
+        onHacerOferta={handleHacerOferta}
+        onCargaMasiva={handleCargaMasiva}
+        onVerOferta={handleVerOferta}
+      />
 
       {/* Oferta Individual Modal */}
       {selectedSolicitud && (

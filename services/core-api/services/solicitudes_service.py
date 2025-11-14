@@ -71,13 +71,12 @@ class SolicitudesService:
             if nivel_match_uuids:
                 query = query.filter(
                     Q(id__in=nivel_match_uuids) |
-                    Q(ofertas__asesor_id=asesor_id, estado=EstadoSolicitud.ABIERTA)
+                    Q(ofertas__asesor_id=asesor_id)  # Sin filtro de estado - mostrar todas donde hizo oferta
                 ).distinct()
             else:
-                # Only show solicitudes where they made an offer
+                # Only show solicitudes where they made an offer (sin importar estado)
                 query = query.filter(
-                    ofertas__asesor_id=asesor_id,
-                    estado=EstadoSolicitud.ABIERTA
+                    ofertas__asesor_id=asesor_id
                 ).distinct()
         
         # Apply filters
