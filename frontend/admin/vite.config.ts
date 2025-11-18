@@ -15,6 +15,17 @@ export default defineConfig({
     host: '0.0.0.0',
     port: 3000,
     strictPort: true,
+    hmr: {
+      overlay: true,
+    },
+  },
+  build: {
+    // Generate unique hashes for cache busting
+    rollupOptions: {
+      output: {
+        manualChunks: undefined,
+      },
+    },
   },
   preview: {
     host: '0.0.0.0',

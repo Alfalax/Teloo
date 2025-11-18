@@ -247,9 +247,9 @@ class EvaluacionService:
                         'cobertura_pct': oferta_data['cobertura_pct']
                     })
             
-            # PASO 3: Si no hay ofertas con cobertura suficiente, aplicar excepción
+            # PASO 3: Si no hay ofertas con cobertura suficiente, evaluar ofertas con cobertura insuficiente
             if not ofertas_con_repuesto:
-                # Buscar en ofertas con cobertura insuficiente (excepción: único oferente)
+                # Buscar en ofertas con cobertura insuficiente
                 ofertas_excepcion = []
                 for oferta_data in ofertas_con_cobertura_insuficiente:
                     oferta = oferta_data['oferta']
@@ -264,14 +264,20 @@ class EvaluacionService:
                             'cobertura_pct': oferta_data['cobertura_pct']
                         })
                 
-                # Si solo hay una oferta (único oferente), adjudicar por excepción
-                if len(ofertas_excepcion) == 1:
+                # Si hay ofertas disponibles (1 o más), evaluarlas por puntaje
+                if len(ofertas_excepcion) > 0:
                     ofertas_con_repuesto = ofertas_excepcion
-                    logger.info(
-                        f"Aplicando excepción de único oferente para {repuesto.nombre}: "
-                        f"{ofertas_excepcion[0]['oferta'].asesor.usuario.nombre_completo} "
-                        f"con cobertura {ofertas_excepcion[0]['cobertura_pct']:.1f}%"
-                    )
+                    if len(ofertas_excepcion) == 1:
+                        logger.info(
+                            f"Aplicando excepción de único oferente para {repuesto.nombre}: "
+                            f"{ofertas_excepcion[0]['oferta'].asesor.usuario.nombre_completo} "
+                            f"con cobertura {ofertas_excepcion[0]['cobertura_pct']:.1f}%"
+                        )
+                    else:
+                        logger.info(
+                            f"Evaluando {len(ofertas_excepcion)} ofertas con cobertura < {cobertura_minima_pct}% "
+                            f"para {repuesto.nombre} (sin ofertas con cobertura suficiente)"
+                        )
                 else:
                     return {
                         'success': False,
@@ -279,14 +285,14 @@ class EvaluacionService:
                         'repuesto_nombre': repuesto.nombre,
                         'ofertas_evaluadas': 0,
                         'ganador': None,
-                        'motivo': 'no_ofertas_con_cobertura_suficiente',
+                        'motivo': 'no_ofertas_disponibles',
                         'cobertura_aplicada': {
                             'cobertura_minima_requerida': float(cobertura_minima_pct),
                             'ofertas_totales': len(ofertas_disponibles),
                             'ofertas_con_cobertura': len(ofertas_con_cobertura_suficiente),
                             'ofertas_con_repuesto': 0
                         },
-                        'message': f'No hay ofertas con cobertura suficiente para {repuesto.nombre}'
+                        'message': f'No hay ofertas disponibles para {repuesto.nombre}'
                     }
             
             # PASO 4: Evaluar ofertas que pasaron el filtro usando la fórmula
@@ -316,7 +322,10 @@ class EvaluacionService:
             
             motivo = 'mejor_puntaje_con_cobertura'
             if cobertura_ganador < cobertura_minima_pct:
-                motivo = 'unica_oferta_disponible'
+                if len(ofertas_con_repuesto) == 1:
+                    motivo = 'unica_oferta_disponible'
+                else:
+                    motivo = 'mejor_puntaje_sin_cobertura_suficiente'
             
             logger.info(
                 f"Repuesto {repuesto.nombre} adjudicado por {motivo}: "
@@ -366,6 +375,9 @@ class EvaluacionService:
     async def evaluar_solicitud(solicitud_id: str) -> Dict[str, Any]:
         """
         Evaluate complete solicitud - all repuestos individually
+        
+        Uses atomic transaction to ensure all adjudications and state updates
+        are committed together or rolled back on failure.
         
         Args:
             solicitud_id: ID of the solicitud to evaluate
@@ -431,81 +443,74 @@ class EvaluacionService:
                 )
                 
                 evaluaciones_repuestos.append(evaluacion_repuesto)
+            
+            # Use atomic transaction for all adjudications and state updates
+            from tortoise.transactions import in_transaction
+            async with in_transaction() as conn:
+                # Create adjudications for winners
+                for evaluacion_repuesto in evaluaciones_repuestos:
+                    if evaluacion_repuesto['success'] and evaluacion_repuesto['ganador']:
+                        ganador = evaluacion_repuesto['ganador']
+                        repuesto_id = evaluacion_repuesto['repuesto_id']
+                        repuesto = await RepuestoSolicitado.get(id=repuesto_id)
+                        
+                        # Get the winning offer and detail
+                        oferta_ganadora = await Oferta.get(id=ganador['oferta_id']).prefetch_related('asesor__usuario')
+                        detalle_ganador = await OfertaDetalle.get(id=ganador['detalle_id'])
+                        
+                        # Create adjudication
+                        adjudicacion = await AdjudicacionRepuesto.create(
+                            solicitud=solicitud,
+                            oferta=oferta_ganadora,
+                            repuesto_solicitado=repuesto,
+                            oferta_detalle=detalle_ganador,
+                            puntaje_obtenido=Decimal(str(ganador['puntaje_total'])),
+                            precio_adjudicado=detalle_ganador.precio_unitario,
+                            tiempo_entrega_adjudicado=detalle_ganador.tiempo_entrega_dias,
+                            garantia_adjudicada=detalle_ganador.garantia_meses,
+                            cantidad_adjudicada=detalle_ganador.cantidad,
+                            motivo_adjudicacion=evaluacion_repuesto['motivo'],
+                            cobertura_oferta=Decimal(str(ganador.get('cobertura_pct', 0))),
+                            using_db=conn
+                        )
+                        
+                        adjudicaciones_creadas.append(adjudicacion)
+                        
+                        logger.info(
+                            f"Adjudicación creada: {repuesto.nombre} → "
+                            f"{oferta_ganadora.asesor.usuario.nombre_completo} "
+                            f"(${detalle_ganador.precio_unitario:,.0f})"
+                        )
                 
-                # Create adjudication if there's a winner
-                if evaluacion_repuesto['success'] and evaluacion_repuesto['ganador']:
-                    ganador = evaluacion_repuesto['ganador']
-                    
-                    # Get the winning offer and detail
-                    oferta_ganadora = await Oferta.get(id=ganador['oferta_id']).prefetch_related('asesor__usuario')
-                    detalle_ganador = await OfertaDetalle.get(id=ganador['detalle_id'])
-                    
-                    # Create adjudication
-                    adjudicacion = await AdjudicacionRepuesto.create(
-                        solicitud=solicitud,
-                        oferta=oferta_ganadora,
-                        repuesto_solicitado=repuesto,
-                        oferta_detalle=detalle_ganador,
-                        puntaje_obtenido=Decimal(str(ganador['puntaje_total'])),
-                        precio_adjudicado=detalle_ganador.precio_unitario,
-                        tiempo_entrega_adjudicado=detalle_ganador.tiempo_entrega_dias,
-                        garantia_adjudicada=detalle_ganador.garantia_meses,
-                        cantidad_adjudicada=detalle_ganador.cantidad,
-                        motivo_adjudicacion=evaluacion_repuesto['motivo'],
-                        cobertura_oferta=Decimal(str(ganador.get('cobertura_pct', 0)))
-                    )
-                    
-                    adjudicaciones_creadas.append(adjudicacion)
-                    
-                    logger.info(
-                        f"Adjudicación creada: {repuesto.nombre} → "
-                        f"{oferta_ganadora.asesor.usuario.nombre_completo} "
-                        f"(${detalle_ganador.precio_unitario:,.0f})"
-                    )
+                # Calculate totals
+                monto_total_adjudicado = sum(
+                    adj.precio_adjudicado * adj.cantidad_adjudicada 
+                    for adj in adjudicaciones_creadas
+                )
+                
+                # Update offer states based on evaluation results
+                ofertas_ganadoras_ids = set(adj.oferta.id for adj in adjudicaciones_creadas)
+                
+                for oferta in ofertas_activas:
+                    if oferta.id in ofertas_ganadoras_ids:
+                        oferta.estado = EstadoOferta.GANADORA
+                    else:
+                        oferta.estado = EstadoOferta.NO_SELECCIONADA
+                    await oferta.save(using_db=conn)
+                
+                # Update solicitud state
+                nuevo_estado = EstadoSolicitud.EVALUADA
+                if len(adjudicaciones_creadas) == 0:
+                    nuevo_estado = EstadoSolicitud.CERRADA_SIN_OFERTAS
+                
+                await solicitud.update_from_dict({
+                    'estado': nuevo_estado,
+                    'fecha_evaluacion': datetime.now(),
+                    'monto_total_adjudicado': monto_total_adjudicado
+                })
+                await solicitud.save(using_db=conn)
             
-            # Update offer states based on results
-            ofertas_ganadoras = set()
-            ofertas_no_seleccionadas = set()
-            
-            for adjudicacion in adjudicaciones_creadas:
-                ofertas_ganadoras.add(adjudicacion.oferta.id)
-            
-            for oferta in ofertas_activas:
-                if oferta.id in ofertas_ganadoras:
-                    await oferta.update_from_dict({'estado': EstadoOferta.GANADORA})
-                else:
-                    await oferta.update_from_dict({'estado': EstadoOferta.NO_SELECCIONADA})
-                    ofertas_no_seleccionadas.add(oferta.id)
-            
-            # Calculate totals
-            monto_total_adjudicado = sum(
-                adj.precio_adjudicado * adj.cantidad_adjudicada 
-                for adj in adjudicaciones_creadas
-            )
-            
-            # Update offer states based on evaluation results
-            ofertas_ganadoras_ids = set(adj.oferta.id for adj in adjudicaciones_creadas)
-            
-            for oferta in ofertas_activas:
-                if oferta.id in ofertas_ganadoras_ids:
-                    # Offer won at least one repuesto
-                    oferta.estado = EstadoOferta.GANADORA
-                else:
-                    # Offer didn't win any repuesto
-                    oferta.estado = EstadoOferta.NO_SELECCIONADA
-                await oferta.save()
-            
-            # Update solicitud state
-            nuevo_estado = EstadoSolicitud.EVALUADA
-            if len(adjudicaciones_creadas) == 0:
-                nuevo_estado = EstadoSolicitud.CERRADA_SIN_OFERTAS
-            
-            await solicitud.update_from_dict({
-                'estado': nuevo_estado,
-                'fecha_evaluacion': datetime.now(),
-                'monto_total_adjudicado': monto_total_adjudicado
-            })
-            await solicitud.save()
+            # Transaction committed successfully
             
             # Calculate evaluation metrics
             end_time = now_utc()
@@ -514,6 +519,10 @@ class EvaluacionService:
             # Determine if it's a mixed adjudication (multiple different asesores won)
             asesores_ganadores = set(adj.oferta.asesor.id for adj in adjudicaciones_creadas)
             es_adjudicacion_mixta = len(asesores_ganadores) > 1
+            
+            # Count winning and non-selected offers
+            ofertas_ganadoras = [o for o in ofertas_activas if o.estado == EstadoOferta.GANADORA]
+            ofertas_no_seleccionadas = [o for o in ofertas_activas if o.estado == EstadoOferta.NO_SELECCIONADA]
             
             # Count offers by coverage compliance
             ofertas_con_cobertura_suficiente = sum(

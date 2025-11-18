@@ -126,6 +126,9 @@ class ConfiguracionService:
         """
         Actualiza configuración del sistema con validaciones
         
+        Uses atomic transaction when updating multiple parameters
+        to ensure all changes are committed together.
+        
         Args:
             categoria: Categoría de configuración
             nuevos_valores: Nuevos valores a establecer
@@ -158,14 +161,25 @@ class ConfiguracionService:
             ConfiguracionService._validar_canales_nivel(nuevos_valores)
         elif categoria == 'parametros_generales':
             ConfiguracionService._validar_parametros_generales(nuevos_valores)
-            # Para parametros_generales, guardar cada parámetro individualmente
-            for clave, valor in nuevos_valores.items():
-                await ParametroConfig.set_valor(
-                    clave,
-                    valor,
-                    usuario,
-                    f"Parámetro {clave} actualizado"
-                )
+            # Para parametros_generales, guardar cada parámetro individualmente con transacción
+            from tortoise.transactions import in_transaction
+            async with in_transaction() as conn:
+                for clave, valor in nuevos_valores.items():
+                    # Get or create with transaction
+                    param = await ParametroConfig.filter(clave=clave).using_db(conn).first()
+                    if param:
+                        param.valor_json = valor
+                        param.modificado_por = usuario
+                        param.descripcion = f"Parámetro {clave} actualizado"
+                        await param.save(using_db=conn)
+                    else:
+                        await ParametroConfig.create(
+                            clave=clave,
+                            valor_json=valor,
+                            descripcion=f"Parámetro {clave} actualizado",
+                            modificado_por=usuario,
+                            using_db=conn
+                        )
             logger.info(f"Parámetros generales actualizados por {usuario.nombre_completo if usuario else 'Sistema'}")
             return nuevos_valores
         
