@@ -63,7 +63,6 @@ async def verify_asesor_model():
             logger.info(f"   - direccion_punto_venta: {asesor.direccion_punto_venta}")
             logger.info(f"   - estado: {asesor.estado}")
             logger.info(f"   - confianza: {asesor.confianza}")
-            logger.info(f"   - nivel_actual: {asesor.nivel_actual}")
             logger.info(f"   - total_ofertas: {asesor.total_ofertas}")
             logger.info(f"   - ofertas_ganadoras: {asesor.ofertas_ganadoras}")
             logger.info(f"   - monto_total_ventas: {asesor.monto_total_ventas}")
@@ -267,7 +266,6 @@ async def verify_metrics_calculation():
             
             logger.info(f"\n📊 Métricas para: {asesor.usuario.nombre} {asesor.usuario.apellido}")
             logger.info(f"   - Confianza: {asesor.confianza}")
-            logger.info(f"   - Nivel Actual: {asesor.nivel_actual}")
             logger.info(f"   - Total Ofertas: {asesor.total_ofertas}")
             logger.info(f"   - Ofertas Ganadoras: {asesor.ofertas_ganadoras}")
             logger.info(f"   - Monto Total Ventas: ${asesor.monto_total_ventas:,.2f}")

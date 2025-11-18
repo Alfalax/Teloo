@@ -36,10 +36,6 @@ const estadoBadgeColor = (estado: string) => {
       return "bg-green-500";
     case "EVALUADA":
       return "bg-yellow-500";
-    case "ACEPTADA":
-      return "bg-blue-500";
-    case "RECHAZADA":
-    case "EXPIRADA":
     case "CERRADA_SIN_OFERTAS":
       return "bg-red-500";
     default:

@@ -3,14 +3,16 @@ export interface Solicitud {
   cliente_id: string;
   cliente_nombre?: string;
   cliente_telefono?: string;
-  estado: 'ABIERTA' | 'EVALUADA' | 'ACEPTADA' | 'RECHAZADA' | 'EXPIRADA' | 'CERRADA_SIN_OFERTAS';
+  estado: 'ABIERTA' | 'EVALUADA' | 'CERRADA_SIN_OFERTAS';
   nivel_actual: number;
   ciudad_origen: string;
   departamento_origen: string;
   repuestos_solicitados: RepuestoSolicitado[];
   // Alias for backward compatibility
   repuestos?: RepuestoSolicitado[];
-  tiempo_restante_horas?: number;
+  tiempo_restante_horas?: number; // Deprecated - usar tiempo_restante_minutos
+  tiempo_restante_minutos?: number; // Tiempo restante en minutos
+  tiempo_total_nivel_minutos?: number; // Tiempo total configurado para el nivel actual en minutos
   // Backend returns fecha_creacion
   fecha_creacion?: string;
   // Alias for backward compatibility
@@ -68,6 +70,15 @@ export interface CreateOfertaDetalle {
   garantia_meses: number;
 }
 
+export type EstadoOfertaAsesor = 
+  | 'ABIERTA'           // No ha enviado oferta
+  | 'ENVIADA'           // Oferta enviada
+  | 'GANADORA'          // Ganó repuestos
+  | 'NO_SELECCIONADA'   // No ganó
+  | 'ACEPTADA'          // Cliente aceptó
+  | 'RECHAZADA'         // Cliente rechazó
+  | 'EXPIRADA';         // Expiró
+
 export interface SolicitudConOferta extends Solicitud {
   mi_oferta?: Oferta;
   oferta_ganadora?: Oferta;
@@ -76,4 +87,8 @@ export interface SolicitudConOferta extends Solicitud {
     telefono: string;
     ciudad: string;
   };
+  // Estado de la oferta desde perspectiva del asesor
+  estado_oferta_asesor?: EstadoOfertaAsesor;
+  repuestos_ganados?: number;
+  repuestos_totales_ofertados?: number;
 }

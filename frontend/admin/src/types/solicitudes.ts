@@ -6,9 +6,6 @@
 export type EstadoSolicitud =
   | "ABIERTA"
   | "EVALUADA"
-  | "ACEPTADA"
-  | "RECHAZADA"
-  | "EXPIRADA"
   | "CERRADA_SIN_OFERTAS";
 
 export interface RepuestoSolicitado {

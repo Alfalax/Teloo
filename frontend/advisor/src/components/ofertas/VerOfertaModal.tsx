@@ -25,6 +25,9 @@ export default function VerOfertaModal({ open, onClose, solicitud, onActualizarO
   const { mi_oferta } = solicitud;
   const repuestos = solicitud.repuestos_solicitados || solicitud.repuestos || [];
   
+  // Verificar si la solicitud permite actualizaciones (solo ABIERTA)
+  const puedeActualizar = solicitud.estado === 'ABIERTA';
+  
   // Calcular monto total
   const montoTotal = mi_oferta.detalles?.reduce(
     (sum, detalle) => sum + (detalle.precio_unitario * detalle.cantidad), 
@@ -231,11 +234,23 @@ export default function VerOfertaModal({ open, onClose, solicitud, onActualizarO
                 onClose();
                 onActualizarOferta(solicitud);
               }}
+              disabled={!puedeActualizar}
+              title={!puedeActualizar ? 'No se pueden actualizar ofertas en solicitudes evaluadas' : ''}
             >
               Actualizar Oferta
             </Button>
           )}
         </div>
+        
+        {/* Mensaje informativo cuando no se puede actualizar */}
+        {!puedeActualizar && onActualizarOferta && (
+          <div className="p-3 text-sm text-amber-800 bg-amber-50 dark:bg-amber-950 dark:text-amber-200 rounded-md flex items-start gap-2 mt-4">
+            <AlertCircle className="h-4 w-4 mt-0.5 flex-shrink-0" />
+            <span>
+              Esta solicitud ya fue evaluada. No se pueden crear o actualizar ofertas en este momento.
+            </span>
+          </div>
+        )}
       </DialogContent>
     </Dialog>
   );

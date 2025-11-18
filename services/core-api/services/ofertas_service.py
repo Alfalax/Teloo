@@ -14,8 +14,10 @@ import io
 from models.oferta import Oferta, OfertaDetalle
 from models.solicitud import Solicitud, RepuestoSolicitado
 from models.user import Asesor
+from models.geografia import EvaluacionAsesorTemp
 from models.enums import EstadoSolicitud, EstadoOferta, OrigenOferta
 from services.concurrencia_service import ConcurrenciaService
+from services.events_service import events_service
 
 logger = logging.getLogger(__name__)
 
@@ -46,6 +48,8 @@ class OfertasService:
         Returns:
             Dict with created offer data
         """
+        from tortoise.transactions import in_transaction
+        
         try:
             # Validate solicitud exists and is ABIERTA
             solicitud = await Solicitud.get_or_none(id=solicitud_id)
@@ -84,83 +88,125 @@ class OfertasService:
             if solicitud_timeout:
                 timeout_horas = solicitud_timeout
             
-            fecha_expiracion = datetime.now() + timedelta(hours=timeout_horas)
+            from utils.datetime_utils import now_utc, add_hours
+            fecha_expiracion = add_hours(now_utc(), timeout_horas)
             
-            # If exists, update it instead of creating new
-            if oferta_existente:
-                # Update existing offer
-                oferta_existente.tiempo_entrega_dias = tiempo_entrega_dias
-                oferta_existente.observaciones = observaciones
-                oferta_existente.estado = EstadoOferta.ENVIADA
-                oferta_existente.fecha_expiracion = fecha_expiracion
-                oferta_existente.updated_at = datetime.now()
-                await oferta_existente.save()
+            # Use atomic transaction to ensure data consistency
+            async with in_transaction() as conn:
+                # If exists, update it instead of creating new
+                if oferta_existente:
+                    # Update existing offer
+                    oferta_existente.tiempo_entrega_dias = tiempo_entrega_dias
+                    oferta_existente.observaciones = observaciones
+                    oferta_existente.estado = EstadoOferta.ENVIADA
+                    oferta_existente.fecha_expiracion = fecha_expiracion
+                    oferta_existente.updated_at = now_utc()
+                    await oferta_existente.save(using_db=conn)
+                    
+                    # Delete existing details to replace with new ones
+                    await OfertaDetalle.filter(oferta_id=oferta_existente.id).using_db(conn).delete()
+                    
+                    oferta = oferta_existente
+                else:
+                    # Create new offer
+                    oferta = await Oferta.create(
+                        solicitud=solicitud,
+                        asesor=asesor,
+                        tiempo_entrega_dias=tiempo_entrega_dias,
+                        observaciones=observaciones,
+                        estado=EstadoOferta.ENVIADA,
+                        origen=OrigenOferta.FORM,
+                        fecha_expiracion=fecha_expiracion,
+                        using_db=conn
+                    )
                 
-                # Delete existing details to replace with new ones
-                await OfertaDetalle.filter(oferta_id=oferta_existente.id).delete()
+                # Process each detail
+                monto_total = Decimal('0.00')
+                detalles_creados = []
                 
-                oferta = oferta_existente
-            else:
-                # Create new offer
-                oferta = await Oferta.create(
-                    solicitud=solicitud,
-                    asesor=asesor,
-                    tiempo_entrega_dias=tiempo_entrega_dias,
-                    observaciones=observaciones,
-                    estado=EstadoOferta.ENVIADA,
-                    origen=OrigenOferta.FORM,
-                    fecha_expiracion=fecha_expiracion
+                for detalle_data in detalles:
+                    # Validate repuesto exists
+                    repuesto_id = detalle_data.get('repuesto_solicitado_id')
+                    repuesto = await RepuestoSolicitado.get_or_none(
+                        id=repuesto_id,
+                        solicitud=solicitud
+                    )
+                    if not repuesto:
+                        raise ValueError(f"Repuesto {repuesto_id} no encontrado en la solicitud")
+                    
+                    # Validate ranges
+                    precio_unitario = Decimal(str(detalle_data.get('precio_unitario', 0)))
+                    garantia_meses = int(detalle_data.get('garantia_meses', 1))
+                    cantidad = int(detalle_data.get('cantidad', 1))
+                    
+                    # Validate precio range (1000-50000000)
+                    if not (1000 <= precio_unitario <= 50000000):
+                        raise ValueError(f"Precio unitario debe estar entre 1,000 y 50,000,000 COP")
+                    
+                    # Validate garantia range (1-60)
+                    if not (1 <= garantia_meses <= 60):
+                        raise ValueError(f"Garantía debe estar entre 1 y 60 meses")
+                    
+                    # Create offer detail
+                    detalle = await OfertaDetalle.create(
+                        oferta=oferta,
+                        repuesto_solicitado=repuesto,
+                        precio_unitario=precio_unitario,
+                        cantidad=cantidad,
+                        garantia_meses=garantia_meses,
+                        tiempo_entrega_dias=tiempo_entrega_dias,  # Use general delivery time
+                        marca_repuesto=detalle_data.get('marca_repuesto'),
+                        modelo_repuesto=detalle_data.get('modelo_repuesto'),
+                        origen_repuesto=detalle_data.get('origen_repuesto'),
+                        observaciones=detalle_data.get('observaciones'),
+                        using_db=conn
+                    )
+                    
+                    detalles_creados.append(detalle)
+                    monto_total += precio_unitario * cantidad
+                
+                # Update offer totals
+                oferta.monto_total = monto_total
+                oferta.cantidad_repuestos = len(detalles_creados)
+                oferta.cobertura_porcentaje = await oferta.calcular_cobertura()
+                await oferta.save(using_db=conn)
+            
+            # Transaction committed successfully at this point
+            
+            # Registrar evento en tablas auxiliares para métricas de escalamiento
+            try:
+                # Calcular tiempo de respuesta si existe escalamiento
+                tiempo_respuesta_seg = None
+                evaluacion_temp = await EvaluacionAsesorTemp.filter(
+                    solicitud_id=solicitud.id,
+                    asesor_id=asesor.id
+                ).first()
+                
+                if evaluacion_temp and evaluacion_temp.fecha_notificacion:
+                    # Usar datetime.now() para que coincida con el timezone de fecha_notificacion
+                    tiempo_respuesta_seg = int((datetime.now() - evaluacion_temp.fecha_notificacion.replace(tzinfo=None)).total_seconds())
+                
+                await events_service.on_oferta_created(
+                    oferta_id=oferta.id,
+                    asesor_id=asesor.id,
+                    solicitud_id=solicitud.id,
+                    monto_total=float(monto_total),
+                    cantidad_repuestos=len(detalles_creados),
+                    ciudad_solicitud=solicitud.ciudad_origen or "N/A",
+                    ciudad_asesor=asesor.ciudad or "N/A",
+                    estado=oferta.estado.value,
+                    tiempo_respuesta_seg=tiempo_respuesta_seg
                 )
-            
-            # Process each detail
-            monto_total = Decimal('0.00')
-            detalles_creados = []
-            
-            for detalle_data in detalles:
-                # Validate repuesto exists
-                repuesto_id = detalle_data.get('repuesto_solicitado_id')
-                repuesto = await RepuestoSolicitado.get_or_none(
-                    id=repuesto_id,
-                    solicitud=solicitud
-                )
-                if not repuesto:
-                    raise ValueError(f"Repuesto {repuesto_id} no encontrado en la solicitud")
                 
-                # Validate ranges
-                precio_unitario = Decimal(str(detalle_data.get('precio_unitario', 0)))
-                garantia_meses = int(detalle_data.get('garantia_meses', 1))
-                cantidad = int(detalle_data.get('cantidad', 1))
-                
-                # Validate precio range (1000-50000000)
-                if not (1000 <= precio_unitario <= 50000000):
-                    raise ValueError(f"Precio unitario debe estar entre 1,000 y 50,000,000 COP")
-                
-                # Validate garantia range (1-60)
-                if not (1 <= garantia_meses <= 60):
-                    raise ValueError(f"Garantía debe estar entre 1 y 60 meses")
-                
-                # Create offer detail
-                detalle = await OfertaDetalle.create(
-                    oferta=oferta,
-                    repuesto_solicitado=repuesto,
-                    precio_unitario=precio_unitario,
-                    cantidad=cantidad,
-                    garantia_meses=garantia_meses,
-                    tiempo_entrega_dias=tiempo_entrega_dias,  # Use general delivery time
-                    marca_repuesto=detalle_data.get('marca_repuesto'),
-                    modelo_repuesto=detalle_data.get('modelo_repuesto'),
-                    origen_repuesto=detalle_data.get('origen_repuesto'),
-                    observaciones=detalle_data.get('observaciones')
-                )
-                
-                detalles_creados.append(detalle)
-                monto_total += precio_unitario * cantidad
-            
-            # Update offer totals
-            oferta.monto_total = monto_total
-            oferta.cantidad_repuestos = len(detalles_creados)
-            oferta.cobertura_porcentaje = await oferta.calcular_cobertura()
-            await oferta.save()
+                # Registrar que el asesor respondió
+                if tiempo_respuesta_seg is not None:
+                    await events_service.on_asesor_respondio(
+                        asesor_id=asesor.id,
+                        solicitud_id=solicitud.id,
+                        tiempo_respuesta_seg=tiempo_respuesta_seg
+                    )
+            except Exception as e:
+                logger.error(f"Error registrando evento oferta_created: {e}")
             
             # Publish event to Redis
             if redis_client:
@@ -834,7 +880,8 @@ class OfertasService:
             from datetime import timedelta
             
             # Calculate expiration cutoff
-            cutoff_time = datetime.now() - timedelta(hours=horas_expiracion)
+            from utils.datetime_utils import now_utc, add_hours
+            cutoff_time = add_hours(now_utc(), -horas_expiracion)
             
             # Find offers to expire
             ofertas_a_expirar = await Oferta.filter(

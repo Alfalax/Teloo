@@ -16,6 +16,7 @@ import redis.asyncio as redis
 
 from services.ofertas_service import OfertasService
 from services.configuracion_service import ConfiguracionService
+from utils.datetime_utils import now_utc
 
 logger = logging.getLogger(__name__)
 
@@ -261,7 +262,7 @@ class SchedulerService:
             return {
                 'success': result['success'],
                 'job_id': job_id,
-                'executed_at': datetime.now().isoformat(),
+                'executed_at': now_utc().isoformat(),
                 'result': result,
                 'message': f'Job {job_id} executed {"successfully" if result["success"] else "with errors"}'
             }

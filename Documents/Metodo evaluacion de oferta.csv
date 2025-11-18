@@ -1,0 +1,36 @@
+,,,,,,,,,,,,,,,
+O,Tiene disponible el repuesto,,,,,,,,,,,,,,
+X,No tiene disponible el repuesto,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,
+,Oferta 1,,,,Oferta 2,,,,Oferta 2,,,,Evaluacion de ofertas x repuesto,,
+Solicitud ID234,Disponibilidad,Precio,Tiempo entrega,Tiempo Garantia,Disponibilidad,Precio,Tiempo entrega,Tiempo Garantia,Disponibilidad,Precio,Tiempo entrega,Tiempo Garantia,Evaluacion oferta 1,Evaluacion oferta 2,Evaluacion oferta 3
+Repuesto A,O,400,1,3,X,-,-,-,X,-,-,-,5,-,-
+Repuesto B,O,100,1,3,X,-,-,-,X,-,-,-,5,-,-
+Repuesto C,O,250,1,3,X,-,-,-,X,-,-,-,5,-,-
+Repuesto D,O,350,1,3,X,-,-,-,X,-,-,-,5,-,-
+Repuesto E,O,320,1,3,X,-,-,-,X,-,-,-,5,-,-
+"Repuesto F,O,40,1,3,O,40,1,3,X,-,-,-,""4,2"",""3,5"",-"
+"Repuesto G,O,78,1,3,O,65,2,3,X,-,-,-,""4,3"",""4,4"",-"
+"Repuesto H,O,65,1,3,O,65,2,3,X,-,-,-,""3,8"",""4,2"",-"
+"Repuesto I,O,240,1,1,O,200,1,1,X,-,-,-,""4,2"",""3,8"",-"
+"Repuesto J,O,784,1,1,O,650,1,1,O,730,1,1,""3,7"",""4,5"",""3,7"""
+"Repuesto K,O,214,1,6,O,214,1,3,O,150,2,6,""4,1"",""3,6"",""4,5"""
+"Repuesto L,O,30,1,6,O,30,1,3,O,30,1,6,""3,7"",""4,5"",""3,4"""
+"Repuesto M,O,84,1,6,O,80,1,6,O,80,1,6,""2,3"",""4,8"",4"
+Repuesto N,X,-,-,-,O,45,3,-,X,-,-,-,-,5,-
+Repuesto O,X,-,-,-,X,-,-,-,X,-,-,-,-,-,-
+,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,
+,Estos son los seleccionados para adjudicar segun la oferta,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,
+Cobertura oferta 1,13/15,87%,,,,,,,,,,,,,
+Cobertura oferta 2,9/15,60%,,,,,,,,,,,,,
+Cobertura oferta 3,4/15,27%,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,
+Reglas:,,,,,,,,,,,,,,,
+1. Se debe evaluar con la formula cada repuesto solicitado por cada oferta presentada, esto aroja un matriz similar a la que esta en las columnas N,O,P (Los daos que estan ahi son simplemente ejemplo y no fueron calculados con la formula),,,,,,,,,,,,,,,
+2. Si la cobertura es menor al 50% nose le adjudicara ningun repuesto a menos que sea el unico dentro de las ofertas que tenga este (ejemplo repuesto K la evaluacion de la oferta 3 fue la mejor pero por tener la oferta total solo el 27% de cobertura se le adjudica a la oferta 1 que tiene el segun mejor puntaje para este repuesto),,,,,,,,,,,,,,,
+3. De acuerdo con este ejemplo el asesor de la oferta 1 le fueron adjudicados 8 de los 15 repuestos y al asesor de la oferta 2 le fueron adjudicados 6 de 15, quedando solo un repuesto que nadie tenia.,,,,,,,,,,,,,,,
+4. Con esta informacion se debe estructura la oferta que se le entregara al cliente y que esta compuesta por dos asesores que incluso pueden estar en diferentes ciudades y pertenecer a tiendas diferentes,,,,,,,,,,,,,,,
+5. En este caso la oferta A y B serian ganadoras,,,,,,,,,,,,,,,
+6. bajo este esquema se debe evaluar todas las ofertas y utilizando la formula ya establecida Puntaje_Final = (Puntaje_Precio × peso_precio) + (Puntaje_Tiempo × peso_tiempo) + (Puntaje_Garantía × peso_garantía),,,,,,,,,,,,,,,

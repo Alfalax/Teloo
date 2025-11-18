@@ -174,7 +174,6 @@ export function AsesoresTable({
             <TableHead>Punto de Venta</TableHead>
             <TableHead>Ubicación</TableHead>
             <TableHead>Estado</TableHead>
-            <TableHead>Nivel</TableHead>
             <TableHead>Confianza</TableHead>
             <TableHead>Métricas</TableHead>
             <TableHead className="w-12"></TableHead>
@@ -183,7 +182,7 @@ export function AsesoresTable({
         <TableBody>
           {asesores.length === 0 ? (
             <TableRow>
-              <TableCell colSpan={10} className="text-center py-8 text-muted-foreground">
+              <TableCell colSpan={9} className="text-center py-8 text-muted-foreground">
                 No se encontraron asesores
               </TableCell>
             </TableRow>
@@ -238,13 +237,6 @@ export function AsesoresTable({
                   <Badge variant={getEstadoBadgeVariant(asesor.estado)}>
                     {asesor.estado}
                   </Badge>
-                </TableCell>
-                <TableCell>
-                  <div className="text-center">
-                    <span className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-primary text-primary-foreground text-xs font-medium">
-                      {asesor.nivel_actual}
-                    </span>
-                  </div>
                 </TableCell>
                 <TableCell>
                   <div className={cn("font-medium", getConfianzaColor(asesor.confianza))}>

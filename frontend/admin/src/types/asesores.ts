@@ -13,7 +13,6 @@ export interface Asesor {
   punto_venta: string;
   direccion_punto_venta?: string;
   confianza: number;
-  nivel_actual: number;
   actividad_reciente_pct: number;
   desempeno_historico_pct: number;
   estado: 'ACTIVO' | 'INACTIVO' | 'SUSPENDIDO';
@@ -110,7 +109,6 @@ export interface ExcelExportData {
   direccion_punto_venta: string;
   estado: string;
   confianza: number;
-  nivel_actual: number;
   actividad_reciente_pct: number;
   desempeno_historico_pct: number;
   total_ofertas: number;

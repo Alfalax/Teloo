@@ -3,6 +3,14 @@ import { SolicitudConOferta } from '@/types/solicitud';
 
 // Service for managing solicitudes with offers
 export const solicitudesService = {
+  async getMisSolicitudes(): Promise<SolicitudConOferta[]> {
+    // Trae TODAS las solicitudes del asesor (sin filtrar por estado)
+    const response = await apiClient.get<{ items: SolicitudConOferta[] }>('/v1/solicitudes', {
+      params: { page: 1, page_size: 100 },
+    });
+    return response.data.items || [];
+  },
+
   async getSolicitudesAbiertas(): Promise<SolicitudConOferta[]> {
     const response = await apiClient.get<{ items: SolicitudConOferta[] }>('/v1/solicitudes', {
       params: { estado: 'ABIERTA', page: 1, page_size: 100 },
@@ -11,17 +19,17 @@ export const solicitudesService = {
   },
 
   async getSolicitudesCerradas(): Promise<SolicitudConOferta[]> {
-    // Cerradas son las rechazadas, expiradas o cerradas sin ofertas
+    // Cerradas son las que están sin ofertas
     const response = await apiClient.get<{ items: SolicitudConOferta[] }>('/v1/solicitudes', {
-      params: { estado: 'RECHAZADA', page: 1, page_size: 100 },
+      params: { estado: 'CERRADA_SIN_OFERTAS', page: 1, page_size: 100 },
     });
     return response.data.items || [];
   },
 
   async getSolicitudesGanadas(): Promise<SolicitudConOferta[]> {
-    // Ganadas son las aceptadas
+    // Ganadas son las evaluadas donde el asesor ganó
     const response = await apiClient.get<{ items: SolicitudConOferta[] }>('/v1/solicitudes', {
-      params: { estado: 'ACEPTADA', page: 1, page_size: 100 },
+      params: { estado: 'EVALUADA', page: 1, page_size: 100 },
     });
     return response.data.items || [];
   },
@@ -32,10 +40,11 @@ export const solicitudesService = {
   },
 
   async getMetrics(): Promise<{
-    ofertas_asignadas: number;
+    repuestos_adjudicados: number;
     monto_total_ganado: number;
-    solicitudes_abiertas: number;
+    pendientes_por_oferta: number;
     tasa_conversion: number;
+    tasa_oferta: number;
   }> {
     const response = await apiClient.get('/v1/solicitudes/metrics');
     return response.data;

@@ -12,16 +12,41 @@ interface SolicitudCardProps {
 }
 
 export default function SolicitudCard({ solicitud, onHacerOferta, onVerOferta }: SolicitudCardProps) {
-  const tiempoRestante = solicitud.tiempo_restante_horas || 0;
-  const isUrgente = tiempoRestante < 4;
+  const tiempoRestanteMinutos = solicitud.tiempo_restante_minutos || 0;
+  const tiempoTotalNivelMinutos = solicitud.tiempo_total_nivel_minutos || 1440; // Tiempo total configurado para el nivel (default 24h = 1440min)
   const repuestos = solicitud.repuestos_solicitados || solicitud.repuestos || [];
   const tieneOferta = !!solicitud.mi_oferta;
+  const estadoSolicitud = solicitud.estado;
+  const solicitudActiva = ['ABIERTA', 'EVALUADA'].includes(estadoSolicitud);
   
-  // Calcular monto total de la oferta
+  // Calcular porcentaje de tiempo restante
+  const porcentajeTiempo = (tiempoRestanteMinutos / tiempoTotalNivelMinutos) * 100;
+  
+  // Determinar color según porcentaje
+  // 70-100%: verde, 40-70%: amarillo, 0-40%: rojo
+  const getColorBadge = () => {
+    if (porcentajeTiempo >= 70) return 'default'; // Verde
+    if (porcentajeTiempo >= 40) return 'warning'; // Amarillo
+    return 'destructive'; // Rojo
+  };
+  
+  // Formatear tiempo para mostrar (convertir minutos a formato legible)
+  const formatTiempo = (minutos: number) => {
+    if (minutos >= 60) {
+      const horas = Math.floor(minutos / 60);
+      const mins = minutos % 60;
+      return mins > 0 ? `${horas}h ${mins}m` : `${horas}h`;
+    }
+    return `${minutos}m`;
+  };
+  
+  // Calcular monto total de la oferta desde los detalles
   const montoTotal = solicitud.mi_oferta?.detalles?.reduce(
     (sum, detalle) => sum + (detalle.precio_unitario * detalle.cantidad), 
     0
   ) || 0;
+  
+  const cantidadRepuestos = solicitud.mi_oferta?.detalles?.length || 0;
 
   return (
     <Card className={`hover:shadow-md transition-shadow ${tieneOferta ? 'border-green-200 dark:border-green-800' : ''}`}>
@@ -30,14 +55,10 @@ export default function SolicitudCard({ solicitud, onHacerOferta, onVerOferta }:
           <div className="space-y-1 flex-1">
             <div className="flex items-center gap-2 flex-wrap">
               <h3 className="font-semibold text-lg">Solicitud #{solicitud.id.slice(0, 8)}</h3>
-              <Badge variant={isUrgente ? 'destructive' : 'warning'}>
-                <Clock className="h-3 w-3 mr-1" />
-                {tiempoRestante}h restantes
-              </Badge>
-              {tieneOferta && (
-                <Badge variant="success" className="gap-1">
-                  <CheckCircle2 className="h-3 w-3" />
-                  Oferta enviada
+              {solicitudActiva && tiempoRestanteMinutos > 0 && (
+                <Badge variant={getColorBadge()}>
+                  <Clock className="h-3 w-3 mr-1" />
+                  {formatTiempo(tiempoRestanteMinutos)}
                 </Badge>
               )}
             </div>
@@ -71,7 +92,10 @@ export default function SolicitudCard({ solicitud, onHacerOferta, onVerOferta }:
           <div className="p-3 bg-green-50 dark:bg-green-950 rounded-lg border border-green-200 dark:border-green-800">
             <div className="flex items-center justify-between mb-2">
               <h4 className="text-sm font-semibold text-green-900 dark:text-green-100">Mi Oferta</h4>
-              <Badge variant="outline" className="text-xs">
+              <Badge 
+                variant={solicitud.mi_oferta.estado === 'GANADORA' ? 'success' : 'outline'} 
+                className="text-xs"
+              >
                 {solicitud.mi_oferta.estado}
               </Badge>
             </div>
@@ -87,7 +111,7 @@ export default function SolicitudCard({ solicitud, onHacerOferta, onVerOferta }:
                 <Package className="h-4 w-4 text-green-600" />
                 <div>
                   <p className="text-xs text-muted-foreground">Repuestos</p>
-                  <p className="font-semibold">{solicitud.mi_oferta.detalles?.length || 0}</p>
+                  <p className="font-semibold">{cantidadRepuestos}</p>
                 </div>
               </div>
               <div className="flex items-center gap-1">

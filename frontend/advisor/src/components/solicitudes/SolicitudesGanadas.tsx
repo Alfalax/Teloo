@@ -5,7 +5,8 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { SolicitudConOferta } from '@/types/solicitud';
 import { solicitudesService } from '@/services/solicitudes';
-import { formatRelativeTime, formatCurrency } from '@/lib/utils';
+import { formatCurrency } from '@/lib/utils';
+import { formatRelativeTime } from '@/utils/dateUtils';
 
 export default function SolicitudesGanadas() {
   const [solicitudes, setSolicitudes] = useState<SolicitudConOferta[]>([]);
@@ -113,7 +114,7 @@ export default function SolicitudesGanadas() {
                       </div>
                       <div className="flex items-center gap-1">
                         <Package className="h-4 w-4" />
-                        {solicitud.repuestos.length} repuesto{solicitud.repuestos.length !== 1 ? 's' : ''}
+                        {(solicitud.repuestos_solicitados || solicitud.repuestos || []).length} repuesto{(solicitud.repuestos_solicitados || solicitud.repuestos || []).length !== 1 ? 's' : ''}
                       </div>
                     </div>
                   </div>
@@ -121,23 +122,23 @@ export default function SolicitudesGanadas() {
               </CardHeader>
 
               <CardContent className="space-y-3">
-                {solicitud.repuestos.length > 0 && (
+                {((solicitud.repuestos_solicitados || solicitud.repuestos || []).length > 0) && (
                   <div className="space-y-2">
                     <div className="flex items-center gap-2 text-sm font-medium">
                       <Car className="h-4 w-4 text-primary" />
                       <span>
-                        {solicitud.repuestos[0].marca_vehiculo} {solicitud.repuestos[0].linea_vehiculo} {solicitud.repuestos[0].anio_vehiculo}
+                        {(solicitud.repuestos_solicitados || solicitud.repuestos || [])[0]?.marca_vehiculo} {(solicitud.repuestos_solicitados || solicitud.repuestos || [])[0]?.linea_vehiculo} {(solicitud.repuestos_solicitados || solicitud.repuestos || [])[0]?.anio_vehiculo}
                       </span>
                     </div>
                     <div className="space-y-1">
-                      {solicitud.repuestos.slice(0, 2).map((repuesto, index) => (
+                      {(solicitud.repuestos_solicitados || solicitud.repuestos || []).slice(0, 2).map((repuesto, index) => (
                         <div key={repuesto.id} className="text-sm">
                           {index + 1}. {repuesto.nombre}
                         </div>
                       ))}
-                      {solicitud.repuestos.length > 2 && (
+                      {(solicitud.repuestos_solicitados || solicitud.repuestos || []).length > 2 && (
                         <div className="text-xs text-muted-foreground">
-                          +{solicitud.repuestos.length - 2} más
+                          +{(solicitud.repuestos_solicitados || solicitud.repuestos || []).length - 2} más
                         </div>
                       )}
                     </div>
@@ -191,7 +192,7 @@ export default function SolicitudesGanadas() {
 
                 <div className="text-xs text-muted-foreground pt-2 border-t flex items-center gap-1">
                   <Clock className="h-3 w-3" />
-                  Ganada {formatRelativeTime(solicitud.updated_at)}
+                  Ganada {formatRelativeTime(solicitud.updated_at || solicitud.created_at || new Date().toISOString())}
                 </div>
               </CardContent>
 

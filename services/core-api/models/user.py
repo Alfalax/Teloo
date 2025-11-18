@@ -159,7 +159,6 @@ class Asesor(BaseModel):
         decimal_places=1, 
         default=Decimal('3.0')
     )  # 1.0-5.0
-    nivel_actual = fields.IntField(default=3)  # 1-5
     actividad_reciente_pct = fields.DecimalField(
         max_digits=5, 
         decimal_places=2, 

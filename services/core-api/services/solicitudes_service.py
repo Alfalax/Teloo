@@ -71,13 +71,12 @@ class SolicitudesService:
             if nivel_match_uuids:
                 query = query.filter(
                     Q(id__in=nivel_match_uuids) |
-                    Q(ofertas__asesor_id=asesor_id, estado=EstadoSolicitud.ABIERTA)
+                    Q(ofertas__asesor_id=asesor_id)  # Sin filtro de estado - mostrar todas donde hizo oferta
                 ).distinct()
             else:
-                # Only show solicitudes where they made an offer
+                # Only show solicitudes where they made an offer (sin importar estado)
                 query = query.filter(
-                    ofertas__asesor_id=asesor_id,
-                    estado=EstadoSolicitud.ABIERTA
+                    ofertas__asesor_id=asesor_id
                 ).distinct()
         
         # Apply filters
@@ -262,6 +261,9 @@ class SolicitudesService:
     ) -> Dict[str, Any]:
         """
         Create new solicitud with cliente and repuestos
+        
+        Uses atomic transaction to ensure solicitud and all repuestos
+        are created together or rolled back on failure.
         """
         from models.user import Usuario, Cliente
         from models.enums import RolUsuario, EstadoUsuario
@@ -332,36 +334,43 @@ class SolicitudesService:
         if not municipio:
             raise ValueError(f"Municipio con ID {municipio_id} no encontrado en base de datos")
         
-        # Create solicitud
-        solicitud = await Solicitud.create(
-            cliente=cliente,
-            municipio=municipio,
-            estado=EstadoSolicitud.ABIERTA,
-            nivel_actual=1,
-            ciudad_origen=ciudad_origen,
-            departamento_origen=departamento_origen,
-            ofertas_minimas_deseadas=2,
-            timeout_horas=20,
-            total_repuestos=len(repuestos),
-            monto_total_adjudicado=Decimal("0.00")
-        )
-        
-        # Create repuestos
-        repuestos_created = []
-        for rep_data in repuestos:
-            repuesto = await RepuestoSolicitado.create(
-                solicitud=solicitud,
-                nombre=rep_data["nombre"],
-                codigo=rep_data.get("codigo"),
-                descripcion=rep_data.get("descripcion"),
-                cantidad=rep_data["cantidad"],
-                marca_vehiculo=rep_data["marca_vehiculo"],
-                linea_vehiculo=rep_data["linea_vehiculo"],
-                anio_vehiculo=rep_data["anio_vehiculo"],
-                observaciones=rep_data.get("observaciones"),
-                es_urgente=rep_data.get("es_urgente", False)
+        # Use atomic transaction to ensure solicitud and repuestos are created together
+        from tortoise.transactions import in_transaction
+        async with in_transaction() as conn:
+            # Create solicitud
+            solicitud = await Solicitud.create(
+                cliente=cliente,
+                municipio=municipio,
+                estado=EstadoSolicitud.ABIERTA,
+                nivel_actual=1,
+                ciudad_origen=ciudad_origen,
+                departamento_origen=departamento_origen,
+                ofertas_minimas_deseadas=2,
+                timeout_horas=20,
+                total_repuestos=len(repuestos),
+                monto_total_adjudicado=Decimal("0.00"),
+                using_db=conn
             )
-            repuestos_created.append(repuesto)
+            
+            # Create repuestos
+            repuestos_created = []
+            for rep_data in repuestos:
+                repuesto = await RepuestoSolicitado.create(
+                    solicitud=solicitud,
+                    nombre=rep_data["nombre"],
+                    codigo=rep_data.get("codigo"),
+                    descripcion=rep_data.get("descripcion"),
+                    cantidad=rep_data["cantidad"],
+                    marca_vehiculo=rep_data["marca_vehiculo"],
+                    linea_vehiculo=rep_data["linea_vehiculo"],
+                    anio_vehiculo=rep_data["anio_vehiculo"],
+                    observaciones=rep_data.get("observaciones"),
+                    es_urgente=rep_data.get("es_urgente", False),
+                    using_db=conn
+                )
+                repuestos_created.append(repuesto)
+        
+        # Transaction committed successfully at this point
         
         # Reload with relations
         await solicitud.fetch_related("cliente", "cliente__usuario", "repuestos_solicitados")
