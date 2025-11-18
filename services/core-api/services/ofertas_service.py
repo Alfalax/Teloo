@@ -14,8 +14,10 @@ import io
 from models.oferta import Oferta, OfertaDetalle
 from models.solicitud import Solicitud, RepuestoSolicitado
 from models.user import Asesor
+from models.geografia import EvaluacionAsesorTemp
 from models.enums import EstadoSolicitud, EstadoOferta, OrigenOferta
 from services.concurrencia_service import ConcurrenciaService
+from services.events_service import events_service
 
 logger = logging.getLogger(__name__)
 
@@ -170,6 +172,41 @@ class OfertasService:
                 await oferta.save(using_db=conn)
             
             # Transaction committed successfully at this point
+            
+            # Registrar evento en tablas auxiliares para métricas de escalamiento
+            try:
+                # Calcular tiempo de respuesta si existe escalamiento
+                tiempo_respuesta_seg = None
+                evaluacion_temp = await EvaluacionAsesorTemp.filter(
+                    solicitud_id=solicitud.id,
+                    asesor_id=asesor.id
+                ).first()
+                
+                if evaluacion_temp and evaluacion_temp.fecha_notificacion:
+                    # Usar datetime.now() para que coincida con el timezone de fecha_notificacion
+                    tiempo_respuesta_seg = int((datetime.now() - evaluacion_temp.fecha_notificacion.replace(tzinfo=None)).total_seconds())
+                
+                await events_service.on_oferta_created(
+                    oferta_id=oferta.id,
+                    asesor_id=asesor.id,
+                    solicitud_id=solicitud.id,
+                    monto_total=float(monto_total),
+                    cantidad_repuestos=len(detalles_creados),
+                    ciudad_solicitud=solicitud.ciudad_origen or "N/A",
+                    ciudad_asesor=asesor.ciudad or "N/A",
+                    estado=oferta.estado.value,
+                    tiempo_respuesta_seg=tiempo_respuesta_seg
+                )
+                
+                # Registrar que el asesor respondió
+                if tiempo_respuesta_seg is not None:
+                    await events_service.on_asesor_respondio(
+                        asesor_id=asesor.id,
+                        solicitud_id=solicitud.id,
+                        tiempo_respuesta_seg=tiempo_respuesta_seg
+                    )
+            except Exception as e:
+                logger.error(f"Error registrando evento oferta_created: {e}")
             
             # Publish event to Redis
             if redis_client:

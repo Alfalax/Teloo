@@ -17,6 +17,7 @@ from models.analytics import (
     ParametroConfig
 )
 from models.enums import CanalNotificacion, EstadoAsesor, EstadoUsuario
+from services.events_service import events_service
 
 logger = logging.getLogger(__name__)
 
@@ -546,7 +547,8 @@ class EscalamientoService:
                 asesor = eval_data['asesor']
                 variables = eval_data['variables']
                 
-                # Crear evaluación temporal
+                # Crear evaluación temporal con fecha_notificacion
+                fecha_notificacion = datetime.now()
                 evaluacion = await EvaluacionAsesorTemp.create(
                     solicitud=solicitud,
                     asesor=asesor,
@@ -561,6 +563,8 @@ class EscalamientoService:
                     criterio_proximidad=variables['criterio_proximidad'],
                     ciudad_asesor=asesor.ciudad,
                     ciudad_solicitud=solicitud.ciudad_origen,
+                    fecha_notificacion=fecha_notificacion,  # Establecer fecha de notificación
+                    fecha_timeout=fecha_notificacion + timedelta(minutes=eval_data['tiempo_espera_min']),
                     detalles_calculo={
                         'pesos': {
                             'proximidad': 0.40,
@@ -581,6 +585,22 @@ class EscalamientoService:
                 evaluaciones_creadas.append(evaluacion)
         
         logger.info(f"Guardadas {len(evaluaciones_creadas)} evaluaciones temporales para solicitud {solicitud.id}")
+        
+        # Registrar en historial_respuestas_ofertas para métricas de actividad
+        try:
+            fecha_asignacion = datetime.utcnow()
+            
+            for evaluacion in evaluaciones_creadas:
+                await events_service.on_solicitud_escalada(
+                    solicitud_id=solicitud.id,
+                    asesores_notificados=[{'asesor_id': evaluacion.asesor.id}],
+                    nivel=evaluacion.nivel_entrega,
+                    canal=evaluacion.canal.value
+                )
+            
+            logger.info(f"✅ Registrados {len(evaluaciones_creadas)} asesores en historial_respuestas_ofertas")
+        except Exception as e:
+            logger.error(f"❌ Error registrando historial de respuestas: {e}", exc_info=True)
         
         return evaluaciones_creadas
     
@@ -674,6 +694,26 @@ class EscalamientoService:
                     
                 except Exception as e:
                     logger.error(f"Error notificando por Push a {evaluacion.asesor.id}: {e}")
+        
+        # Registrar evento en tablas auxiliares para métricas de escalamiento
+        try:
+            asesores_notificados_data = []
+            for evaluacion in evaluaciones:
+                if evaluacion.fecha_notificacion:  # Solo los que fueron notificados
+                    asesores_notificados_data.append({
+                        'asesor_id': evaluacion.asesor.id
+                    })
+            
+            if asesores_notificados_data:
+                canal_str = 'WHATSAPP' if asesores_whatsapp else 'PUSH'
+                await events_service.on_solicitud_escalada(
+                    solicitud_id=solicitud.id,
+                    asesores_notificados=asesores_notificados_data,
+                    nivel=nivel,
+                    canal=canal_str
+                )
+        except Exception as e:
+            logger.error(f"Error registrando evento solicitud_escalada: {e}")
         
         # Publicar evento a Redis
         if redis_client:

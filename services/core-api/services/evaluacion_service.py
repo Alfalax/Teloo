@@ -14,6 +14,7 @@ from models.oferta import Oferta, OfertaDetalle, AdjudicacionRepuesto, Evaluacio
 from models.solicitud import Solicitud, RepuestoSolicitado
 from models.enums import EstadoSolicitud, EstadoOferta
 from services.configuracion_service import ConfiguracionService
+from services.events_service import events_service
 
 logger = logging.getLogger(__name__)
 
@@ -511,6 +512,13 @@ class EvaluacionService:
                 await solicitud.save(using_db=conn)
             
             # Transaction committed successfully
+            
+            # Registrar eventos de ofertas adjudicadas
+            try:
+                for oferta_id in ofertas_ganadoras_ids:
+                    await events_service.on_oferta_adjudicada(oferta_id)
+            except Exception as e:
+                logger.error(f"Error registrando eventos de ofertas adjudicadas: {e}")
             
             # Calculate evaluation metrics
             end_time = now_utc()
