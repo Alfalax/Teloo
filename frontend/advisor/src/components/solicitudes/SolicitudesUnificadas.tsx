@@ -1,6 +1,6 @@
 // Componente unificado de solicitudes
 import { useState, useEffect, useMemo } from 'react';
-import { Upload, Package, LayoutGrid, Table as TableIcon, Filter } from 'lucide-react';
+import { Package, LayoutGrid, Table as TableIcon, Filter } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -21,7 +21,6 @@ type VistaTipo = 'cards' | 'table';
 
 interface Props {
   onHacerOferta: (solicitud: SolicitudConOferta) => void;
-  onCargaMasiva: () => void;
   onVerOferta?: (solicitud: SolicitudConOferta) => void;
 }
 
@@ -98,7 +97,7 @@ function obtenerConfigBadge(estado: EstadoOfertaAsesor) {
   return configs[estado] || configs['ABIERTA'];
 }
 
-export default function SolicitudesUnificadas({ onHacerOferta, onCargaMasiva, onVerOferta }: Props) {
+export default function SolicitudesUnificadas({ onHacerOferta, onVerOferta }: Props) {
   const [solicitudes, setSolicitudes] = useState<SolicitudConOferta[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -213,10 +212,6 @@ export default function SolicitudesUnificadas({ onHacerOferta, onCargaMasiva, on
           <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
             <CardTitle className="text-xl font-semibold">Mis Solicitudes</CardTitle>
             <div className="flex flex-wrap items-center gap-2">
-              <Button onClick={onCargaMasiva} variant="outline" size="sm" className="flex items-center gap-2">
-                <Upload className="h-4 w-4" />
-                Carga Masiva
-              </Button>
               <div className="flex border rounded-lg p-1">
                 <Button
                   variant={vistaActiva === 'cards' ? 'default' : 'ghost'}

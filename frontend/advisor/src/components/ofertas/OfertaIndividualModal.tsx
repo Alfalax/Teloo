@@ -53,6 +53,9 @@ export default function OfertaIndividualModal({
   // Use repuestos_solicitados or repuestos (backward compatibility)
   const repuestosSolicitud = solicitud.repuestos_solicitados || solicitud.repuestos || [];
   
+  // Verificar si la solicitud permite crear/actualizar ofertas (solo ABIERTA)
+  const puedeOfertar = solicitud.estado === 'ABIERTA';
+  
   const [repuestos, setRepuestos] = useState<RepuestoOferta[]>([]);
   const [tiempoEntrega, setTiempoEntrega] = useState('');
   const [observaciones, setObservaciones] = useState('');
@@ -286,37 +289,53 @@ export default function OfertaIndividualModal({
         <DialogDescription>
           Complete la información de su oferta para los repuestos seleccionados
         </DialogDescription>
+        
+        {/* Alerta cuando la solicitud no permite ofertas */}
+        {!puedeOfertar && (
+          <div className="p-4 text-sm text-amber-800 bg-amber-50 dark:bg-amber-950 dark:text-amber-200 rounded-md flex items-start gap-2 border border-amber-200 dark:border-amber-800">
+            <AlertCircle className="h-5 w-5 mt-0.5 flex-shrink-0" />
+            <div>
+              <p className="font-semibold">Solicitud ya evaluada</p>
+              <p className="mt-1">
+                Esta solicitud ya fue evaluada y no acepta nuevas ofertas o actualizaciones. 
+                El período de recepción de ofertas ha finalizado.
+              </p>
+            </div>
+          </div>
+        )}
           
-        {/* Excel Actions */}
-        <div className="flex gap-2 mt-4">
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            onClick={handleDescargarPlantilla}
-            className="flex items-center gap-2"
-          >
-            <Download className="h-4 w-4" />
-            Descargar Plantilla Excel
-          </Button>
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            onClick={handleCargarExcel}
-            className="flex items-center gap-2"
-          >
-            <Upload className="h-4 w-4" />
-            Cargar desde Excel
-          </Button>
-          <input
-            ref={fileInputRef}
-            type="file"
-            accept=".xlsx,.xls"
-            onChange={handleFileChange}
-            className="hidden"
-          />
-        </div>
+        {/* Excel Actions - Solo visible si puede ofertar */}
+        {puedeOfertar && (
+          <div className="flex gap-2 mt-4">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={handleDescargarPlantilla}
+              className="flex items-center gap-2"
+            >
+              <Download className="h-4 w-4" />
+              Descargar Plantilla Excel
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={handleCargarExcel}
+              className="flex items-center gap-2"
+            >
+              <Upload className="h-4 w-4" />
+              Cargar desde Excel
+            </Button>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept=".xlsx,.xls"
+              onChange={handleFileChange}
+              className="hidden"
+            />
+          </div>
+        )}
 
         <div className="space-y-6">
           {/* Vehicle Info */}
@@ -487,7 +506,11 @@ export default function OfertaIndividualModal({
           <Button variant="outline" onClick={onClose} disabled={isSubmitting}>
             Cancelar
           </Button>
-          <Button onClick={handleSubmit} disabled={isSubmitting}>
+          <Button 
+            onClick={handleSubmit} 
+            disabled={isSubmitting || !puedeOfertar}
+            title={!puedeOfertar ? 'No se pueden enviar ofertas en solicitudes evaluadas' : ''}
+          >
             {isSubmitting ? 'Enviando...' : 'Enviar Oferta'}
           </Button>
         </DialogFooter>

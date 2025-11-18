@@ -2,7 +2,6 @@ import { useState, useEffect } from 'react';
 import KPIDashboard from '@/components/dashboard/KPIDashboard';
 import SolicitudesUnificadas from '@/components/solicitudes/SolicitudesUnificadas';
 import OfertaIndividualModal from '@/components/ofertas/OfertaIndividualModal';
-import CargaMasivaModal from '@/components/ofertas/CargaMasivaModal';
 import VerOfertaModal from '@/components/ofertas/VerOfertaModal';
 import { AsesorKPIs } from '@/types/kpi';
 import { SolicitudConOferta } from '@/types/solicitud';
@@ -18,7 +17,6 @@ export default function DashboardPage() {
   const [isLoadingKPIs, setIsLoadingKPIs] = useState(true);
   const [selectedSolicitud, setSelectedSolicitud] = useState<SolicitudConOferta | null>(null);
   const [showOfertaModal, setShowOfertaModal] = useState(false);
-  const [showCargaMasivaModal, setShowCargaMasivaModal] = useState(false);
   const [showVerOfertaModal, setShowVerOfertaModal] = useState(false);
 
   useEffect(() => {
@@ -56,10 +54,6 @@ export default function DashboardPage() {
     setShowVerOfertaModal(true);
   };
 
-  const handleCargaMasiva = () => {
-    setShowCargaMasivaModal(true);
-  };
-
   return (
     <div className="space-y-6">
       <div>
@@ -74,7 +68,6 @@ export default function DashboardPage() {
       {/* Solicitudes Unificadas con filtros */}
       <SolicitudesUnificadas 
         onHacerOferta={handleHacerOferta}
-        onCargaMasiva={handleCargaMasiva}
         onVerOferta={handleVerOferta}
       />
 
@@ -93,16 +86,6 @@ export default function DashboardPage() {
           }}
         />
       )}
-      
-      {/* Carga Masiva Modal */}
-      <CargaMasivaModal
-        open={showCargaMasivaModal}
-        onClose={() => setShowCargaMasivaModal(false)}
-        onSuccess={() => {
-          // Refresh solicitudes list
-          window.location.reload();
-        }}
-      />
 
       {/* Ver Oferta Modal */}
       <VerOfertaModal
