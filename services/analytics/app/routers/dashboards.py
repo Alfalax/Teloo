@@ -259,7 +259,8 @@ async def get_analisis_asesores(
     ciudad: Optional[str] = Query(None, description="Filtrar por ciudad")
 ) -> Dict[str, Any]:
     """
-    Obtener análisis de asesores con 13 KPIs alineados
+    Cuadros de Mando de Rendimiento del Asesor (Advisor Scorecards) + Segmentación RFM
+    Implementación según especificación 3.1 y 3.2
     """
     try:
         # Convertir fechas
@@ -271,7 +272,7 @@ async def get_analisis_asesores(
         asesores = await metrics_calculator.get_analisis_asesores(fecha_inicio_dt, fecha_fin_dt, ciudad)
         
         return {
-            "dashboard": "asesores",
+            "dashboard": "advisor_scorecards_rfm",
             "periodo": {
                 "inicio": fecha_inicio_dt.isoformat(),
                 "fin": fecha_fin_dt.isoformat()
@@ -279,7 +280,7 @@ async def get_analisis_asesores(
             "filtros": {
                 "ciudad": ciudad
             },
-            "metricas": asesores,
+            "datos": asesores,
             "generado_en": datetime.utcnow().isoformat()
         }
         

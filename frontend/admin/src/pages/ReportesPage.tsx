@@ -8,6 +8,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { analyticsService } from '@/services/analytics';
 import { Download, Filter, TrendingUp, Users, DollarSign, Activity } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell, FunnelChart, Funnel, LabelList } from 'recharts';
+import { AdvisorScorecardsTable } from '@/components/analytics/AdvisorScorecardsTable';
+import { SegmentacionRFM } from '@/components/analytics/SegmentacionRFM';
 
 interface DashboardFilters {
   fechaInicio: string;
@@ -615,199 +617,52 @@ const SaludMarketplaceReport: React.FC<{ data: any }> = ({ data }) => {
 };
 
 const AsesoresReport: React.FC<{ data: any }> = ({ data }) => {
-  const metricas = data?.metricas || {};
-  const tasa_respuesta = metricas.tasa_respuesta_promedio || {};
-  const tiempo_respuesta = metricas.tiempo_respuesta_promedio || {};
-  const ofertas_asesor = metricas.ofertas_por_asesor || {};
-  const tasa_adjudicacion = metricas.tasa_adjudicacion_por_asesor || {};
-  const nivel_confianza = metricas.nivel_confianza_promedio || {};
-  const asesores_nuevos = metricas.asesores_nuevos || {};
-  const tasa_retencion = metricas.tasa_retencion || {};
-  const satisfaccion = metricas.satisfaccion_cliente || {};
-  const valor_promedio = metricas.valor_promedio_oferta || {};
+  // Nueva estructura: advisor_scorecards y segmentacion_rfm
+  const advisorScorecardsData = data?.datos?.advisor_scorecards;
+  const segmentacionRFMData = data?.datos?.segmentacion_rfm;
+  const resumenEjecutivo = data?.datos?.resumen_ejecutivo;
+
+  // Si no hay datos, mostrar mensaje
+  if (!advisorScorecardsData || !segmentacionRFMData) {
+    return (
+      <div className="flex flex-col items-center justify-center h-64 text-center">
+        <Users className="h-12 w-12 text-gray-400 mb-4" />
+        <p className="text-lg text-gray-600">No hay datos disponibles</p>
+        <p className="text-sm text-gray-500">Selecciona un rango de fechas diferente</p>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center gap-2 mb-4">
-        <Users className="h-6 w-6 text-purple-600" />
-        <h2 className="text-2xl font-bold">Análisis de Asesores - 13 KPIs</h2>
-      </div>
-
-      {/* KPIs 1-4: Principales */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-        <Card>
+      {/* Resumen Ejecutivo */}
+      {resumenEjecutivo && (
+        <Card className="bg-gradient-to-r from-purple-50 to-blue-50">
           <CardContent className="p-6">
-            <p className="text-sm font-medium text-gray-600">1. Asesores Activos</p>
-            <p className="text-3xl font-bold text-purple-600">{metricas.total_asesores_activos || 0}</p>
-            <p className="text-xs text-gray-500 mt-1">Con ofertas en el período</p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardContent className="p-6">
-            <p className="text-sm font-medium text-gray-600">2. Tasa de Respuesta</p>
-            <p className="text-3xl font-bold text-blue-600">{(tasa_respuesta.tasa_promedio || 0).toFixed(1)}%</p>
-            <p className="text-xs text-gray-500 mt-1">{tasa_respuesta.total_asesores || 0} asesores</p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardContent className="p-6">
-            <p className="text-sm font-medium text-gray-600">3. Tiempo de Respuesta</p>
-            <p className="text-3xl font-bold text-orange-600">{(tiempo_respuesta.tiempo_promedio_minutos || 0).toFixed(0)} min</p>
-            <p className="text-xs text-gray-500 mt-1">Mediana: {(tiempo_respuesta.mediana_minutos || 0).toFixed(0)} min</p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardContent className="p-6">
-            <p className="text-sm font-medium text-gray-600">4. Ofertas por Asesor</p>
-            <p className="text-3xl font-bold text-green-600">{(ofertas_asesor.ofertas_promedio || 0).toFixed(1)}</p>
-            <p className="text-xs text-gray-500 mt-1">Mediana: {(ofertas_asesor.mediana || 0).toFixed(0)}</p>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* KPIs 5-8: Performance */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-        <Card>
-          <CardContent className="p-6">
-            <p className="text-sm font-medium text-gray-600">5. Tasa de Adjudicación</p>
-            <p className="text-3xl font-bold text-teal-600">{(tasa_adjudicacion.tasa_promedio || 0).toFixed(1)}%</p>
-            <p className="text-xs text-gray-500 mt-1">Mediana: {(tasa_adjudicacion.mediana || 0).toFixed(1)}%</p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardContent className="p-6">
-            <p className="text-sm font-medium text-gray-600">9. Nivel de Confianza</p>
-            <p className="text-3xl font-bold text-yellow-600">{(nivel_confianza.nivel_promedio || 0).toFixed(1)}</p>
-            <p className="text-xs text-gray-500 mt-1">De 5.0 | Mediana: {(nivel_confianza.mediana || 0).toFixed(1)}</p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardContent className="p-6">
-            <p className="text-sm font-medium text-gray-600">10. Asesores Nuevos</p>
-            <p className="text-3xl font-bold text-indigo-600">{asesores_nuevos.asesores_nuevos || 0}</p>
-            <p className="text-xs text-gray-500 mt-1">{asesores_nuevos.con_ofertas || 0} con ofertas</p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardContent className="p-6">
-            <p className="text-sm font-medium text-gray-600">11. Tasa de Retención</p>
-            <p className="text-3xl font-bold text-green-600">{(tasa_retencion.tasa_retencion || 0).toFixed(1)}%</p>
-            <p className="text-xs text-gray-500 mt-1">{tasa_retencion.asesores_retenidos || 0} retenidos</p>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* KPIs 12-13: Satisfacción y Valor */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <Card>
-          <CardContent className="p-6">
-            <p className="text-sm font-medium text-gray-600">12. Satisfacción del Cliente</p>
-            <p className="text-3xl font-bold text-pink-600">{(satisfaccion.calificacion_promedio || 0).toFixed(1)}/5.0</p>
-            <p className="text-xs text-gray-500 mt-1">{satisfaccion.asesores_calificados || 0} asesores calificados | Mediana: {(satisfaccion.mediana || 0).toFixed(1)}</p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardContent className="p-6">
-            <p className="text-sm font-medium text-gray-600">13. Valor Promedio de Oferta</p>
-            <p className="text-3xl font-bold text-emerald-600">${(valor_promedio.valor_promedio || 0).toLocaleString()}</p>
-            <p className="text-xs text-gray-500 mt-1">Mediana: ${(valor_promedio.mediana || 0).toLocaleString()}</p>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Ranking Top 10 */}
-      <Card>
-        <CardHeader>
-          <CardTitle>6. Ranking Top 10 Asesores</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="space-y-2">
-            {(metricas.ranking_top_10 || []).length > 0 ? (
-              (metricas.ranking_top_10 || []).map((asesor: any, index: number) => (
-                <div key={index} className="flex justify-between items-center py-2 border-b last:border-b-0">
-                  <div className="flex items-center gap-3">
-                    <Badge variant="outline" className="w-8 h-8 flex items-center justify-center font-bold">
-                      {index + 1}
-                    </Badge>
-                    <div>
-                      <p className="font-medium">{asesor.nombre_comercial || `Asesor ${index + 1}`}</p>
-                      <p className="text-xs text-gray-500">{asesor.ciudad || ''}</p>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-3">
-                    <div className="text-right">
-                      <p className="text-sm font-bold">{asesor.ofertas_ganadoras || 0} ganadas</p>
-                      <p className="text-xs text-gray-500">{(asesor.tasa_adjudicacion || 0).toFixed(1)}% tasa</p>
-                    </div>
-                    <Badge variant="outline">⭐ {(asesor.puntaje_promedio || 0).toFixed(1)}</Badge>
-                  </div>
-                </div>
-              ))
-            ) : (
-              <p className="text-center text-gray-500 py-4">No hay datos disponibles</p>
-            )}
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* KPIs 7-8: Especialización y Distribución */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <Card>
-          <CardHeader>
-            <CardTitle>7. Especialización por Tipo de Repuesto</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-2">
-              {(metricas.especializacion_repuestos || []).length > 0 ? (
-                (metricas.especializacion_repuestos || []).slice(0, 10).map((item: any, index: number) => (
-                  <div key={index} className="flex justify-between items-center py-2 border-b last:border-b-0">
-                    <span className="font-medium">{item.categoria || 'N/A'}</span>
-                    <div className="flex items-center gap-2">
-                      <span className="text-sm text-gray-500">{item.asesores_participantes || 0} asesores</span>
-                      <Badge variant="outline">{(item.tasa_exito || 0).toFixed(1)}%</Badge>
-                    </div>
-                  </div>
-                ))
-              ) : (
-                <p className="text-center text-gray-500 py-4">No hay datos disponibles</p>
-              )}
+            <div className="flex items-center justify-between">
+              <div>
+                <h3 className="text-lg font-semibold text-gray-900">Resumen Ejecutivo</h3>
+                <p className="text-sm text-gray-600 mt-1">
+                  Análisis de {resumenEjecutivo.total_asesores_analizados} asesores
+                </p>
+              </div>
+              <Badge variant="secondary" className="text-lg px-4 py-2">
+                {resumenEjecutivo.total_asesores_analizados} Asesores
+              </Badge>
             </div>
           </CardContent>
         </Card>
+      )}
 
-        <Card>
-          <CardHeader>
-            <CardTitle>8. Distribución Geográfica</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-2">
-              {(metricas.distribucion_geografica || []).length > 0 ? (
-                (metricas.distribucion_geografica || []).slice(0, 10).map((item: any, index: number) => (
-                  <div key={index} className="flex justify-between items-center py-2 border-b last:border-b-0">
-                    <span className="font-medium">{item.ciudad || 'N/A'}</span>
-                    <div className="flex items-center gap-2">
-                      <span className="text-sm text-gray-500">{item.asesores_activos || 0} asesores</span>
-                      <Badge variant="outline">{item.ofertas_ganadoras || 0} ganadas</Badge>
-                    </div>
-                  </div>
-                ))
-              ) : (
-                <p className="text-center text-gray-500 py-4">No hay datos disponibles</p>
-              )}
-            </div>
-          </CardContent>
-        </Card>
-      </div>
+      {/* Advisor Scorecards Table */}
+      <AdvisorScorecardsTable data={advisorScorecardsData} />
+
+      {/* Segmentación RFM */}
+      <SegmentacionRFM data={segmentacionRFMData} />
     </div>
   );
 };
+
 
 // Componente para Dashboard Financiero - 6 KPIs
 const FinancieroReport: React.FC<{ data: any }> = ({ data }) => {

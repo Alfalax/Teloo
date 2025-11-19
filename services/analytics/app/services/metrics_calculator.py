@@ -20,6 +20,21 @@ class MetricsCalculator:
     def __init__(self):
         self.cache_prefix = "metrics:"
     
+    def _convert_decimals(self, data: Any) -> Any:
+        """
+        Convertir Decimals a float recursivamente para serialización JSON
+        """
+        from decimal import Decimal
+        
+        if isinstance(data, Decimal):
+            return float(data)
+        elif isinstance(data, dict):
+            return {k: self._convert_decimals(v) for k, v in data.items()}
+        elif isinstance(data, list):
+            return [self._convert_decimals(item) for item in data]
+        else:
+            return data
+    
     async def _execute_query(self, query: str, params: list = None) -> List[Dict[str, Any]]:
         """
         Helper para ejecutar queries SQL y retornar resultados como diccionarios
@@ -29,7 +44,8 @@ class MetricsCalculator:
             conn = connections.get("default")
             # Usar el método correcto de Tortoise que retorna diccionarios
             results = await conn.execute_query_dict(query, params or [])
-            return results if results else []
+            # Convertir Decimals a float
+            return self._convert_decimals(results) if results else []
         except AttributeError:
             # Si execute_query_dict no existe, usar execute_query y convertir manualmente
             try:
@@ -39,7 +55,9 @@ class MetricsCalculator:
                 # results[0] = columnas, results[1] = filas
                 columns = [desc[0] for desc in results[0]]
                 rows = results[1]
-                return [dict(zip(columns, row)) for row in rows]
+                data = [dict(zip(columns, row)) for row in rows]
+                # Convertir Decimals a float
+                return self._convert_decimals(data)
             except Exception as e2:
                 logger.error(f"Error en fallback de query: {e2}")
                 return []
@@ -1429,14 +1447,15 @@ class MetricsCalculator:
 
     async def get_analisis_asesores(self, fecha_inicio: datetime = None, fecha_fin: datetime = None, ciudad: str = None) -> Dict[str, Any]:
         """
-        Obtener análisis de asesores (13 KPIs alineados con Indicadores.txt)
+        Cuadros de Mando de Rendimiento del Asesor (Advisor Scorecards) + Segmentación RFM
+        Implementación según especificación 3.1 y 3.2
         """
         if not fecha_inicio:
             fecha_inicio = datetime.utcnow() - timedelta(days=30)
         if not fecha_fin:
             fecha_fin = datetime.utcnow()
             
-        cache_key = f"{self.cache_prefix}analisis_asesores:{fecha_inicio.date()}:{fecha_fin.date()}:{ciudad or 'all'}"
+        cache_key = f"{self.cache_prefix}advisor_scorecards_rfm:{fecha_inicio.date()}:{fecha_fin.date()}:{ciudad or 'all'}"
         
         try:
             cached_data = await redis_manager.get_cache(cache_key)
@@ -1446,49 +1465,350 @@ class MetricsCalculator:
             logger.warning(f"Error accediendo al cache: {e}")
             
         try:
-            asesores = {
-                "total_asesores_activos": await self._calcular_total_asesores_activos(fecha_inicio, fecha_fin, ciudad),
-                "tasa_respuesta_promedio": await self._calcular_tasa_respuesta_asesores(fecha_inicio, fecha_fin, ciudad),
-                "tiempo_respuesta_promedio": await self._calcular_tiempo_respuesta_asesores(fecha_inicio, fecha_fin, ciudad),
-                "ofertas_por_asesor": await self._calcular_ofertas_por_asesor(fecha_inicio, fecha_fin, ciudad),
-                "tasa_adjudicacion_por_asesor": await self._calcular_tasa_adjudicacion_asesor(fecha_inicio, fecha_fin, ciudad),
-                "ranking_top_10": await self._calcular_ranking_top_asesores(fecha_inicio, fecha_fin, ciudad),
-                "especializacion_repuestos": await self._calcular_especializacion_repuestos(fecha_inicio, fecha_fin, ciudad),
-                "distribucion_geografica": await self._calcular_distribucion_geografica(fecha_inicio, fecha_fin),
-                "nivel_confianza_promedio": await self._calcular_nivel_confianza_promedio(fecha_inicio, fecha_fin, ciudad),
-                "asesores_nuevos": await self._calcular_asesores_nuevos(fecha_inicio, fecha_fin, ciudad),
-                "tasa_retencion": await self._calcular_tasa_retencion_asesores(fecha_inicio, fecha_fin, ciudad),
-                "satisfaccion_cliente": await self._calcular_satisfaccion_cliente_asesores(fecha_inicio, fecha_fin, ciudad),
-                "valor_promedio_oferta": await self._calcular_valor_promedio_oferta_asesor(fecha_inicio, fecha_fin, ciudad)
+            # 3.1 Cuadros de Mando: Calcular métricas por asesor
+            scorecards = await self._calcular_advisor_scorecards(fecha_inicio, fecha_fin, ciudad)
+            
+            # 3.2 Segmentación RFM: Clasificar asesores en segmentos
+            segmentacion_rfm = await self._calcular_segmentacion_rfm(fecha_inicio, fecha_fin, ciudad)
+            
+            result = {
+                "advisor_scorecards": scorecards,
+                "segmentacion_rfm": segmentacion_rfm,
+                "resumen_ejecutivo": {
+                    "total_asesores_analizados": len(scorecards.get("asesores", [])),
+                    "periodo_analisis": {
+                        "inicio": fecha_inicio.isoformat(),
+                        "fin": fecha_fin.isoformat()
+                    },
+                    "filtro_ciudad": ciudad
+                }
             }
             
             try:
-                await redis_manager.set_cache(cache_key, asesores, ttl=900)  # 15 minutos
+                await redis_manager.set_cache(cache_key, result, ttl=900)  # 15 minutos
             except Exception as e:
                 logger.warning(f"Error guardando en cache: {e}")
                 
-            return asesores
+            return result
         except Exception as e:
             logger.error(f"Error calculando análisis de asesores: {e}", exc_info=True)
             return {
-                "total_asesores_activos": 0,
-                "tasa_respuesta_promedio": {"tasa_promedio": 0.0},
-                "tiempo_respuesta_promedio": {"tiempo_promedio_minutos": 0.0},
-                "ofertas_por_asesor": {"ofertas_promedio": 0.0},
-                "tasa_adjudicacion_por_asesor": {"tasa_promedio": 0.0},
-                "ranking_top_10": [],
-                "especializacion_repuestos": [],
-                "distribucion_geografica": [],
-                "nivel_confianza_promedio": {"nivel_promedio": 0.0},
-                "asesores_nuevos": {"asesores_nuevos": 0},
-                "tasa_retencion": {"tasa_retencion": 0.0},
-                "satisfaccion_cliente": {"calificacion_promedio": 0.0},
-                "valor_promedio_oferta": {"valor_promedio": 0}
+                "advisor_scorecards": {"asesores": [], "metricas_definicion": {}},
+                "segmentacion_rfm": {"segmentos": [], "acciones_recomendadas": {}, "definiciones": {}},
+                "resumen_ejecutivo": {
+                    "total_asesores_analizados": 0,
+                    "periodo_analisis": {
+                        "inicio": fecha_inicio.isoformat(),
+                        "fin": fecha_fin.isoformat()
+                    },
+                    "filtro_ciudad": ciudad
+                }
             }
 
     
     # ============================================================================
-    # MÉTODOS PARA DASHBOARD ANÁLISIS DE ASESORES (13 KPIs)
+    # 3.1 CUADROS DE MANDO DE RENDIMIENTO DEL ASESOR (ADVISOR SCORECARDS)
+    # ============================================================================
+    
+    async def _calcular_advisor_scorecards(self, fecha_inicio: datetime, fecha_fin: datetime, ciudad: str = None) -> Dict[str, Any]:
+        """
+        Calcula las 5 métricas de rendimiento por asesor según especificación 3.1
+        """
+        ciudad_filter = "AND a.ciudad = $3" if ciudad else ""
+        params = [fecha_inicio, fecha_fin]
+        if ciudad:
+            params.append(ciudad)
+            
+        query = f"""
+        WITH asesores_base AS (
+            SELECT DISTINCT a.id, u.nombre, a.ciudad
+            FROM asesores a
+            JOIN usuarios u ON a.usuario_id = u.id
+            WHERE u.estado = 'ACTIVO' AND a.estado = 'ACTIVO'
+            {ciudad_filter}
+        ),
+        -- 1. Tasa de Presentación de Ofertas (usando historial_respuestas_ofertas como fuente única)
+        asignaciones_por_asesor AS (
+            SELECT 
+                hro.asesor_id,
+                COUNT(DISTINCT hro.solicitud_id) as solicitudes_asignadas,
+                COUNT(DISTINCT CASE WHEN hro.respondio = true THEN hro.solicitud_id END) as solicitudes_respondidas
+            FROM historial_respuestas_ofertas hro
+            WHERE hro.fecha_envio BETWEEN $1::timestamptz AND $2::timestamptz
+            GROUP BY hro.asesor_id
+        ),
+        ofertas_por_asesor AS (
+            SELECT 
+                o.asesor_id,
+                COUNT(*) as total_ofertas
+            FROM ofertas o
+            WHERE o.created_at BETWEEN $1::timestamptz AND $2::timestamptz
+            GROUP BY o.asesor_id
+        ),
+        -- 2. Tasa de Adjudicación Personal
+        adjudicaciones_por_asesor AS (
+            SELECT 
+                o.asesor_id,
+                COUNT(CASE WHEN o.estado = 'GANADORA' THEN 1 END) as ofertas_adjudicadas
+            FROM ofertas o
+            WHERE o.created_at BETWEEN $1::timestamptz AND $2::timestamptz
+            GROUP BY o.asesor_id
+        ),
+        -- 3. Tasa de Aceptación sobre Adjudicaciones
+        aceptaciones_por_asesor AS (
+            SELECT 
+                o.asesor_id,
+                COUNT(CASE WHEN o.estado = 'GANADORA' AND s.estado = 'ACEPTADA' THEN 1 END) as ofertas_aceptadas
+            FROM ofertas o
+            JOIN solicitudes s ON o.solicitud_id = s.id
+            WHERE o.created_at BETWEEN $1::timestamptz AND $2::timestamptz
+            GROUP BY o.asesor_id
+        ),
+        -- 4. Índice de Competitividad (simplificado por ahora)
+        competitividad_por_asesor AS (
+            SELECT 
+                o.asesor_id,
+                AVG(COALESCE(o.puntaje_total, 0)) as indice_competitividad
+            FROM ofertas o
+            WHERE o.created_at BETWEEN $1::timestamptz AND $2::timestamptz
+            GROUP BY o.asesor_id
+        ),
+        -- 5. Mediana de Tiempo de Respuesta
+        tiempos_respuesta AS (
+            SELECT 
+                hro.asesor_id,
+                PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY hro.tiempo_respuesta_seg) as mediana_tiempo_respuesta_seg
+            FROM historial_respuestas_ofertas hro
+            WHERE hro.respondio = true
+            AND hro.fecha_envio BETWEEN $1::timestamptz AND $2::timestamptz
+            AND hro.tiempo_respuesta_seg IS NOT NULL
+            GROUP BY hro.asesor_id
+        )
+        SELECT 
+            ab.id as asesor_id,
+            ab.nombre,
+            ab.ciudad,
+            -- Métricas calculadas
+            COALESCE(apa.solicitudes_asignadas, 0) as solicitudes_asignadas,
+            COALESCE(apa.solicitudes_respondidas, 0) as solicitudes_respondidas,
+            COALESCE(opa.total_ofertas, 0) as total_ofertas,
+            COALESCE(adpa.ofertas_adjudicadas, 0) as ofertas_adjudicadas,
+            COALESCE(acpa.ofertas_aceptadas, 0) as ofertas_aceptadas,
+            COALESCE(cpa.indice_competitividad, 0)::numeric as indice_competitividad,
+            COALESCE(tr.mediana_tiempo_respuesta_seg, 0)::numeric as mediana_tiempo_respuesta_seg,
+            -- KPIs calculados
+            CASE 
+                WHEN COALESCE(apa.solicitudes_asignadas, 0) > 0 THEN 
+                    ROUND((COALESCE(apa.solicitudes_respondidas, 0)::numeric / apa.solicitudes_asignadas * 100), 2)
+                ELSE 0 
+            END as tasa_presentacion_ofertas,
+            CASE 
+                WHEN COALESCE(opa.total_ofertas, 0) > 0 THEN 
+                    ROUND((COALESCE(adpa.ofertas_adjudicadas, 0)::numeric / opa.total_ofertas * 100), 2)
+                ELSE 0 
+            END as tasa_adjudicacion_personal,
+            CASE 
+                WHEN COALESCE(adpa.ofertas_adjudicadas, 0) > 0 THEN 
+                    ROUND((COALESCE(acpa.ofertas_aceptadas, 0)::numeric / adpa.ofertas_adjudicadas * 100), 2)
+                ELSE 0 
+            END as tasa_aceptacion_adjudicaciones
+        FROM asesores_base ab
+        LEFT JOIN asignaciones_por_asesor apa ON ab.id = apa.asesor_id
+        LEFT JOIN ofertas_por_asesor opa ON ab.id = opa.asesor_id
+        LEFT JOIN adjudicaciones_por_asesor adpa ON ab.id = adpa.asesor_id
+        LEFT JOIN aceptaciones_por_asesor acpa ON ab.id = acpa.asesor_id
+        LEFT JOIN competitividad_por_asesor cpa ON ab.id = cpa.asesor_id
+        LEFT JOIN tiempos_respuesta tr ON ab.id = tr.asesor_id
+        ORDER BY tasa_adjudicacion_personal DESC, tasa_presentacion_ofertas DESC
+        """
+        
+        asesores_data = await self._execute_query(query, params)
+        
+        return {
+            "asesores": asesores_data or [],
+            "metricas_definicion": {
+                "tasa_presentacion_ofertas": "% de solicitudes asignadas que recibieron oferta del asesor",
+                "tasa_adjudicacion_personal": "% de ofertas del asesor que resultaron ganadoras",
+                "tasa_aceptacion_adjudicaciones": "% de adjudicaciones del asesor aceptadas por el cliente",
+                "indice_competitividad": "Puntaje promedio de competitividad de las ofertas",
+                "mediana_tiempo_respuesta_seg": "Tiempo mediano de respuesta en segundos"
+            }
+        }
+    
+    async def _calcular_segmentacion_rfm(self, fecha_inicio: datetime, fecha_fin: datetime, ciudad: str = None) -> Dict[str, Any]:
+        """
+        Segmentación RFM de asesores según especificación 3.2
+        R: Recencia (días desde última oferta)
+        F: Frecuencia (ofertas en últimos 30 días)  
+        M: Valor Monetario (GAV_acc en últimos 90 días)
+        """
+        ciudad_filter = "AND a.ciudad = $4" if ciudad else ""
+        params = [fecha_inicio, fecha_fin, datetime.utcnow() - timedelta(days=90)]
+        if ciudad:
+            params.append(ciudad)
+            
+        query = f"""
+        WITH asesores_base AS (
+            SELECT DISTINCT a.id, u.nombre, a.ciudad, u.created_at as fecha_registro
+            FROM asesores a
+            JOIN usuarios u ON a.usuario_id = u.id
+            WHERE u.estado = 'ACTIVO' AND a.estado = 'ACTIVO'
+            {ciudad_filter}
+        ),
+        -- Calcular dimensiones RFM
+        rfm_data AS (
+            SELECT 
+                ab.id as asesor_id,
+                ab.nombre,
+                ab.ciudad,
+                ab.fecha_registro,
+                -- R: Recencia (días desde última oferta)
+                COALESCE(
+                    EXTRACT(EPOCH FROM (NOW() - MAX(o.created_at))) / 86400, 
+                    999
+                )::numeric as recencia_dias,
+                -- F: Frecuencia (ofertas en período actual)
+                COUNT(CASE WHEN o.created_at BETWEEN $1::timestamptz AND $2::timestamptz THEN 1 END) as frecuencia_ofertas,
+                -- M: Valor Monetario (GAV_acc en últimos 90 días)
+                COALESCE(SUM(
+                    CASE WHEN o.estado = 'GANADORA' 
+                         AND s.estado = 'ACEPTADA' 
+                         AND o.created_at >= $3::timestamptz
+                    THEN (
+                        SELECT SUM(od.precio_unitario * od.cantidad)
+                        FROM ofertas_detalle od 
+                        WHERE od.oferta_id = o.id
+                    )
+                    ELSE 0 END
+                ), 0)::numeric as valor_monetario
+            FROM asesores_base ab
+            LEFT JOIN ofertas o ON ab.id = o.asesor_id
+            LEFT JOIN solicitudes s ON o.solicitud_id = s.id
+            GROUP BY ab.id, ab.nombre, ab.ciudad, ab.fecha_registro
+        ),
+        -- Calcular cuartiles para segmentación
+        cuartiles AS (
+            SELECT 
+                PERCENTILE_CONT(0.25) WITHIN GROUP (ORDER BY recencia_dias) as q1_recencia,
+                PERCENTILE_CONT(0.75) WITHIN GROUP (ORDER BY recencia_dias) as q3_recencia,
+                PERCENTILE_CONT(0.25) WITHIN GROUP (ORDER BY frecuencia_ofertas) as q1_frecuencia,
+                PERCENTILE_CONT(0.75) WITHIN GROUP (ORDER BY frecuencia_ofertas) as q3_frecuencia,
+                PERCENTILE_CONT(0.25) WITHIN GROUP (ORDER BY valor_monetario) as q1_valor,
+                PERCENTILE_CONT(0.75) WITHIN GROUP (ORDER BY valor_monetario) as q3_valor
+            FROM rfm_data
+        ),
+        -- Asignar segmentos
+        segmentacion AS (
+            SELECT 
+                rd.*,
+                -- Determinar segmento según reglas de negocio
+                CASE 
+                    -- Asesores Estrella: Alto en las 3 dimensiones
+                    WHEN rd.recencia_dias <= c.q1_recencia 
+                         AND rd.frecuencia_ofertas >= c.q3_frecuencia 
+                         AND rd.valor_monetario >= c.q3_valor 
+                    THEN 'ASESORES_ESTRELLA'
+                    
+                    -- Estrellas en Ascenso: Alta Recencia y Frecuencia, bajo Valor
+                    WHEN rd.recencia_dias <= c.q1_recencia 
+                         AND rd.frecuencia_ofertas >= c.q3_frecuencia 
+                         AND rd.valor_monetario < c.q1_valor 
+                    THEN 'ESTRELLAS_ASCENSO'
+                    
+                    -- Gigantes Dormidos: Baja Recencia, alto Valor histórico
+                    WHEN rd.recencia_dias >= c.q3_recencia 
+                         AND rd.valor_monetario >= c.q3_valor 
+                    THEN 'GIGANTES_DORMIDOS'
+                    
+                    -- Asesores en Riesgo: Recencia media, Frecuencia y Valor en declive
+                    WHEN rd.recencia_dias BETWEEN c.q1_recencia AND c.q3_recencia
+                         AND rd.frecuencia_ofertas < c.q1_frecuencia 
+                         AND rd.valor_monetario < c.q1_valor 
+                    THEN 'ASESORES_RIESGO'
+                    
+                    -- Nuevos Asesores: Menos de 30 días registrados
+                    WHEN EXTRACT(EPOCH FROM (NOW() - rd.fecha_registro)) / 86400 <= 30
+                    THEN 'NUEVOS_ASESORES'
+                    
+                    -- Otros casos
+                    ELSE 'OTROS'
+                END as segmento
+            FROM rfm_data rd
+            CROSS JOIN cuartiles c
+        )
+        SELECT 
+            segmento,
+            COUNT(*) as cantidad_asesores,
+            ROUND(AVG(recencia_dias), 1) as recencia_promedio,
+            ROUND(AVG(frecuencia_ofertas), 1) as frecuencia_promedio,
+            ROUND(AVG(valor_monetario), 0) as valor_promedio,
+            -- Detalle de asesores por segmento (top 10)
+            JSON_AGG(
+                JSON_BUILD_OBJECT(
+                    'asesor_id', asesor_id,
+                    'nombre', nombre,
+                    'ciudad', ciudad,
+                    'recencia_dias', ROUND(recencia_dias, 1),
+                    'frecuencia_ofertas', frecuencia_ofertas,
+                    'valor_monetario', ROUND(valor_monetario, 0)
+                ) ORDER BY valor_monetario DESC
+            ) FILTER (WHERE segmento != 'OTROS') as asesores_detalle
+        FROM segmentacion
+        GROUP BY segmento
+        ORDER BY 
+            CASE segmento
+                WHEN 'ASESORES_ESTRELLA' THEN 1
+                WHEN 'ESTRELLAS_ASCENSO' THEN 2
+                WHEN 'GIGANTES_DORMIDOS' THEN 3
+                WHEN 'ASESORES_RIESGO' THEN 4
+                WHEN 'NUEVOS_ASESORES' THEN 5
+                ELSE 6
+            END
+        """
+        
+        segmentos_data = await self._execute_query(query, params)
+        
+        # Definir acciones recomendadas según especificación
+        acciones_recomendadas = {
+            "ASESORES_ESTRELLA": [
+                "Programa de lealtad (comisiones reducidas, soporte prioritario)",
+                "Acceso beta a nuevas funcionalidades",
+                "Reconocimiento público (ej. 'Asesor del Mes')"
+            ],
+            "ESTRELLAS_ASCENSO": [
+                "Webinars de estrategia sobre cómo crear ofertas ganadoras",
+                "Informes personalizados de competitividad",
+                "Mentoría por parte de Asesores Estrella"
+            ],
+            "GIGANTES_DORMIDOS": [
+                "Campaña de email/WhatsApp personalizada",
+                "Encuesta de salida para entender razones de inactividad",
+                "Incentivo de reactivación (0% comisión en próximas 5 ventas)"
+            ],
+            "ASESORES_RIESGO": [
+                "Alerta automática al gestor de cuentas",
+                "Llamada proactiva para entender problemas",
+                "Sesión de revisión de estrategia"
+            ],
+            "NUEVOS_ASESORES": [
+                "Secuencia de emails de bienvenida con tutoriales",
+                "Asignación de un 'buddy' o mentor",
+                "Metas iniciales gamificadas"
+            ]
+        }
+        
+        return {
+            "segmentos": segmentos_data or [],
+            "acciones_recomendadas": acciones_recomendadas,
+            "definiciones": {
+                "recencia": "Días transcurridos desde la última oferta enviada",
+                "frecuencia": "Número de ofertas enviadas en el período",
+                "valor": "GAV_acc (Valor Bruto Aceptado) generado en últimos 90 días"
+            }
+        }
+    
+    # ============================================================================
+    # MÉTODOS AUXILIARES LEGACY (MANTENER POR COMPATIBILIDAD)
     # ============================================================================
     
     async def _calcular_total_asesores_activos(self, fecha_inicio: datetime, fecha_fin: datetime, ciudad: str = None) -> int:
