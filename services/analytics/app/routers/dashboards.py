@@ -122,21 +122,31 @@ async def get_top_solicitudes_abiertas(
 @router.get("/embudo-operativo")
 async def get_embudo_operativo(
     fecha_inicio: Optional[datetime] = Query(None, description="Fecha inicio (ISO format)"),
-    fecha_fin: Optional[datetime] = Query(None, description="Fecha fin (ISO format)")
+    fecha_fin: Optional[datetime] = Query(None, description="Fecha fin (ISO format)"),
+    nivel: str = Query("solicitud", description="Nivel de cálculo: 'solicitud' o 'repuesto'")
 ) -> Dict[str, Any]:
     """
     Obtener embudo operativo con 11 KPIs de proceso
+    
+    Args:
+        nivel: 'solicitud' para métricas por solicitud completa (vista ejecutiva)
+               'repuesto' para métricas por repuesto individual (análisis detallado)
     """
     try:
         if not fecha_inicio:
             fecha_inicio = datetime.utcnow() - timedelta(days=30)
         if not fecha_fin:
             fecha_fin = datetime.utcnow()
+        
+        # Validar nivel
+        if nivel not in ["solicitud", "repuesto"]:
+            raise HTTPException(status_code=400, detail="Parámetro 'nivel' debe ser 'solicitud' o 'repuesto'")
             
-        embudo = await metrics_calculator.get_embudo_operativo(fecha_inicio, fecha_fin)
+        embudo = await metrics_calculator.get_embudo_operativo(fecha_inicio, fecha_fin, nivel)
         
         return {
             "dashboard": "embudo_operativo",
+            "nivel": nivel,
             "periodo": {
                 "inicio": fecha_inicio.isoformat(),
                 "fin": fecha_fin.isoformat()
@@ -145,6 +155,8 @@ async def get_embudo_operativo(
             "generado_en": datetime.utcnow().isoformat()
         }
         
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error obteniendo embudo operativo: {str(e)}")
 

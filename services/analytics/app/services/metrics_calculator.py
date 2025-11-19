@@ -136,16 +136,20 @@ class MetricsCalculator:
                 "conversion_cambio": 0,
             }
         
-    async def get_embudo_operativo(self, fecha_inicio: datetime = None, fecha_fin: datetime = None) -> Dict[str, Any]:
+    async def get_embudo_operativo(self, fecha_inicio: datetime = None, fecha_fin: datetime = None, nivel: str = "solicitud") -> Dict[str, Any]:
         """
         Obtener métricas del embudo operativo (11 KPIs alineados con Indicadores.txt)
+        
+        Args:
+            nivel: 'solicitud' para métricas por solicitud completa (default)
+                   'repuesto' para métricas por repuesto individual
         """
         if not fecha_inicio:
             fecha_inicio = datetime.utcnow() - timedelta(days=30)
         if not fecha_fin:
             fecha_fin = datetime.utcnow()
             
-        cache_key = f"{self.cache_prefix}embudo_operativo:{fecha_inicio.date()}:{fecha_fin.date()}"
+        cache_key = f"{self.cache_prefix}embudo_operativo:{nivel}:{fecha_inicio.date()}:{fecha_fin.date()}"
         
         try:
             cached_data = await redis_manager.get_cache(cache_key)
@@ -155,33 +159,61 @@ class MetricsCalculator:
             logger.warning(f"Error accediendo al cache: {e}")
             
         try:
-            # Calcular todos los KPIs del embudo
-            embudo = {
-                # 1. Tasa de Entrada
-                "tasa_entrada": await self._calcular_tasa_entrada(fecha_inicio, fecha_fin),
-                
-                # 2-5. Tasas de Conversión
-                "conversiones": {
-                    "abierta_a_evaluacion": await self._calcular_conversion_abierta_evaluacion(fecha_inicio, fecha_fin),
-                    "evaluacion_a_adjudicada": await self._calcular_conversion_evaluacion_adjudicada(fecha_inicio, fecha_fin),
-                    "adjudicada_a_aceptada": await self._calcular_conversion_adjudicada_aceptada(fecha_inicio, fecha_fin),
-                    "conversion_general": await self._calcular_conversion_general(fecha_inicio, fecha_fin)
-                },
-                
-                # 6-8. Métricas de Tiempo
-                "tiempos": {
-                    "ttfo": await self._calcular_ttfo(fecha_inicio, fecha_fin),
-                    "tta": await self._calcular_tta(fecha_inicio, fecha_fin),
-                    "ttcd": await self._calcular_ttcd(fecha_inicio, fecha_fin)
-                },
-                
-                # 9-11. Métricas de Fallo
-                "fallos": {
-                    "tasa_llenado": await self._calcular_tasa_llenado(fecha_inicio, fecha_fin),
-                    "tasa_escalamiento": await self._calcular_tasa_escalamiento(fecha_inicio, fecha_fin),
-                    "fallo_por_nivel": await self._calcular_fallo_por_nivel(fecha_inicio, fecha_fin)
+            # Seleccionar métodos según nivel
+            if nivel == "repuesto":
+                # Calcular todos los KPIs del embudo a nivel de repuesto
+                embudo = {
+                    # 1. Tasa de Entrada
+                    "tasa_entrada": await self._calcular_tasa_entrada(fecha_inicio, fecha_fin),
+                    
+                    # 2-5. Tasas de Conversión (nivel repuesto)
+                    "conversiones": {
+                        "abierta_a_evaluacion": await self._calcular_conversion_abierta_evaluacion(fecha_inicio, fecha_fin),
+                        "evaluacion_a_adjudicada": await self._calcular_conversion_evaluacion_adjudicada(fecha_inicio, fecha_fin),
+                        "adjudicada_a_aceptada": await self._calcular_conversion_adjudicada_aceptada(fecha_inicio, fecha_fin),
+                        "conversion_general": await self._calcular_conversion_general(fecha_inicio, fecha_fin)
+                    },
+                    
+                    # 6-8. Métricas de Tiempo
+                    "tiempos": {
+                        "ttfo": await self._calcular_ttfo(fecha_inicio, fecha_fin),
+                        "tta": await self._calcular_tta(fecha_inicio, fecha_fin),
+                        "ttcd": await self._calcular_ttcd(fecha_inicio, fecha_fin)
+                    },
+                    
+                    # 9-10. Métricas de Fallo
+                    "fallos": {
+                        "tasa_escalamiento": await self._calcular_tasa_escalamiento(fecha_inicio, fecha_fin),
+                        "fallo_por_nivel": await self._calcular_fallo_por_nivel(fecha_inicio, fecha_fin)
+                    }
                 }
-            }
+            else:  # nivel == "solicitud"
+                # Calcular todos los KPIs del embudo a nivel de solicitud
+                embudo = {
+                    # 1. Tasa de Entrada
+                    "tasa_entrada": await self._calcular_tasa_entrada(fecha_inicio, fecha_fin),
+                    
+                    # 2-5. Tasas de Conversión (nivel solicitud)
+                    "conversiones": {
+                        "abierta_a_evaluacion": await self._calcular_conversion_abierta_evaluacion_solicitud(fecha_inicio, fecha_fin),
+                        "evaluacion_a_adjudicada": await self._calcular_conversion_evaluacion_adjudicada_solicitud(fecha_inicio, fecha_fin),
+                        "adjudicada_a_aceptada": await self._calcular_conversion_adjudicada_aceptada_solicitud(fecha_inicio, fecha_fin),
+                        "conversion_general": await self._calcular_conversion_general_solicitud(fecha_inicio, fecha_fin)
+                    },
+                    
+                    # 6-8. Métricas de Tiempo
+                    "tiempos": {
+                        "ttfo": await self._calcular_ttfo(fecha_inicio, fecha_fin),
+                        "tta": await self._calcular_tta(fecha_inicio, fecha_fin),
+                        "ttcd": await self._calcular_ttcd(fecha_inicio, fecha_fin)
+                    },
+                    
+                    # 9-10. Métricas de Fallo
+                    "fallos": {
+                        "tasa_escalamiento": await self._calcular_tasa_escalamiento(fecha_inicio, fecha_fin),
+                        "fallo_por_nivel": await self._calcular_fallo_por_nivel(fecha_inicio, fecha_fin)
+                    }
+                }
             
             try:
                 await redis_manager.set_cache(cache_key, embudo, ttl=900)  # 15 minutos
@@ -205,8 +237,11 @@ class MetricsCalculator:
                     "ttcd": {"mediana_horas": 0.0}
                 },
                 "fallos": {
-                    "tasa_llenado": 0.0,
-                    "tasa_escalamiento": 0.0,
+                    "tasa_escalamiento": {
+                        "tasa_general": 0.0,
+                        "por_nivel": {"1_a_2": 0.0, "2_a_3": 0.0, "3_a_4": 0.0, "4_a_5": 0.0},
+                        "total_solicitudes": 0
+                    },
                     "fallo_por_nivel": {}
                 }
             }
@@ -617,52 +652,155 @@ class MetricsCalculator:
         return {"por_dia": result or []}
     
     async def _calcular_conversion_abierta_evaluacion(self, fecha_inicio: datetime, fecha_fin: datetime) -> float:
-        """KPI 2: Conversión ABIERTA → EN_EVALUACION (% con al menos una oferta)"""
+        """KPI 2: Conversión ABIERTA → EN_EVALUACION (% repuestos que reciben ofertas)
+        Mide la capacidad inicial de la plataforma para generar interés de los asesores
+        Calculado a nivel de repuesto individual, no solicitud completa
+        """
         query = """
         SELECT 
-            COUNT(DISTINCT s.id) as total_abiertas,
+            COUNT(DISTINCT rs.id) as total_repuestos,
+            COUNT(DISTINCT CASE WHEN od.id IS NOT NULL THEN rs.id END) as con_ofertas
+        FROM repuestos_solicitados rs
+        JOIN solicitudes s ON rs.solicitud_id = s.id
+        LEFT JOIN ofertas_detalle od ON rs.id = od.repuesto_solicitado_id
+        WHERE s.created_at BETWEEN $1 AND $2
+        """
+        result = await self._execute_query(query, [fecha_inicio, fecha_fin])
+        if result and result[0]['total_repuestos'] > 0:
+            return round((result[0]['con_ofertas'] / result[0]['total_repuestos']) * 100, 2)
+        return 0.0
+    
+    async def _calcular_conversion_evaluacion_adjudicada(self, fecha_inicio: datetime, fecha_fin: datetime) -> float:
+        """KPI 3: Conversión EN_EVALUACION → ADJUDICADA
+        Porcentaje de repuestos con ofertas que resultan en la selección de un ganador
+        Mide la eficacia del algoritmo de evaluación
+        Calculado a nivel de repuesto individual
+        """
+        query = """
+        SELECT 
+            COUNT(DISTINCT rs.id) as total_con_ofertas,
+            COUNT(DISTINCT CASE WHEN ar.id IS NOT NULL THEN rs.id END) as con_ganador
+        FROM repuestos_solicitados rs
+        JOIN solicitudes s ON rs.solicitud_id = s.id
+        JOIN ofertas_detalle od ON rs.id = od.repuesto_solicitado_id
+        LEFT JOIN adjudicaciones_repuesto ar ON rs.id = ar.repuesto_solicitado_id
+        WHERE s.created_at BETWEEN $1 AND $2
+        """
+        result = await self._execute_query(query, [fecha_inicio, fecha_fin])
+        if result and result[0]['total_con_ofertas'] > 0:
+            return round((result[0]['con_ganador'] / result[0]['total_con_ofertas']) * 100, 2)
+        return 0.0
+    
+    async def _calcular_conversion_adjudicada_aceptada(self, fecha_inicio: datetime, fecha_fin: datetime) -> float:
+        """KPI 4: Conversión ADJUDICADA → ACEPTADA
+        Porcentaje de repuestos adjudicados que son aceptados por el cliente
+        Mide la competitividad final de la oferta presentada
+        Calculado a nivel de repuesto individual
+        Nota: Requiere que Agent IA haya enviado ofertas a clientes y campo aceptado_cliente
+        """
+        query = """
+        SELECT 
+            COUNT(DISTINCT ar.id) as total_adjudicados,
+            COUNT(DISTINCT CASE WHEN ar.aceptado_cliente = true THEN ar.id END) as aceptados
+        FROM adjudicaciones_repuesto ar
+        JOIN repuestos_solicitados rs ON ar.repuesto_solicitado_id = rs.id
+        JOIN solicitudes s ON rs.solicitud_id = s.id
+        WHERE s.created_at BETWEEN $1 AND $2
+        """
+        result = await self._execute_query(query, [fecha_inicio, fecha_fin])
+        if result and result[0]['total_adjudicados'] > 0:
+            return round((result[0]['aceptados'] / result[0]['total_adjudicados']) * 100, 2)
+        return 0.0
+    
+    async def _calcular_conversion_general(self, fecha_inicio: datetime, fecha_fin: datetime) -> float:
+        """KPI 5: Tasa de Conversión General
+        Calculada como (Total de Repuestos Aceptados / Total de Repuestos Solicitados)
+        Calculado a nivel de repuesto individual
+        Nota: Requiere que Agent IA haya completado el flujo con clientes
+        """
+        query = """
+        SELECT 
+            COUNT(DISTINCT rs.id) as total_repuestos,
+            COUNT(DISTINCT CASE WHEN ar.aceptado_cliente = true THEN rs.id END) as aceptados
+        FROM repuestos_solicitados rs
+        JOIN solicitudes s ON rs.solicitud_id = s.id
+        LEFT JOIN adjudicaciones_repuesto ar ON rs.id = ar.repuesto_solicitado_id
+        WHERE s.created_at BETWEEN $1 AND $2
+        """
+        result = await self._execute_query(query, [fecha_inicio, fecha_fin])
+        if result and result[0]['total_repuestos'] > 0:
+            return round((result[0]['aceptados'] / result[0]['total_repuestos']) * 100, 2)
+        return 0.0
+    
+    # ============================================================================
+    # MÉTODOS DE CONVERSIÓN A NIVEL DE SOLICITUD (Vista Ejecutiva)
+    # ============================================================================
+    
+    async def _calcular_conversion_abierta_evaluacion_solicitud(self, fecha_inicio: datetime, fecha_fin: datetime) -> float:
+        """KPI 2 (Solicitud): Conversión ABIERTA → EN_EVALUACION
+        % de solicitudes que reciben al menos una oferta
+        Vista ejecutiva: mide si la solicitud completa genera interés
+        """
+        query = """
+        SELECT 
+            COUNT(DISTINCT s.id) as total_solicitudes,
             COUNT(DISTINCT CASE WHEN o.id IS NOT NULL THEN s.id END) as con_ofertas
         FROM solicitudes s
         LEFT JOIN ofertas o ON s.id = o.solicitud_id
         WHERE s.created_at BETWEEN $1 AND $2
         """
         result = await self._execute_query(query, [fecha_inicio, fecha_fin])
-        if result and result[0]['total_abiertas'] > 0:
-            return round((result[0]['con_ofertas'] / result[0]['total_abiertas']) * 100, 2)
+        if result and result[0]['total_solicitudes'] > 0:
+            return round((result[0]['con_ofertas'] / result[0]['total_solicitudes']) * 100, 2)
         return 0.0
     
-    async def _calcular_conversion_evaluacion_adjudicada(self, fecha_inicio: datetime, fecha_fin: datetime) -> float:
-        """KPI 3: Conversión EN_EVALUACION → ADJUDICADA"""
+    async def _calcular_conversion_evaluacion_adjudicada_solicitud(self, fecha_inicio: datetime, fecha_fin: datetime) -> float:
+        """KPI 3 (Solicitud): Conversión EN_EVALUACION → ADJUDICADA
+        % de solicitudes con ofertas que tienen al menos un ganador
+        Vista ejecutiva: mide si la solicitud completa llega a adjudicación
+        """
         query = """
         SELECT 
-            COUNT(DISTINCT s.id) as total_en_evaluacion,
-            COUNT(DISTINCT CASE WHEN s.estado = 'ADJUDICADA' THEN s.id END) as adjudicadas
+            COUNT(DISTINCT s.id) as total_con_ofertas,
+            COUNT(DISTINCT CASE WHEN o_ganadora.id IS NOT NULL THEN s.id END) as con_ganador
         FROM solicitudes s
-        WHERE EXISTS (SELECT 1 FROM ofertas o WHERE o.solicitud_id = s.id)
-        AND s.created_at BETWEEN $1 AND $2
+        JOIN ofertas o ON s.id = o.solicitud_id
+        LEFT JOIN ofertas o_ganadora ON s.id = o_ganadora.solicitud_id AND o_ganadora.estado = 'GANADORA'
+        WHERE s.created_at BETWEEN $1 AND $2
         """
         result = await self._execute_query(query, [fecha_inicio, fecha_fin])
-        if result and result[0]['total_en_evaluacion'] > 0:
-            return round((result[0]['adjudicadas'] / result[0]['total_en_evaluacion']) * 100, 2)
+        if result and result[0]['total_con_ofertas'] > 0:
+            return round((result[0]['con_ganador'] / result[0]['total_con_ofertas']) * 100, 2)
         return 0.0
     
-    async def _calcular_conversion_adjudicada_aceptada(self, fecha_inicio: datetime, fecha_fin: datetime) -> float:
-        """KPI 4: Conversión ADJUDICADA → ACEPTADA"""
+    async def _calcular_conversion_adjudicada_aceptada_solicitud(self, fecha_inicio: datetime, fecha_fin: datetime) -> float:
+        """KPI 4 (Solicitud): Conversión ADJUDICADA → ACEPTADA
+        % de solicitudes con ganador que son aceptadas por el cliente
+        Vista ejecutiva: mide aceptación de la solicitud completa
+        Nota: Usa estado de solicitud (requiere Agent IA)
+        """
         query = """
         SELECT 
-            COUNT(*) as total_adjudicadas,
-            COUNT(CASE WHEN estado = 'ACEPTADA' THEN 1 END) as aceptadas
-        FROM solicitudes
-        WHERE estado IN ('ADJUDICADA', 'ACEPTADA')
-        AND created_at BETWEEN $1 AND $2
+            COUNT(DISTINCT s.id) as total_adjudicadas,
+            COUNT(DISTINCT CASE WHEN s.estado = 'ACEPTADA' THEN s.id END) as aceptadas
+        FROM solicitudes s
+        WHERE EXISTS (
+            SELECT 1 FROM ofertas o 
+            WHERE o.solicitud_id = s.id 
+            AND o.estado = 'GANADORA'
+        )
+        AND s.created_at BETWEEN $1 AND $2
         """
         result = await self._execute_query(query, [fecha_inicio, fecha_fin])
         if result and result[0]['total_adjudicadas'] > 0:
             return round((result[0]['aceptadas'] / result[0]['total_adjudicadas']) * 100, 2)
         return 0.0
     
-    async def _calcular_conversion_general(self, fecha_inicio: datetime, fecha_fin: datetime) -> float:
-        """KPI 5: Tasa de Conversión General (ACEPTADA / Total)"""
+    async def _calcular_conversion_general_solicitud(self, fecha_inicio: datetime, fecha_fin: datetime) -> float:
+        """KPI 5 (Solicitud): Tasa de Conversión General
+        % de solicitudes que llegan a estado ACEPTADA
+        Vista ejecutiva: conversión end-to-end de la solicitud completa
+        """
         query = """
         SELECT 
             COUNT(*) as total_solicitudes,
@@ -676,147 +814,187 @@ class MetricsCalculator:
         return 0.0
     
     async def _calcular_ttfo(self, fecha_inicio: datetime, fecha_fin: datetime) -> Dict[str, float]:
-        """KPI 6: Tiempo hasta Primera Oferta (TTFO)"""
+        """KPI 6: Tiempo hasta Primera Oferta (TTFO) en minutos"""
         query = """
         WITH tiempos AS (
             SELECT 
-                EXTRACT(EPOCH FROM (MIN(o.created_at) - s.created_at))/3600 as horas
+                EXTRACT(EPOCH FROM (MIN(o.created_at) - s.created_at))/60 as minutos
             FROM solicitudes s
             JOIN ofertas o ON s.id = o.solicitud_id
             WHERE s.created_at BETWEEN $1 AND $2
             GROUP BY s.id, s.created_at
         )
         SELECT 
-            PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY horas) as mediana_horas,
-            AVG(horas) as promedio_horas,
-            MIN(horas) as min_horas,
-            MAX(horas) as max_horas
+            PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY minutos) as mediana_minutos,
+            AVG(minutos) as promedio_minutos,
+            MIN(minutos) as min_minutos,
+            MAX(minutos) as max_minutos
         FROM tiempos
         """
         result = await self._execute_query(query, [fecha_inicio, fecha_fin])
-        if result and result[0]['mediana_horas'] is not None:
+        if result and result[0]['mediana_minutos'] is not None:
             return {
-                "mediana_horas": round(float(result[0]['mediana_horas']), 2),
-                "promedio_horas": round(float(result[0]['promedio_horas'] or 0), 2),
-                "min_horas": round(float(result[0]['min_horas'] or 0), 2),
-                "max_horas": round(float(result[0]['max_horas'] or 0), 2)
+                "mediana_minutos": round(float(result[0]['mediana_minutos']), 2),
+                "promedio_minutos": round(float(result[0]['promedio_minutos'] or 0), 2),
+                "min_minutos": round(float(result[0]['min_minutos'] or 0), 2),
+                "max_minutos": round(float(result[0]['max_minutos'] or 0), 2)
             }
-        return {"mediana_horas": 0.0, "promedio_horas": 0.0, "min_horas": 0.0, "max_horas": 0.0}
+        return {"mediana_minutos": 0.0, "promedio_minutos": 0.0, "min_minutos": 0.0, "max_minutos": 0.0}
     
     async def _calcular_tta(self, fecha_inicio: datetime, fecha_fin: datetime) -> Dict[str, float]:
-        """KPI 7: Tiempo hasta Adjudicación (TTA)"""
+        """KPI 7: Tiempo hasta Adjudicación (TTA) en minutos - Tiempo hasta primera oferta GANADORA"""
         query = """
-        WITH tiempos AS (
+        WITH primera_ganadora AS (
             SELECT 
-                EXTRACT(EPOCH FROM (updated_at - created_at))/3600 as horas
-            FROM solicitudes
-            WHERE estado = 'ADJUDICADA'
-            AND created_at BETWEEN $1 AND $2
+                s.id as solicitud_id,
+                s.created_at as solicitud_created,
+                MIN(o.created_at) as primera_oferta_ganadora
+            FROM solicitudes s
+            INNER JOIN ofertas o ON o.solicitud_id = s.id
+            WHERE o.estado = 'GANADORA'
+            AND s.created_at BETWEEN $1 AND $2
+            GROUP BY s.id, s.created_at
+        ),
+        tiempos AS (
+            SELECT 
+                EXTRACT(EPOCH FROM (primera_oferta_ganadora - solicitud_created))/60 as minutos
+            FROM primera_ganadora
         )
         SELECT 
-            PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY horas) as mediana_horas,
-            AVG(horas) as promedio_horas,
-            MIN(horas) as min_horas,
-            MAX(horas) as max_horas
+            PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY minutos) as mediana_minutos,
+            AVG(minutos) as promedio_minutos,
+            MIN(minutos) as min_minutos,
+            MAX(minutos) as max_minutos
         FROM tiempos
         """
         result = await self._execute_query(query, [fecha_inicio, fecha_fin])
-        if result and result[0]['mediana_horas'] is not None:
+        if result and result[0]['mediana_minutos'] is not None:
             return {
-                "mediana_horas": round(float(result[0]['mediana_horas']), 2),
-                "promedio_horas": round(float(result[0]['promedio_horas'] or 0), 2),
-                "min_horas": round(float(result[0]['min_horas'] or 0), 2),
-                "max_horas": round(float(result[0]['max_horas'] or 0), 2)
+                "mediana_minutos": round(float(result[0]['mediana_minutos']), 2),
+                "promedio_minutos": round(float(result[0]['promedio_minutos'] or 0), 2),
+                "min_minutos": round(float(result[0]['min_minutos'] or 0), 2),
+                "max_minutos": round(float(result[0]['max_minutos'] or 0), 2)
             }
-        return {"mediana_horas": 0.0, "promedio_horas": 0.0, "min_horas": 0.0, "max_horas": 0.0}
+        return {"mediana_minutos": 0.0, "promedio_minutos": 0.0, "min_minutos": 0.0, "max_minutos": 0.0}
     
     async def _calcular_ttcd(self, fecha_inicio: datetime, fecha_fin: datetime) -> Dict[str, float]:
-        """KPI 8: Tiempo hasta Decisión del Cliente (TTCD)"""
+        """KPI 8: Tiempo hasta Decisión del Cliente (TTCD) en minutos"""
         query = """
         WITH tiempos AS (
             SELECT 
-                EXTRACT(EPOCH FROM (updated_at - created_at))/3600 as horas
+                EXTRACT(EPOCH FROM (updated_at - created_at))/60 as minutos
             FROM solicitudes
             WHERE estado IN ('ACEPTADA', 'RECHAZADA')
             AND created_at BETWEEN $1 AND $2
         )
         SELECT 
-            PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY horas) as mediana_horas,
-            AVG(horas) as promedio_horas
+            PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY minutos) as mediana_minutos,
+            AVG(minutos) as promedio_minutos
         FROM tiempos
         """
         result = await self._execute_query(query, [fecha_inicio, fecha_fin])
-        if result and result[0]['mediana_horas'] is not None:
+        if result and result[0]['mediana_minutos'] is not None:
             return {
-                "mediana_horas": round(float(result[0]['mediana_horas']), 2),
-                "promedio_horas": round(float(result[0]['promedio_horas'] or 0), 2)
+                "mediana_minutos": round(float(result[0]['mediana_minutos']), 2),
+                "promedio_minutos": round(float(result[0]['promedio_minutos'] or 0), 2)
             }
-        return {"mediana_horas": 0.0, "promedio_horas": 0.0}
+        return {"mediana_minutos": 0.0, "promedio_minutos": 0.0}
     
-    async def _calcular_tasa_llenado(self, fecha_inicio: datetime, fecha_fin: datetime) -> float:
-        """KPI 9: Tasa de Llenado de Solicitudes (100% - % sin ofertas)"""
+
+    async def _calcular_tasa_escalamiento(self, fecha_inicio: datetime, fecha_fin: datetime) -> Dict[str, Any]:
+        """KPI 13: Tasa de Escalamiento - Desglose por transición de niveles"""
         query = """
+        WITH solicitudes_nivel AS (
+            SELECT 
+                s.id as solicitud_id,
+                COALESCE(MAX(eat.nivel_entrega), 1) as max_nivel
+            FROM solicitudes s
+            LEFT JOIN evaluaciones_asesores_temp eat ON eat.solicitud_id = s.id
+            WHERE s.created_at BETWEEN $1 AND $2
+            GROUP BY s.id
+        )
         SELECT 
             COUNT(*) as total_solicitudes,
-            COUNT(CASE WHEN estado = 'CERRADA_SIN_OFERTAS' THEN 1 END) as sin_ofertas
-        FROM solicitudes
-        WHERE created_at BETWEEN $1 AND $2
+            COUNT(CASE WHEN max_nivel >= 2 THEN 1 END) as nivel_2_o_mas,
+            COUNT(CASE WHEN max_nivel >= 3 THEN 1 END) as nivel_3_o_mas,
+            COUNT(CASE WHEN max_nivel >= 4 THEN 1 END) as nivel_4_o_mas,
+            COUNT(CASE WHEN max_nivel >= 5 THEN 1 END) as nivel_5
+        FROM solicitudes_nivel
         """
         result = await self._execute_query(query, [fecha_inicio, fecha_fin])
+        
         if result and result[0]['total_solicitudes'] > 0:
-            return round((1 - (result[0]['sin_ofertas'] / result[0]['total_solicitudes'])) * 100, 2)
-        return 0.0
+            total = result[0]['total_solicitudes']
+            return {
+                "tasa_general": round((result[0]['nivel_2_o_mas'] / total) * 100, 2),
+                "por_nivel": {
+                    "1_a_2": round((result[0]['nivel_2_o_mas'] / total) * 100, 2),
+                    "2_a_3": round((result[0]['nivel_3_o_mas'] / total) * 100, 2),
+                    "3_a_4": round((result[0]['nivel_4_o_mas'] / total) * 100, 2),
+                    "4_a_5": round((result[0]['nivel_5'] / total) * 100, 2)
+                },
+                "total_solicitudes": total
+            }
+        return {
+            "tasa_general": 0.0,
+            "por_nivel": {"1_a_2": 0.0, "2_a_3": 0.0, "3_a_4": 0.0, "4_a_5": 0.0},
+            "total_solicitudes": 0
+        }
     
-    async def _calcular_tasa_escalamiento(self, fecha_inicio: datetime, fecha_fin: datetime) -> float:
-        """KPI 10: Tasa de Escalamiento (% que pasan del Nivel 1)"""
+    async def _calcular_fallo_por_nivel(self, fecha_inicio: datetime, fecha_fin: datetime) -> Dict[str, Any]:
+        """KPI 14: Tasa de Fallo por Nivel - % de solicitudes que pasaron por un nivel y NO recibieron ninguna oferta"""
         query = """
-        SELECT 
-            COUNT(DISTINCT solicitud_id) as total_solicitudes,
-            COUNT(DISTINCT CASE WHEN nivel_entrega > 1 THEN solicitud_id END) as escaladas
-        FROM evaluacion_asesores_temp eat
-        JOIN solicitudes s ON eat.solicitud_id = s.id
-        WHERE s.created_at BETWEEN $1 AND $2
-        """
-        result = await self._execute_query(query, [fecha_inicio, fecha_fin])
-        if result and result[0]['total_solicitudes'] > 0:
-            return round((result[0]['escaladas'] / result[0]['total_solicitudes']) * 100, 2)
-        return 0.0
-    
-    async def _calcular_fallo_por_nivel(self, fecha_inicio: datetime, fecha_fin: datetime) -> Dict[str, float]:
-        """KPI 11: Tasa de Fallo por Nivel"""
-        query = """
-        WITH solicitudes_por_nivel AS (
+        WITH solicitudes_periodo AS (
+            SELECT id FROM solicitudes WHERE created_at BETWEEN $1 AND $2
+        ),
+        solicitudes_por_nivel AS (
             SELECT 
-                nivel_entrega,
-                COUNT(DISTINCT solicitud_id) as total_asignadas,
+                eat.nivel_entrega,
+                COUNT(DISTINCT eat.solicitud_id) as total_solicitudes,
+                -- Solicitudes que NO recibieron ninguna oferta en este nivel
                 COUNT(DISTINCT CASE 
                     WHEN NOT EXISTS (
                         SELECT 1 FROM ofertas o 
-                        WHERE o.solicitud_id = eat.solicitud_id 
-                        AND o.asesor_id = eat.asesor_id
-                    ) THEN solicitud_id 
+                        JOIN evaluaciones_asesores_temp eat2 
+                            ON o.solicitud_id = eat2.solicitud_id 
+                            AND o.asesor_id = eat2.asesor_id
+                        WHERE eat2.solicitud_id = eat.solicitud_id 
+                        AND eat2.nivel_entrega = eat.nivel_entrega
+                    ) THEN eat.solicitud_id
                 END) as sin_ofertas
-            FROM evaluacion_asesores_temp eat
-            JOIN solicitudes s ON eat.solicitud_id = s.id
-            WHERE s.created_at BETWEEN $1 AND $2
-            GROUP BY nivel_entrega
+            FROM evaluaciones_asesores_temp eat
+            WHERE eat.solicitud_id IN (SELECT id FROM solicitudes_periodo)
+            GROUP BY eat.nivel_entrega
         )
         SELECT 
             nivel_entrega,
-            total_asignadas,
+            total_solicitudes,
             sin_ofertas,
             CASE 
-                WHEN total_asignadas > 0 THEN 
-                    ROUND(CAST(sin_ofertas AS FLOAT) / total_asignadas * 100, 2)
+                WHEN total_solicitudes > 0 THEN 
+                    ROUND((CAST(sin_ofertas AS NUMERIC) / total_solicitudes * 100)::numeric, 2)
                 ELSE 0 
             END as tasa_fallo
         FROM solicitudes_por_nivel
         ORDER BY nivel_entrega
         """
         result = await self._execute_query(query, [fecha_inicio, fecha_fin])
+        
         if result:
-            return {str(row['nivel_entrega']): float(row['tasa_fallo']) for row in result}
-        return {}
+            # Retornar tanto las tasas como los detalles
+            return {
+                'por_nivel': {str(row['nivel_entrega']): float(row['tasa_fallo']) for row in result},
+                'detalles': [
+                    {
+                        'nivel': int(row['nivel_entrega']),
+                        'total_solicitudes': int(row['total_solicitudes']),
+                        'sin_ofertas': int(row['sin_ofertas']),
+                        'tasa': float(row['tasa_fallo'])
+                    }
+                    for row in result
+                ]
+            }
+        return {'por_nivel': {}, 'detalles': []}
 
     
     # ============================================================================

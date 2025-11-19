@@ -38,12 +38,14 @@ analyticsClient.interceptors.response.use(
 
 export const analyticsService = {
   // Helper para convertir fecha a ISO si es necesario
-  _toISOString(fecha?: string): string | undefined {
+  _toISOString(fecha?: string, esFechaFin: boolean = false): string | undefined {
     if (!fecha) return undefined;
     // Si ya es ISO (contiene 'T'), retornar tal cual
     if (fecha.includes('T')) return fecha;
     // Si es formato YYYY-MM-DD, convertir a ISO
-    return new Date(fecha + 'T00:00:00Z').toISOString();
+    // Para fecha_fin, usar 23:59:59 para incluir todo el día
+    const hora = esFechaFin ? 'T23:59:59Z' : 'T00:00:00Z';
+    return new Date(fecha + hora).toISOString();
   },
 
   async getDashboardPrincipal(
@@ -52,7 +54,7 @@ export const analyticsService = {
   ): Promise<DashboardData> {
     const params = new URLSearchParams();
     const inicio = this._toISOString(fechaInicio);
-    const fin = this._toISOString(fechaFin);
+    const fin = this._toISOString(fechaFin, true); // Incluye todo el día
     
     if (inicio) params.append('fecha_inicio', inicio);
     if (fin) params.append('fecha_fin', fin);
@@ -70,7 +72,7 @@ export const analyticsService = {
   ): Promise<any[]> {
     const params = new URLSearchParams();
     const inicio = this._toISOString(fechaInicio);
-    const fin = this._toISOString(fechaFin);
+    const fin = this._toISOString(fechaFin, true); // Incluye todo el día
     
     if (inicio) params.append('fecha_inicio', inicio);
     if (fin) params.append('fecha_fin', fin);
@@ -92,14 +94,16 @@ export const analyticsService = {
 
   async getEmbudoOperativo(
     fechaInicio?: string,
-    fechaFin?: string
+    fechaFin?: string,
+    nivel: 'solicitud' | 'repuesto' = 'solicitud'
   ): Promise<any> {
     const params = new URLSearchParams();
     const inicio = this._toISOString(fechaInicio);
-    const fin = this._toISOString(fechaFin);
+    const fin = this._toISOString(fechaFin, true); // true = incluye todo el día (23:59:59)
     
     if (inicio) params.append('fecha_inicio', inicio);
     if (fin) params.append('fecha_fin', fin);
+    params.append('nivel', nivel);
 
     const response = await analyticsClient.get(
       `/dashboards/embudo-operativo?${params.toString()}`
@@ -114,7 +118,7 @@ export const analyticsService = {
   ): Promise<any> {
     const params = new URLSearchParams();
     const inicio = this._toISOString(fechaInicio);
-    const fin = this._toISOString(fechaFin);
+    const fin = this._toISOString(fechaFin, true); // Incluye todo el día
     
     if (inicio) params.append('fecha_inicio', inicio);
     if (fin) params.append('fecha_fin', fin);
@@ -132,7 +136,7 @@ export const analyticsService = {
   ): Promise<any> {
     const params = new URLSearchParams();
     const inicio = this._toISOString(fechaInicio);
-    const fin = this._toISOString(fechaFin);
+    const fin = this._toISOString(fechaFin, true); // Incluye todo el día
     
     if (inicio) params.append('fecha_inicio', inicio);
     if (fin) params.append('fecha_fin', fin);
@@ -151,7 +155,7 @@ export const analyticsService = {
   ): Promise<any> {
     const params = new URLSearchParams();
     const inicio = this._toISOString(fechaInicio);
-    const fin = this._toISOString(fechaFin);
+    const fin = this._toISOString(fechaFin, true); // Incluye todo el día
     
     if (inicio) params.append('fecha_inicio', inicio);
     if (fin) params.append('fecha_fin', fin);
@@ -174,7 +178,7 @@ export const analyticsService = {
   ): Promise<Blob> {
     const params = new URLSearchParams();
     const inicio = this._toISOString(fechaInicio);
-    const fin = this._toISOString(fechaFin);
+    const fin = this._toISOString(fechaFin, true); // Incluye todo el día
     
     if (inicio) params.append('fecha_inicio', inicio);
     if (fin) params.append('fecha_fin', fin);
@@ -270,7 +274,7 @@ export const analyticsService = {
   ): Promise<any> {
     const params = new URLSearchParams();
     const inicio = this._toISOString(fechaInicio);
-    const fin = this._toISOString(fechaFin);
+    const fin = this._toISOString(fechaFin, true); // Incluye todo el día
     
     if (nombreMetrica) params.append('nombre_metrica', nombreMetrica);
     if (inicio) params.append('fecha_inicio', inicio);
