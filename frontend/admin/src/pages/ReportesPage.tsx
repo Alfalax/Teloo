@@ -261,21 +261,21 @@ const EmbudoOperativoReport: React.FC<{ dataSolicitud: any; dataRepuesto: any }>
         </CardContent>
       </Card>
 
-      {/* 2-9. Tasas de Conversión - Ambos Niveles */}
+      {/* 2-14. Layout Reorganizado: Los 4 gráficos en una sola línea */}
       <div>
-        <h3 className="text-lg font-semibold mb-3">2-9. Tasas de Conversión - Embudo Dual</h3>
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 max-w-6xl">
+        <h3 className="text-lg font-semibold mb-3">2-14. Análisis Completo del Embudo Operativo</h3>
+        <div className="grid grid-cols-1 lg:grid-cols-4 gap-4">
           {/* 2-5. Por Solicitud */}
-          <Card>
-            <CardHeader>
+          <Card className="w-full">
+            <CardHeader className="pb-3">
               <CardTitle className="flex items-center justify-between text-base">
-                <span>Por Solicitud (Vista Ejecutiva)</span>
+                <span>Por Solicitud</span>
                 <Badge variant="outline">
                   {(conversionesSolicitud.conversion_general || 0).toFixed(1)}%
                 </Badge>
               </CardTitle>
             </CardHeader>
-            <CardContent>
+            <CardContent className="pb-4">
               <ResponsiveContainer width="100%" height={300}>
                 <FunnelChart>
                   <Tooltip 
@@ -285,9 +285,9 @@ const EmbudoOperativoReport: React.FC<{ dataSolicitud: any; dataRepuesto: any }>
                   <Funnel
                     dataKey="value"
                     data={[
-                      { name: 'ABIERTA → EN_EVALUACION', value: conversionesSolicitud.abierta_a_evaluacion || 0, fill: '#3b82f6' },
-                      { name: 'EN_EVALUACION → ADJUDICADA', value: conversionesSolicitud.evaluacion_a_adjudicada || 0, fill: '#10b981' },
-                      { name: 'ADJUDICADA → ACEPTADA', value: conversionesSolicitud.adjudicada_a_aceptada || 0, fill: '#8b5cf6' }
+                      { name: 'Ofertas', value: conversionesSolicitud.abierta_a_evaluacion || 0, fill: '#3b82f6' },
+                      { name: 'Ganador', value: conversionesSolicitud.evaluacion_a_adjudicada || 0, fill: '#10b981' },
+                      { name: 'Aceptada', value: conversionesSolicitud.adjudicada_a_aceptada || 0, fill: '#8b5cf6' }
                     ]}
                     isAnimationActive
                   >
@@ -301,11 +301,11 @@ const EmbudoOperativoReport: React.FC<{ dataSolicitud: any; dataRepuesto: any }>
                           <g>
                             <text 
                               x={x + width / 2} 
-                              y={y + height / 2 - 12} 
+                              y={y + height / 2 - 8} 
                               fill="#fff" 
                               textAnchor="middle" 
                               dominantBaseline="middle"
-                              style={{ fontSize: '11px' }}
+                              style={{ fontSize: '10px' }}
                             >
                               {name}
                             </text>
@@ -315,7 +315,7 @@ const EmbudoOperativoReport: React.FC<{ dataSolicitud: any; dataRepuesto: any }>
                               fill="#fff" 
                               textAnchor="middle" 
                               dominantBaseline="middle"
-                              style={{ fontSize: '18px', fontWeight: 'bold' }}
+                              style={{ fontSize: '16px', fontWeight: 'bold' }}
                             >
                               {value.toFixed(1)}%
                             </text>
@@ -326,38 +326,24 @@ const EmbudoOperativoReport: React.FC<{ dataSolicitud: any; dataRepuesto: any }>
                   </Funnel>
                 </FunnelChart>
               </ResponsiveContainer>
-              <div className="grid grid-cols-3 gap-2 mt-4">
-                <div className="text-center p-2 bg-blue-50 rounded">
-                  <p className="text-xs text-gray-600">Reciben Ofertas</p>
-                  <p className="text-sm font-bold text-blue-600">{(conversionesSolicitud.abierta_a_evaluacion || 0).toFixed(1)}%</p>
-                </div>
-                <div className="text-center p-2 bg-green-50 rounded">
-                  <p className="text-xs text-gray-600">Con Ganador</p>
-                  <p className="text-sm font-bold text-green-600">{(conversionesSolicitud.evaluacion_a_adjudicada || 0).toFixed(1)}%</p>
-                </div>
-                <div className="text-center p-2 bg-purple-50 rounded">
-                  <p className="text-xs text-gray-600">Aceptadas</p>
-                  <p className="text-sm font-bold text-purple-600">{(conversionesSolicitud.adjudicada_a_aceptada || 0).toFixed(1)}%</p>
-                </div>
-              </div>
-              <div className="mt-3 p-3 bg-orange-50 rounded border border-orange-200">
-                <p className="text-xs text-gray-600 text-center">Conversión General (Fin a Fin)</p>
-                <p className="text-2xl font-bold text-orange-600 text-center">{(conversionesSolicitud.conversion_general || 0).toFixed(1)}%</p>
+              <div className="mt-2 p-2 bg-orange-50 rounded border border-orange-200">
+                <p className="text-xs text-gray-600 text-center">General</p>
+                <p className="text-xl font-bold text-orange-600 text-center">{(conversionesSolicitud.conversion_general || 0).toFixed(1)}%</p>
               </div>
             </CardContent>
           </Card>
 
           {/* 6-9. Por Repuesto */}
-          <Card>
-            <CardHeader>
+          <Card className="w-full">
+            <CardHeader className="pb-3">
               <CardTitle className="flex items-center justify-between text-base">
-                <span>Por Repuesto (Análisis Detallado)</span>
+                <span>Por Repuesto</span>
                 <Badge variant="outline">
                   {(conversionesRepuesto.conversion_general || 0).toFixed(1)}%
                 </Badge>
               </CardTitle>
             </CardHeader>
-            <CardContent>
+            <CardContent className="pb-4">
               <ResponsiveContainer width="100%" height={300}>
                 <FunnelChart>
                   <Tooltip 
@@ -367,9 +353,9 @@ const EmbudoOperativoReport: React.FC<{ dataSolicitud: any; dataRepuesto: any }>
                   <Funnel
                     dataKey="value"
                     data={[
-                      { name: 'ABIERTA → EN_EVALUACION', value: conversionesRepuesto.abierta_a_evaluacion || 0, fill: '#60a5fa' },
-                      { name: 'EN_EVALUACION → ADJUDICADA', value: conversionesRepuesto.evaluacion_a_adjudicada || 0, fill: '#34d399' },
-                      { name: 'ADJUDICADA → ACEPTADA', value: conversionesRepuesto.adjudicada_a_aceptada || 0, fill: '#a78bfa' }
+                      { name: 'Ofertas', value: conversionesRepuesto.abierta_a_evaluacion || 0, fill: '#60a5fa' },
+                      { name: 'Ganador', value: conversionesRepuesto.evaluacion_a_adjudicada || 0, fill: '#34d399' },
+                      { name: 'Aceptada', value: conversionesRepuesto.adjudicada_a_aceptada || 0, fill: '#a78bfa' }
                     ]}
                     isAnimationActive
                   >
@@ -383,11 +369,11 @@ const EmbudoOperativoReport: React.FC<{ dataSolicitud: any; dataRepuesto: any }>
                           <g>
                             <text 
                               x={x + width / 2} 
-                              y={y + height / 2 - 12} 
+                              y={y + height / 2 - 8} 
                               fill="#fff" 
                               textAnchor="middle" 
                               dominantBaseline="middle"
-                              style={{ fontSize: '11px' }}
+                              style={{ fontSize: '10px' }}
                             >
                               {name}
                             </text>
@@ -397,7 +383,7 @@ const EmbudoOperativoReport: React.FC<{ dataSolicitud: any; dataRepuesto: any }>
                               fill="#fff" 
                               textAnchor="middle" 
                               dominantBaseline="middle"
-                              style={{ fontSize: '18px', fontWeight: 'bold' }}
+                              style={{ fontSize: '16px', fontWeight: 'bold' }}
                             >
                               {value.toFixed(1)}%
                             </text>
@@ -408,24 +394,110 @@ const EmbudoOperativoReport: React.FC<{ dataSolicitud: any; dataRepuesto: any }>
                   </Funnel>
                 </FunnelChart>
               </ResponsiveContainer>
-              <div className="grid grid-cols-3 gap-2 mt-4">
-                <div className="text-center p-2 bg-blue-50 rounded">
-                  <p className="text-xs text-gray-600">Reciben Ofertas</p>
-                  <p className="text-sm font-bold text-blue-500">{(conversionesRepuesto.abierta_a_evaluacion || 0).toFixed(1)}%</p>
-                </div>
-                <div className="text-center p-2 bg-green-50 rounded">
-                  <p className="text-xs text-gray-600">Con Ganador</p>
-                  <p className="text-sm font-bold text-green-500">{(conversionesRepuesto.evaluacion_a_adjudicada || 0).toFixed(1)}%</p>
-                </div>
-                <div className="text-center p-2 bg-purple-50 rounded">
-                  <p className="text-xs text-gray-600">Aceptadas</p>
-                  <p className="text-sm font-bold text-purple-500">{(conversionesRepuesto.adjudicada_a_aceptada || 0).toFixed(1)}%</p>
-                </div>
+              <div className="mt-2 p-2 bg-orange-50 rounded border border-orange-200">
+                <p className="text-xs text-gray-600 text-center">General</p>
+                <p className="text-xl font-bold text-orange-600 text-center">{(conversionesRepuesto.conversion_general || 0).toFixed(1)}%</p>
               </div>
-              <div className="mt-3 p-3 bg-orange-50 rounded border border-orange-200">
-                <p className="text-xs text-gray-600 text-center">Conversión General (Fin a Fin)</p>
-                <p className="text-2xl font-bold text-orange-600 text-center">{(conversionesRepuesto.conversion_general || 0).toFixed(1)}%</p>
-              </div>
+            </CardContent>
+          </Card>
+
+          {/* 13. Tasa de Escalamiento */}
+          <Card className="w-full">
+            <CardHeader className="pb-3">
+              <CardTitle className="flex items-center justify-between text-base">
+                <span>Escalamiento</span>
+                <Badge variant="outline">
+                  {(fallos.tasa_escalamiento?.tasa_general || 0).toFixed(1)}%
+                </Badge>
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="pb-4">
+              <ResponsiveContainer width="100%" height={300}>
+                  <BarChart
+                    data={[
+                      { nivel: 'Nivel 1 → 2', porcentaje: fallos.tasa_escalamiento?.por_nivel?.['1_a_2'] || 0, color: '#3b82f6' },
+                      { nivel: 'Nivel 2 → 3', porcentaje: fallos.tasa_escalamiento?.por_nivel?.['2_a_3'] || 0, color: '#eab308' },
+                      { nivel: 'Nivel 3 → 4', porcentaje: fallos.tasa_escalamiento?.por_nivel?.['3_a_4'] || 0, color: '#f97316' },
+                      { nivel: 'Nivel 4 → 5', porcentaje: fallos.tasa_escalamiento?.por_nivel?.['4_a_5'] || 0, color: '#ef4444' }
+                    ]}
+                    margin={{ top: 20, right: 30, left: 20, bottom: 5 }}
+                  >
+                    <CartesianGrid strokeDasharray="3 3" />
+                    <XAxis dataKey="nivel" />
+                    <YAxis label={{ value: '% Solicitudes', angle: -90, position: 'insideLeft' }} domain={[0, 100]} />
+                    <Tooltip 
+                      formatter={(value: number) => `${value.toFixed(1)}%`}
+                      contentStyle={{ backgroundColor: 'white', border: '1px solid #ccc', borderRadius: '4px' }}
+                    />
+                    <Bar dataKey="porcentaje" radius={[8, 8, 0, 0]}>
+                      {[
+                        { nivel: 'Nivel 1 → 2', porcentaje: fallos.tasa_escalamiento?.por_nivel?.['1_a_2'] || 0, color: '#3b82f6' },
+                        { nivel: 'Nivel 2 → 3', porcentaje: fallos.tasa_escalamiento?.por_nivel?.['2_a_3'] || 0, color: '#eab308' },
+                        { nivel: 'Nivel 3 → 4', porcentaje: fallos.tasa_escalamiento?.por_nivel?.['3_a_4'] || 0, color: '#f97316' },
+                        { nivel: 'Nivel 4 → 5', porcentaje: fallos.tasa_escalamiento?.por_nivel?.['4_a_5'] || 0, color: '#ef4444' }
+                      ].map((entry, index) => (
+                        <Cell key={`cell-${index}`} fill={entry.color} />
+                      ))}
+                    </Bar>
+                  </BarChart>
+                </ResponsiveContainer>
+
+              <p className="text-xs text-gray-500 mt-2 text-center">
+                Total: {fallos.tasa_escalamiento?.total_solicitudes || 0} solicitudes
+              </p>
+            </CardContent>
+          </Card>
+
+          {/* 14. Tasa de Fallo por Nivel */}
+          <Card className="w-full">
+            <CardHeader className="pb-3">
+              <CardTitle className="flex items-center justify-between text-base">
+                <span>Tasa de Fallo</span>
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="pb-4">
+              {fallos.fallo_por_nivel?.detalles && fallos.fallo_por_nivel.detalles.length > 0 ? (
+                <>
+                  <ResponsiveContainer width="100%" height={300}>
+                      <BarChart
+                        data={fallos.fallo_por_nivel.detalles.map((d: any) => ({
+                          nivel: `Nivel ${d.nivel}`,
+                          porcentaje: d.tasa,
+                          color: d.nivel === 1 ? '#10b981' : d.nivel === 2 ? '#3b82f6' : d.nivel === 3 ? '#eab308' : d.nivel === 4 ? '#f97316' : '#ef4444'
+                        }))}
+                        margin={{ top: 20, right: 30, left: 20, bottom: 5 }}
+                      >
+                        <CartesianGrid strokeDasharray="3 3" />
+                        <XAxis dataKey="nivel" />
+                        <YAxis label={{ value: '% Sin Ofertas', angle: -90, position: 'insideLeft' }} domain={[0, 100]} />
+                        <Tooltip 
+                          formatter={(value: number) => `${value.toFixed(1)}%`}
+                          contentStyle={{ backgroundColor: 'white', border: '1px solid #ccc', borderRadius: '4px' }}
+                        />
+                        <Bar dataKey="porcentaje" radius={[8, 8, 0, 0]}>
+                          {fallos.fallo_por_nivel.detalles.map((d: any, index: number) => (
+                            <Cell 
+                              key={`cell-${index}`} 
+                              fill={d.nivel === 1 ? '#10b981' : d.nivel === 2 ? '#3b82f6' : d.nivel === 3 ? '#eab308' : d.nivel === 4 ? '#f97316' : '#ef4444'} 
+                            />
+                          ))}
+                        </Bar>
+                      </BarChart>
+                  </ResponsiveContainer>
+
+                  <div className="grid grid-cols-2 md:grid-cols-5 gap-2 mt-3">
+                    {fallos.fallo_por_nivel.detalles.map((d: any) => (
+                      <div key={d.nivel} className="text-center p-2 bg-gray-50 rounded">
+                        <p className="text-xs text-gray-600">Nivel {d.nivel}</p>
+                        <p className="text-sm font-bold">{d.sin_ofertas}/{d.total_solicitudes}</p>
+                        <p className="text-xs text-gray-500">{d.tasa.toFixed(1)}%</p>
+                      </div>
+                    ))}
+                  </div>
+                </>
+              ) : (
+                <p className="text-sm text-gray-400 text-center py-8">Sin datos</p>
+              )}
             </CardContent>
           </Card>
         </div>
@@ -459,114 +531,7 @@ const EmbudoOperativoReport: React.FC<{ dataSolicitud: any; dataRepuesto: any }>
         </div>
       </div>
 
-      {/* 13 y 14. Análisis de Escalamiento y Fallo por Nivel */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 max-w-6xl">
-          {/* 13. Tasa de Escalamiento */}
-          <div>
-            <h3 className="text-lg font-semibold mb-3">13. Análisis de Escalamiento por Nivel</h3>
-            <Card className="h-[374px]">
-              <CardHeader className="pb-3">
-                <CardTitle className="flex items-center justify-between text-base">
-                  <span>Embudo de Escalamiento</span>
-                  <Badge variant="outline">
-                    {(fallos.tasa_escalamiento?.tasa_general || 0).toFixed(1)}% Tasa General
-                  </Badge>
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="pb-4">
-                <ResponsiveContainer width="100%" height={200}>
-                  <BarChart
-                    data={[
-                      { nivel: 'Nivel 1 → 2', porcentaje: fallos.tasa_escalamiento?.por_nivel?.['1_a_2'] || 0, color: '#3b82f6' },
-                      { nivel: 'Nivel 2 → 3', porcentaje: fallos.tasa_escalamiento?.por_nivel?.['2_a_3'] || 0, color: '#eab308' },
-                      { nivel: 'Nivel 3 → 4', porcentaje: fallos.tasa_escalamiento?.por_nivel?.['3_a_4'] || 0, color: '#f97316' },
-                      { nivel: 'Nivel 4 → 5', porcentaje: fallos.tasa_escalamiento?.por_nivel?.['4_a_5'] || 0, color: '#ef4444' }
-                    ]}
-                    margin={{ top: 20, right: 30, left: 20, bottom: 5 }}
-                  >
-                    <CartesianGrid strokeDasharray="3 3" />
-                    <XAxis dataKey="nivel" />
-                    <YAxis label={{ value: '% Solicitudes', angle: -90, position: 'insideLeft' }} domain={[0, 100]} />
-                    <Tooltip 
-                      formatter={(value: number) => `${value.toFixed(1)}%`}
-                      contentStyle={{ backgroundColor: 'white', border: '1px solid #ccc', borderRadius: '4px' }}
-                    />
-                    <Bar dataKey="porcentaje" radius={[8, 8, 0, 0]}>
-                      {[
-                        { nivel: 'Nivel 1 → 2', porcentaje: fallos.tasa_escalamiento?.por_nivel?.['1_a_2'] || 0, color: '#3b82f6' },
-                        { nivel: 'Nivel 2 → 3', porcentaje: fallos.tasa_escalamiento?.por_nivel?.['2_a_3'] || 0, color: '#eab308' },
-                        { nivel: 'Nivel 3 → 4', porcentaje: fallos.tasa_escalamiento?.por_nivel?.['3_a_4'] || 0, color: '#f97316' },
-                        { nivel: 'Nivel 4 → 5', porcentaje: fallos.tasa_escalamiento?.por_nivel?.['4_a_5'] || 0, color: '#ef4444' }
-                      ].map((entry, index) => (
-                        <Cell key={`cell-${index}`} fill={entry.color} />
-                      ))}
-                    </Bar>
-                  </BarChart>
-                </ResponsiveContainer>
 
-                <p className="text-xs text-gray-500 mt-2 text-center">
-                  Total: {fallos.tasa_escalamiento?.total_solicitudes || 0} solicitudes
-                </p>
-              </CardContent>
-            </Card>
-          </div>
-
-          {/* 14. Tasa de Fallo por Nivel */}
-          <div>
-            <h3 className="text-lg font-semibold mb-3">14. Tasa de Fallo por Nivel</h3>
-            <Card className="h-[374px]">
-              <CardHeader className="pb-3">
-                <CardTitle className="text-base">
-                  Solicitudes Sin Ofertas por Nivel
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="pb-4">
-                {fallos.fallo_por_nivel?.detalles && fallos.fallo_por_nivel.detalles.length > 0 ? (
-                  <>
-                    <ResponsiveContainer width="100%" height={200}>
-                      <BarChart
-                        data={fallos.fallo_por_nivel.detalles.map((d: any) => ({
-                          nivel: `Nivel ${d.nivel}`,
-                          porcentaje: d.tasa,
-                          color: d.nivel === 1 ? '#10b981' : d.nivel === 2 ? '#3b82f6' : d.nivel === 3 ? '#eab308' : d.nivel === 4 ? '#f97316' : '#ef4444'
-                        }))}
-                        margin={{ top: 20, right: 30, left: 20, bottom: 5 }}
-                      >
-                        <CartesianGrid strokeDasharray="3 3" />
-                        <XAxis dataKey="nivel" />
-                        <YAxis label={{ value: '% Sin Ofertas', angle: -90, position: 'insideLeft' }} domain={[0, 100]} />
-                        <Tooltip 
-                          formatter={(value: number) => `${value.toFixed(1)}%`}
-                          contentStyle={{ backgroundColor: 'white', border: '1px solid #ccc', borderRadius: '4px' }}
-                        />
-                        <Bar dataKey="porcentaje" radius={[8, 8, 0, 0]}>
-                          {fallos.fallo_por_nivel.detalles.map((d: any, index: number) => (
-                            <Cell 
-                              key={`cell-${index}`} 
-                              fill={d.nivel === 1 ? '#10b981' : d.nivel === 2 ? '#3b82f6' : d.nivel === 3 ? '#eab308' : d.nivel === 4 ? '#f97316' : '#ef4444'} 
-                            />
-                          ))}
-                        </Bar>
-                      </BarChart>
-                    </ResponsiveContainer>
-
-                    <div className="grid grid-cols-2 md:grid-cols-5 gap-2 mt-3">
-                      {fallos.fallo_por_nivel.detalles.map((d: any) => (
-                        <div key={d.nivel} className="text-center p-2 bg-gray-50 rounded">
-                          <p className="text-xs text-gray-600">Nivel {d.nivel}</p>
-                          <p className="text-sm font-bold">{d.sin_ofertas}/{d.total_solicitudes}</p>
-                          <p className="text-xs text-gray-500">{d.tasa.toFixed(1)}%</p>
-                        </div>
-                      ))}
-                    </div>
-                  </>
-                ) : (
-                  <p className="text-sm text-gray-400 text-center py-8">Sin datos de fallos por nivel</p>
-                )}
-              </CardContent>
-            </Card>
-          </div>
-        </div>
     </div>
   );
 };
@@ -589,25 +554,13 @@ const SaludMarketplaceReport: React.FC<{ data: any }> = ({ data }) => {
 
       {/* 1. Ratio Oferta/Demanda */}
       <Card>
-        <CardHeader>
-          <CardTitle>1. Ratio Oferta/Demanda</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div>
-              <p className="text-sm text-gray-600">Asesores Activos</p>
-              <p className="text-2xl font-bold">{ratio.asesores_activos || 0}</p>
-            </div>
-            <div>
-              <p className="text-sm text-gray-600">Solicitudes Diarias (Promedio)</p>
-              <p className="text-2xl font-bold">{(ratio.solicitudes_diarias_promedio || 0).toFixed(1)}</p>
-            </div>
-            <div>
-              <p className="text-sm text-gray-600">Ratio</p>
-              <p className="text-3xl font-bold text-blue-600">{(ratio.ratio || 0).toFixed(1)}</p>
-              <p className="text-xs text-gray-500 mt-1">Óptimo: 15-25</p>
-            </div>
-          </div>
+        <CardContent className="p-6">
+          <p className="text-sm font-medium text-gray-600">1. Ratio Oferta/Demanda</p>
+          <p className="text-3xl font-bold text-blue-600">{(ratio.ratio || 0).toFixed(1)}</p>
+          <p className="text-xs text-gray-500 mt-1">
+            {ratio.asesores_activos || 0} asesores / {(ratio.solicitudes_diarias_promedio || 0).toFixed(2)} solicitudes diarias
+          </p>
+          <p className="text-xs text-gray-400 mt-1">Óptimo: 15-25</p>
         </CardContent>
       </Card>
 

@@ -15,6 +15,23 @@ router = APIRouter(prefix="/v1/dashboards", tags=["dashboards"])
 
 metrics_calculator = MetricsCalculator()
 
+def parse_date_param(date_str: Optional[str], default: datetime = None) -> datetime:
+    """
+    Convierte un parámetro de fecha string a datetime.
+    Acepta formatos: YYYY-MM-DD o ISO completo (YYYY-MM-DDTHH:MM:SSZ)
+    """
+    if not date_str:
+        return default if default else datetime.utcnow()
+    
+    # Si es solo fecha (YYYY-MM-DD), agregar hora
+    if len(date_str) == 10:
+        # Para fecha inicio: 00:00:00, para fecha fin: 23:59:59
+        # Asumimos que si no tiene hora, es fecha inicio
+        return datetime.fromisoformat(f"{date_str}T00:00:00")
+    else:
+        # Formato ISO completo
+        return datetime.fromisoformat(date_str.replace('Z', '+00:00'))
+
 @router.get("/principal")
 async def get_dashboard_principal(
     fecha_inicio: Optional[datetime] = Query(None, description="Fecha inicio (ISO format)"),
@@ -121,8 +138,8 @@ async def get_top_solicitudes_abiertas(
 
 @router.get("/embudo-operativo")
 async def get_embudo_operativo(
-    fecha_inicio: Optional[datetime] = Query(None, description="Fecha inicio (ISO format)"),
-    fecha_fin: Optional[datetime] = Query(None, description="Fecha fin (ISO format)"),
+    fecha_inicio: Optional[str] = Query(None, description="Fecha inicio (YYYY-MM-DD o ISO format)"),
+    fecha_fin: Optional[str] = Query(None, description="Fecha fin (YYYY-MM-DD o ISO format)"),
     nivel: str = Query("solicitud", description="Nivel de cálculo: 'solicitud' o 'repuesto'")
 ) -> Dict[str, Any]:
     """
@@ -133,23 +150,25 @@ async def get_embudo_operativo(
                'repuesto' para métricas por repuesto individual (análisis detallado)
     """
     try:
-        if not fecha_inicio:
-            fecha_inicio = datetime.utcnow() - timedelta(days=30)
-        if not fecha_fin:
-            fecha_fin = datetime.utcnow()
+        # Convertir fechas
+        fecha_inicio_dt = parse_date_param(fecha_inicio, datetime.utcnow() - timedelta(days=30))
+        fecha_fin_dt = parse_date_param(fecha_fin, datetime.utcnow())
+        # Para fecha_fin, si es solo fecha, usar 23:59:59
+        if fecha_fin and len(fecha_fin) == 10:
+            fecha_fin_dt = datetime.fromisoformat(f"{fecha_fin}T23:59:59")
         
         # Validar nivel
         if nivel not in ["solicitud", "repuesto"]:
             raise HTTPException(status_code=400, detail="Parámetro 'nivel' debe ser 'solicitud' o 'repuesto'")
             
-        embudo = await metrics_calculator.get_embudo_operativo(fecha_inicio, fecha_fin, nivel)
+        embudo = await metrics_calculator.get_embudo_operativo(fecha_inicio_dt, fecha_fin_dt, nivel)
         
         return {
             "dashboard": "embudo_operativo",
             "nivel": nivel,
             "periodo": {
-                "inicio": fecha_inicio.isoformat(),
-                "fin": fecha_fin.isoformat()
+                "inicio": fecha_inicio_dt.isoformat(),
+                "fin": fecha_fin_dt.isoformat()
             },
             "metricas": embudo,
             "generado_en": datetime.utcnow().isoformat()
@@ -162,16 +181,30 @@ async def get_embudo_operativo(
 
 @router.get("/salud-marketplace")
 async def get_salud_marketplace(
-    fecha_inicio: Optional[datetime] = Query(None, description="Fecha inicio (ISO format)"),
-    fecha_fin: Optional[datetime] = Query(None, description="Fecha fin (ISO format)")
+    fecha_inicio: Optional[str] = Query(None, description="Fecha inicio (YYYY-MM-DD o ISO format)"),
+    fecha_fin: Optional[str] = Query(None, description="Fecha fin (YYYY-MM-DD o ISO format)")
 ) -> Dict[str, Any]:
     """
     Obtener salud del marketplace con 5 KPIs de sistema
     """
     try:
-        if not fecha_inicio:
+        # Convertir fechas string a datetime
+        if fecha_inicio:
+            # Si es solo fecha (YYYY-MM-DD), agregar hora 00:00:00
+            if len(fecha_inicio) == 10:
+                fecha_inicio = datetime.fromisoformat(f"{fecha_inicio}T00:00:00")
+            else:
+                fecha_inicio = datetime.fromisoformat(fecha_inicio.replace('Z', '+00:00'))
+        else:
             fecha_inicio = datetime.utcnow() - timedelta(days=7)  # Última semana
-        if not fecha_fin:
+            
+        if fecha_fin:
+            # Si es solo fecha (YYYY-MM-DD), agregar hora 23:59:59
+            if len(fecha_fin) == 10:
+                fecha_fin = datetime.fromisoformat(f"{fecha_fin}T23:59:59")
+            else:
+                fecha_fin = datetime.fromisoformat(fecha_fin.replace('Z', '+00:00'))
+        else:
             fecha_fin = datetime.utcnow()
             
         salud = await metrics_calculator.get_salud_marketplace(fecha_inicio, fecha_fin)
@@ -191,25 +224,26 @@ async def get_salud_marketplace(
 
 @router.get("/financiero")
 async def get_dashboard_financiero(
-    fecha_inicio: Optional[datetime] = Query(None, description="Fecha inicio (ISO format)"),
-    fecha_fin: Optional[datetime] = Query(None, description="Fecha fin (ISO format)")
+    fecha_inicio: Optional[str] = Query(None, description="Fecha inicio (YYYY-MM-DD o ISO format)"),
+    fecha_fin: Optional[str] = Query(None, description="Fecha fin (YYYY-MM-DD o ISO format)")
 ) -> Dict[str, Any]:
     """
     Obtener dashboard financiero con 5 KPIs alineados (GOV, GAV_adj, GAV_acc, etc.)
     """
     try:
-        if not fecha_inicio:
-            fecha_inicio = datetime.utcnow() - timedelta(days=30)
-        if not fecha_fin:
-            fecha_fin = datetime.utcnow()
+        # Convertir fechas
+        fecha_inicio_dt = parse_date_param(fecha_inicio, datetime.utcnow() - timedelta(days=30))
+        fecha_fin_dt = parse_date_param(fecha_fin, datetime.utcnow())
+        if fecha_fin and len(fecha_fin) == 10:
+            fecha_fin_dt = datetime.fromisoformat(f"{fecha_fin}T23:59:59")
             
-        financiero = await metrics_calculator.get_dashboard_financiero(fecha_inicio, fecha_fin)
+        financiero = await metrics_calculator.get_dashboard_financiero(fecha_inicio_dt, fecha_fin_dt)
         
         return {
             "dashboard": "financiero",
             "periodo": {
-                "inicio": fecha_inicio.isoformat(),
-                "fin": fecha_fin.isoformat()
+                "inicio": fecha_inicio_dt.isoformat(),
+                "fin": fecha_fin_dt.isoformat()
             },
             "metricas": financiero,
             "generado_en": datetime.utcnow().isoformat()
@@ -220,26 +254,27 @@ async def get_dashboard_financiero(
 
 @router.get("/asesores")
 async def get_analisis_asesores(
-    fecha_inicio: Optional[datetime] = Query(None, description="Fecha inicio (ISO format)"),
-    fecha_fin: Optional[datetime] = Query(None, description="Fecha fin (ISO format)"),
+    fecha_inicio: Optional[str] = Query(None, description="Fecha inicio (YYYY-MM-DD o ISO format)"),
+    fecha_fin: Optional[str] = Query(None, description="Fecha fin (YYYY-MM-DD o ISO format)"),
     ciudad: Optional[str] = Query(None, description="Filtrar por ciudad")
 ) -> Dict[str, Any]:
     """
     Obtener análisis de asesores con 13 KPIs alineados
     """
     try:
-        if not fecha_inicio:
-            fecha_inicio = datetime.utcnow() - timedelta(days=30)
-        if not fecha_fin:
-            fecha_fin = datetime.utcnow()
+        # Convertir fechas
+        fecha_inicio_dt = parse_date_param(fecha_inicio, datetime.utcnow() - timedelta(days=30))
+        fecha_fin_dt = parse_date_param(fecha_fin, datetime.utcnow())
+        if fecha_fin and len(fecha_fin) == 10:
+            fecha_fin_dt = datetime.fromisoformat(f"{fecha_fin}T23:59:59")
             
-        asesores = await metrics_calculator.get_analisis_asesores(fecha_inicio, fecha_fin, ciudad)
+        asesores = await metrics_calculator.get_analisis_asesores(fecha_inicio_dt, fecha_fin_dt, ciudad)
         
         return {
             "dashboard": "asesores",
             "periodo": {
-                "inicio": fecha_inicio.isoformat(),
-                "fin": fecha_fin.isoformat()
+                "inicio": fecha_inicio_dt.isoformat(),
+                "fin": fecha_fin_dt.isoformat()
             },
             "filtros": {
                 "ciudad": ciudad

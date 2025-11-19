@@ -1005,7 +1005,7 @@ class MetricsCalculator:
         """KPI 1: Ratio Oferta/Demanda (Asesores Activos / Solicitudes Diarias)"""
         query = """
         WITH asesores_activos AS (
-            SELECT COUNT(DISTINCT a.id) as total_asesores
+            SELECT COUNT(DISTINCT a.id)::numeric as total_asesores
             FROM asesores a
             JOIN usuarios u ON a.usuario_id = u.id
             WHERE u.estado = 'ACTIVO' 
@@ -1013,9 +1013,9 @@ class MetricsCalculator:
         ),
         solicitudes_diarias AS (
             SELECT 
-                COUNT(*) as total_solicitudes,
-                GREATEST(DATE_PART('day', $2::timestamp - $1::timestamp), 1) as dias,
-                COUNT(*) / GREATEST(DATE_PART('day', $2::timestamp - $1::timestamp), 1) as promedio_diario
+                COUNT(*)::numeric as total_solicitudes,
+                GREATEST(EXTRACT(EPOCH FROM ($2::timestamptz - $1::timestamptz)) / 86400, 1)::numeric as dias,
+                COUNT(*)::numeric / GREATEST(EXTRACT(EPOCH FROM ($2::timestamptz - $1::timestamptz)) / 86400, 1)::numeric as promedio_diario
             FROM solicitudes
             WHERE created_at BETWEEN $1 AND $2
         )
@@ -1024,7 +1024,7 @@ class MetricsCalculator:
             sd.promedio_diario,
             CASE 
                 WHEN sd.promedio_diario > 0 THEN 
-                    ROUND(CAST(aa.total_asesores AS FLOAT) / sd.promedio_diario, 2)
+                    aa.total_asesores / sd.promedio_diario
                 ELSE 0 
             END as ratio
         FROM asesores_activos aa, solicitudes_diarias sd
@@ -1032,9 +1032,9 @@ class MetricsCalculator:
         result = await self._execute_query(query, [fecha_inicio, fecha_fin])
         if result:
             return {
-                "asesores_activos": result[0]['total_asesores'],
+                "asesores_activos": int(result[0]['total_asesores']),
                 "solicitudes_diarias_promedio": round(float(result[0]['promedio_diario'] or 0), 2),
-                "ratio": float(result[0]['ratio'] or 0)
+                "ratio": round(float(result[0]['ratio'] or 0), 2)
             }
         return {"asesores_activos": 0, "solicitudes_diarias_promedio": 0.0, "ratio": 0.0}
     
@@ -1095,7 +1095,7 @@ class MetricsCalculator:
             aco.total as total_participantes,
             CASE 
                 WHEN ah.total > 0 THEN 
-                    ROUND(CAST(aco.total AS FLOAT) / ah.total * 100, 2)
+                    ROUND(aco.total::numeric / ah.total * 100, 2)
                 ELSE 0 
             END as tasa_participacion
         FROM asesores_habilitados ah, asesores_con_ofertas aco
@@ -1118,34 +1118,34 @@ class MetricsCalculator:
                 COUNT(*) as total_ofertas,
                 COUNT(CASE WHEN o.estado = 'GANADORA' THEN 1 END) as ofertas_ganadoras
             FROM ofertas o
-            WHERE o.created_at BETWEEN $1 AND $2
+            WHERE o.created_at BETWEEN $1::timestamptz AND $2::timestamptz
             GROUP BY o.asesor_id
         ),
         tasas_individuales AS (
             SELECT 
                 CASE 
                     WHEN total_ofertas > 0 THEN 
-                        CAST(ofertas_ganadoras AS FLOAT) / total_ofertas * 100
+                        ofertas_ganadoras::numeric / total_ofertas * 100
                     ELSE 0 
                 END as tasa_individual
             FROM ofertas_por_asesor
         )
         SELECT 
             COUNT(*) as asesores_con_ofertas,
-            ROUND(AVG(tasa_individual), 2) as tasa_adjudicacion_promedio,
-            ROUND(PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY tasa_individual), 2) as mediana,
-            ROUND(MIN(tasa_individual), 2) as min_tasa,
-            ROUND(MAX(tasa_individual), 2) as max_tasa
+            AVG(tasa_individual)::numeric as tasa_adjudicacion_promedio,
+            PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY tasa_individual)::numeric as mediana,
+            MIN(tasa_individual)::numeric as min_tasa,
+            MAX(tasa_individual)::numeric as max_tasa
         FROM tasas_individuales
         """
         result = await self._execute_query(query, [fecha_inicio, fecha_fin])
         if result and result[0]['asesores_con_ofertas']:
             return {
                 "asesores_con_ofertas": result[0]['asesores_con_ofertas'],
-                "tasa_promedio": float(result[0]['tasa_adjudicacion_promedio'] or 0),
-                "mediana": float(result[0]['mediana'] or 0),
-                "min_tasa": float(result[0]['min_tasa'] or 0),
-                "max_tasa": float(result[0]['max_tasa'] or 0)
+                "tasa_promedio": round(float(result[0]['tasa_adjudicacion_promedio'] or 0), 2),
+                "mediana": round(float(result[0]['mediana'] or 0), 2),
+                "min_tasa": round(float(result[0]['min_tasa'] or 0), 2),
+                "max_tasa": round(float(result[0]['max_tasa'] or 0), 2)
             }
         return {
             "asesores_con_ofertas": 0,
@@ -1172,7 +1172,7 @@ class MetricsCalculator:
             aceptadas,
             CASE 
                 WHEN total_adjudicadas > 0 THEN 
-                    ROUND(CAST(aceptadas AS FLOAT) / total_adjudicadas * 100, 2)
+                    ROUND(aceptadas::numeric / total_adjudicadas * 100, 2)
                 ELSE 0 
             END as tasa_aceptacion
         FROM ofertas_adjudicadas
@@ -1258,19 +1258,18 @@ class MetricsCalculator:
         WITH valores_ofertas AS (
             SELECT 
                 o.id,
-                SUM(od.precio_unitario * rs.cantidad) as valor_total
+                SUM(od.precio_unitario * od.cantidad) as valor_total
             FROM ofertas o
             JOIN ofertas_detalle od ON o.id = od.oferta_id
-            JOIN repuestos_solicitud rs ON od.repuesto_solicitud_id = rs.id
-            WHERE o.created_at BETWEEN $1 AND $2
+            WHERE o.created_at BETWEEN $1::timestamptz AND $2::timestamptz
             GROUP BY o.id
         )
         SELECT 
             COUNT(*) as total_ofertas,
-            COALESCE(SUM(valor_total), 0) as valor_bruto_ofertado,
-            COALESCE(AVG(valor_total), 0) as valor_promedio_oferta,
-            COALESCE(MIN(valor_total), 0) as valor_minimo,
-            COALESCE(MAX(valor_total), 0) as valor_maximo
+            COALESCE(SUM(valor_total), 0)::numeric as valor_bruto_ofertado,
+            COALESCE(AVG(valor_total), 0)::numeric as valor_promedio_oferta,
+            COALESCE(MIN(valor_total), 0)::numeric as valor_minimo,
+            COALESCE(MAX(valor_total), 0)::numeric as valor_maximo
         FROM valores_ofertas
         """
         result = await self._execute_query(query, [fecha_inicio, fecha_fin])
@@ -1290,20 +1289,19 @@ class MetricsCalculator:
         WITH valores_adjudicadas AS (
             SELECT 
                 o.id,
-                SUM(od.precio_unitario * rs.cantidad) as valor_total
+                SUM(od.precio_unitario * od.cantidad) as valor_total
             FROM ofertas o
             JOIN ofertas_detalle od ON o.id = od.oferta_id
-            JOIN repuestos_solicitud rs ON od.repuesto_solicitud_id = rs.id
             WHERE o.estado = 'GANADORA'
-            AND o.created_at BETWEEN $1 AND $2
+            AND o.created_at BETWEEN $1::timestamptz AND $2::timestamptz
             GROUP BY o.id
         )
         SELECT 
             COUNT(*) as total_adjudicadas,
-            COALESCE(SUM(valor_total), 0) as valor_bruto_adjudicado,
-            COALESCE(AVG(valor_total), 0) as valor_promedio_adjudicada,
-            COALESCE(MIN(valor_total), 0) as valor_minimo,
-            COALESCE(MAX(valor_total), 0) as valor_maximo
+            COALESCE(SUM(valor_total), 0)::numeric as valor_bruto_adjudicado,
+            COALESCE(AVG(valor_total), 0)::numeric as valor_promedio_adjudicada,
+            COALESCE(MIN(valor_total), 0)::numeric as valor_minimo,
+            COALESCE(MAX(valor_total), 0)::numeric as valor_maximo
         FROM valores_adjudicadas
         """
         result = await self._execute_query(query, [fecha_inicio, fecha_fin])
@@ -1323,22 +1321,21 @@ class MetricsCalculator:
         WITH valores_aceptadas AS (
             SELECT 
                 o.id,
-                SUM(od.precio_unitario * rs.cantidad) as valor_total
+                SUM(od.precio_unitario * od.cantidad) as valor_total
             FROM ofertas o
             JOIN ofertas_detalle od ON o.id = od.oferta_id
-            JOIN repuestos_solicitud rs ON od.repuesto_solicitud_id = rs.id
             JOIN solicitudes s ON o.solicitud_id = s.id
             WHERE o.estado = 'GANADORA'
             AND s.estado = 'ACEPTADA'
-            AND o.created_at BETWEEN $1 AND $2
+            AND o.created_at BETWEEN $1::timestamptz AND $2::timestamptz
             GROUP BY o.id
         )
         SELECT 
             COUNT(*) as total_aceptadas,
-            COALESCE(SUM(valor_total), 0) as valor_bruto_aceptado,
-            COALESCE(AVG(valor_total), 0) as valor_promedio_aceptada,
-            COALESCE(MIN(valor_total), 0) as valor_minimo,
-            COALESCE(MAX(valor_total), 0) as valor_maximo
+            COALESCE(SUM(valor_total), 0)::numeric as valor_bruto_aceptado,
+            COALESCE(AVG(valor_total), 0)::numeric as valor_promedio_aceptada,
+            COALESCE(MIN(valor_total), 0)::numeric as valor_minimo,
+            COALESCE(MAX(valor_total), 0)::numeric as valor_maximo
         FROM valores_aceptadas
         """
         result = await self._execute_query(query, [fecha_inicio, fecha_fin])
@@ -1359,17 +1356,16 @@ class MetricsCalculator:
             SELECT COUNT(*) as total_solicitudes_aceptadas
             FROM solicitudes
             WHERE estado = 'ACEPTADA'
-            AND created_at BETWEEN $1 AND $2
+            AND created_at BETWEEN $1::timestamptz AND $2::timestamptz
         ),
         valor_total_aceptado AS (
-            SELECT COALESCE(SUM(od.precio_unitario * rs.cantidad), 0) as valor_total
+            SELECT COALESCE(SUM(od.precio_unitario * od.cantidad), 0)::numeric as valor_total
             FROM ofertas o
             JOIN ofertas_detalle od ON o.id = od.oferta_id
-            JOIN repuestos_solicitud rs ON od.repuesto_solicitud_id = rs.id
             JOIN solicitudes s ON o.solicitud_id = s.id
             WHERE o.estado = 'GANADORA'
             AND s.estado = 'ACEPTADA'
-            AND o.created_at BETWEEN $1 AND $2
+            AND o.created_at BETWEEN $1::timestamptz AND $2::timestamptz
         )
         SELECT 
             sa.total_solicitudes_aceptadas,
@@ -1394,22 +1390,20 @@ class MetricsCalculator:
         """KPI 5: Tasa de Fuga de Valor ((GAV_adj - GAV_acc) / GAV_adj)"""
         query = """
         WITH valor_adjudicado AS (
-            SELECT COALESCE(SUM(od.precio_unitario * rs.cantidad), 0) as total
+            SELECT COALESCE(SUM(od.precio_unitario * od.cantidad), 0)::numeric as total
             FROM ofertas o
             JOIN ofertas_detalle od ON o.id = od.oferta_id
-            JOIN repuestos_solicitud rs ON od.repuesto_solicitud_id = rs.id
             WHERE o.estado = 'GANADORA'
-            AND o.created_at BETWEEN $1 AND $2
+            AND o.created_at BETWEEN $1::timestamptz AND $2::timestamptz
         ),
         valor_aceptado AS (
-            SELECT COALESCE(SUM(od.precio_unitario * rs.cantidad), 0) as total
+            SELECT COALESCE(SUM(od.precio_unitario * od.cantidad), 0)::numeric as total
             FROM ofertas o
             JOIN ofertas_detalle od ON o.id = od.oferta_id
-            JOIN repuestos_solicitud rs ON od.repuesto_solicitud_id = rs.id
             JOIN solicitudes s ON o.solicitud_id = s.id
             WHERE o.estado = 'GANADORA'
             AND s.estado = 'ACEPTADA'
-            AND o.created_at BETWEEN $1 AND $2
+            AND o.created_at BETWEEN $1::timestamptz AND $2::timestamptz
         )
         SELECT 
             vadj.total as valor_adjudicado,
@@ -1529,31 +1523,32 @@ class MetricsCalculator:
         query = f"""
         WITH asignaciones AS (
             SELECT 
-                sa.asesor_id,
-                COUNT(DISTINCT sa.solicitud_id) as solicitudes_asignadas
-            FROM solicitudes_asesores sa
-            JOIN asesores a ON sa.asesor_id = a.id
-            WHERE sa.created_at BETWEEN $1 AND $2
+                hro.asesor_id,
+                COUNT(DISTINCT hro.solicitud_id) as solicitudes_asignadas
+            FROM historial_respuestas_ofertas hro
+            JOIN asesores a ON hro.asesor_id = a.id
+            WHERE hro.fecha_envio BETWEEN $1::timestamptz AND $2::timestamptz
             {ciudad_filter}
-            GROUP BY sa.asesor_id
+            GROUP BY hro.asesor_id
         ),
         respuestas AS (
             SELECT 
-                o.asesor_id,
-                COUNT(DISTINCT o.solicitud_id) as solicitudes_respondidas
-            FROM ofertas o
-            JOIN asesores a ON o.asesor_id = a.id
-            WHERE o.created_at BETWEEN $1 AND $2
+                hro.asesor_id,
+                COUNT(DISTINCT hro.solicitud_id) as solicitudes_respondidas
+            FROM historial_respuestas_ofertas hro
+            JOIN asesores a ON hro.asesor_id = a.id
+            WHERE hro.respondio = true
+            AND hro.fecha_envio BETWEEN $1::timestamptz AND $2::timestamptz
             {ciudad_filter}
-            GROUP BY o.asesor_id
+            GROUP BY hro.asesor_id
         )
         SELECT 
             COUNT(DISTINCT asig.asesor_id) as total_asesores,
             ROUND(AVG(CASE 
                 WHEN asig.solicitudes_asignadas > 0 THEN 
-                    (COALESCE(resp.solicitudes_respondidas, 0)::FLOAT / asig.solicitudes_asignadas * 100)
+                    (COALESCE(resp.solicitudes_respondidas, 0)::numeric / asig.solicitudes_asignadas * 100)
                 ELSE 0 
-            END), 2) as tasa_respuesta_promedio
+            END)::numeric, 2) as tasa_respuesta_promedio
         FROM asignaciones asig
         LEFT JOIN respuestas resp ON asig.asesor_id = resp.asesor_id
         """
