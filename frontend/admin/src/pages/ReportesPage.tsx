@@ -229,6 +229,15 @@ const EmbudoOperativoReport: React.FC<{ dataSolicitud: any; dataRepuesto: any }>
   const conversionesSolicitud = metricasSolicitud.conversiones || {};
   const conversionesRepuesto = metricasRepuesto.conversiones || {};
   
+  const volumenesRepuesto = metricasRepuesto.volumenes || {};
+  
+  // Usar directamente los nombres del backend
+  const volumenesRepuestoMapped = {
+    repuestos: volumenesRepuesto.repuestos || 0,
+    con_ganadoras: volumenesRepuesto.con_ganadoras || 0,
+    aceptadas: volumenesRepuesto.aceptadas || 0
+  };
+  
   const tiempos = metricasSolicitud.tiempos || {};
   const fallos = metricasSolicitud.fallos || {};
   const tasa_entrada = metricasSolicitud.tasa_entrada || {};
@@ -273,53 +282,113 @@ const EmbudoOperativoReport: React.FC<{ dataSolicitud: any; dataRepuesto: any }>
               <CardTitle className="flex items-center justify-between text-base">
                 <span>Por Solicitud</span>
                 <Badge variant="outline">
-                  {(conversionesSolicitud.conversion_general || 0).toFixed(1)}%
+                  {(metricasSolicitud.embudo?.aceptadas?.porcentaje || 0).toFixed(1)}%
                 </Badge>
               </CardTitle>
             </CardHeader>
             <CardContent className="pb-4">
-              <ResponsiveContainer width="100%" height={300}>
+              <ResponsiveContainer width="100%" height={320}>
                 <FunnelChart>
                   <Tooltip 
-                    formatter={(value: number) => `${value.toFixed(1)}%`}
+                    formatter={(displayValue: number, name: string, props: any) => [
+                      `${props.payload.value.toFixed(1)}% (${props.payload.cantidad})`,
+                      name
+                    ]}
                     contentStyle={{ backgroundColor: 'white', border: '1px solid #ccc', borderRadius: '4px' }}
                   />
                   <Funnel
-                    dataKey="value"
+                    dataKey="displayValue"
                     data={[
-                      { name: 'Ofertas', value: conversionesSolicitud.abierta_a_evaluacion || 0, fill: '#3b82f6' },
-                      { name: 'Ganador', value: conversionesSolicitud.evaluacion_a_adjudicada || 0, fill: '#10b981' },
-                      { name: 'Aceptada', value: conversionesSolicitud.adjudicada_a_aceptada || 0, fill: '#8b5cf6' }
+                      { 
+                        name: 'Entrada', 
+                        value: metricasSolicitud.embudo?.entrada?.porcentaje || 100,
+                        displayValue: metricasSolicitud.embudo?.entrada?.porcentaje || 100,
+                        cantidad: metricasSolicitud.embudo?.entrada?.cantidad || 0,
+                        fill: '#3b82f6' 
+                      },
+                      { 
+                        name: 'Con Ofertas', 
+                        value: metricasSolicitud.embudo?.con_ofertas?.porcentaje || 0,
+                        displayValue: metricasSolicitud.embudo?.con_ofertas?.porcentaje || 0,
+                        cantidad: metricasSolicitud.embudo?.con_ofertas?.cantidad || 0,
+                        fill: '#10b981' 
+                      },
+                      { 
+                        name: 'Aceptadas', 
+                        value: metricasSolicitud.embudo?.aceptadas?.porcentaje || 0,
+                        // Tamaño mínimo visual del 25% para que siempre sea visible y más plana
+                        displayValue: Math.max(metricasSolicitud.embudo?.aceptadas?.porcentaje || 0, 25),
+                        cantidad: metricasSolicitud.embudo?.aceptadas?.cantidad || 0,
+                        fill: '#8b5cf6' 
+                      }
                     ]}
                     isAnimationActive
                   >
                     <LabelList 
                       position="center" 
-                      fill="#fff" 
+                      fill="white" 
                       stroke="none" 
+                      dataKey="name"
                       content={(props: any) => {
-                        const { x, y, width, height, value, name } = props;
+                        const { x, y, width, height, index } = props;
+                        if (x === undefined || y === undefined) return null;
+                        
+                        const data = [
+                          { 
+                            name: 'Entrada', 
+                            value: metricasSolicitud.embudo?.entrada?.porcentaje || 100,
+                            cantidad: metricasSolicitud.embudo?.entrada?.cantidad || 0
+                          },
+                          { 
+                            name: 'Con Ofertas', 
+                            value: metricasSolicitud.embudo?.con_ofertas?.porcentaje || 0,
+                            cantidad: metricasSolicitud.embudo?.con_ofertas?.cantidad || 0
+                          },
+                          { 
+                            name: 'Aceptadas', 
+                            value: metricasSolicitud.embudo?.aceptadas?.porcentaje || 0,
+                            cantidad: metricasSolicitud.embudo?.aceptadas?.cantidad || 0
+                          }
+                        ];
+                        
+                        const item = data[index];
+                        if (!item) return null;
+                        
+                        // Para la última sección (Aceptadas), subir el texto más arriba
+                        const isLastSection = index === 2;
+                        const offsetY = isLastSection ? -15 : 0;
+                        
                         return (
                           <g>
                             <text 
                               x={x + width / 2} 
-                              y={y + height / 2 - 8} 
-                              fill="#fff" 
+                              y={y + height / 2 - 10 + offsetY} 
+                              fill="white" 
                               textAnchor="middle" 
                               dominantBaseline="middle"
-                              style={{ fontSize: '10px' }}
+                              style={{ fontSize: '11px', fontWeight: '500' }}
                             >
-                              {name}
+                              {item.name}
                             </text>
                             <text 
                               x={x + width / 2} 
-                              y={y + height / 2 + 8} 
-                              fill="#fff" 
+                              y={y + height / 2 + 6 + offsetY} 
+                              fill="white" 
                               textAnchor="middle" 
                               dominantBaseline="middle"
-                              style={{ fontSize: '16px', fontWeight: 'bold' }}
+                              style={{ fontSize: '18px', fontWeight: 'bold' }}
                             >
-                              {value.toFixed(1)}%
+                              {item.value.toFixed(1)}%
+                            </text>
+                            <text 
+                              x={x + width / 2} 
+                              y={y + height / 2 + 22 + offsetY} 
+                              fill="white" 
+                              textAnchor="middle" 
+                              dominantBaseline="middle"
+                              style={{ fontSize: '11px', opacity: 0.9 }}
+                            >
+                              ({item.cantidad})
                             </text>
                           </g>
                         );
@@ -329,7 +398,7 @@ const EmbudoOperativoReport: React.FC<{ dataSolicitud: any; dataRepuesto: any }>
                 </FunnelChart>
               </ResponsiveContainer>
               <div className="mt-2 p-2 bg-orange-50 rounded border border-orange-200">
-                <p className="text-xs text-gray-600 text-center">General</p>
+                <p className="text-xs text-gray-600 text-center">Conversión General</p>
                 <p className="text-xl font-bold text-orange-600 text-center">{(conversionesSolicitud.conversion_general || 0).toFixed(1)}%</p>
               </div>
             </CardContent>
@@ -341,53 +410,131 @@ const EmbudoOperativoReport: React.FC<{ dataSolicitud: any; dataRepuesto: any }>
               <CardTitle className="flex items-center justify-between text-base">
                 <span>Por Repuesto</span>
                 <Badge variant="outline">
-                  {(conversionesRepuesto.conversion_general || 0).toFixed(1)}%
+                  {(volumenesRepuestoMapped.repuestos > 0 
+                    ? ((volumenesRepuestoMapped.aceptadas / volumenesRepuestoMapped.repuestos) * 100).toFixed(1)
+                    : '0.0')}%
                 </Badge>
               </CardTitle>
             </CardHeader>
             <CardContent className="pb-4">
-              <ResponsiveContainer width="100%" height={300}>
+              <ResponsiveContainer width="100%" height={320}>
                 <FunnelChart>
                   <Tooltip 
-                    formatter={(value: number) => `${value.toFixed(1)}%`}
+                    formatter={(displayValue: number, name: string, props: any) => {
+                      const cantidad = props.payload.cantidad || 0;
+                      return [`${props.payload.value.toFixed(1)}% (${cantidad})`, name];
+                    }}
                     contentStyle={{ backgroundColor: 'white', border: '1px solid #ccc', borderRadius: '4px' }}
                   />
                   <Funnel
-                    dataKey="value"
+                    dataKey="displayValue"
                     data={[
-                      { name: 'Ofertas', value: conversionesRepuesto.abierta_a_evaluacion || 0, fill: '#60a5fa' },
-                      { name: 'Ganador', value: conversionesRepuesto.evaluacion_a_adjudicada || 0, fill: '#34d399' },
-                      { name: 'Aceptada', value: conversionesRepuesto.adjudicada_a_aceptada || 0, fill: '#a78bfa' }
+                      { 
+                        name: 'Repuestos', 
+                        value: 100,
+                        displayValue: 100,
+                        cantidad: volumenesRepuestoMapped.repuestos || 0,
+                        fill: '#60a5fa' 
+                      },
+                      { 
+                        name: 'Con Ganadoras', 
+                        value: volumenesRepuestoMapped.repuestos > 0 
+                          ? (volumenesRepuestoMapped.con_ganadoras / volumenesRepuestoMapped.repuestos) * 100 
+                          : 0,
+                        displayValue: volumenesRepuestoMapped.repuestos > 0 
+                          ? (volumenesRepuestoMapped.con_ganadoras / volumenesRepuestoMapped.repuestos) * 100 
+                          : 0,
+                        cantidad: volumenesRepuestoMapped.con_ganadoras || 0,
+                        fill: '#34d399' 
+                      },
+                      { 
+                        name: 'Aceptadas', 
+                        // Calcular porcentaje acumulado: (aceptadas / total repuestos) * 100
+                        value: volumenesRepuestoMapped.repuestos > 0 
+                          ? (volumenesRepuestoMapped.aceptadas / volumenesRepuestoMapped.repuestos) * 100 
+                          : 0,
+                        // Tamaño mínimo visual del 25% para que siempre sea visible y más plana
+                        displayValue: Math.max(
+                          volumenesRepuestoMapped.repuestos > 0 
+                            ? (volumenesRepuestoMapped.aceptadas / volumenesRepuestoMapped.repuestos) * 100 
+                            : 0, 
+                          25
+                        ),
+                        cantidad: volumenesRepuestoMapped.aceptadas || 0,
+                        fill: '#a78bfa' 
+                      }
                     ]}
                     isAnimationActive
                   >
                     <LabelList 
                       position="center" 
-                      fill="#fff" 
+                      fill="white" 
                       stroke="none" 
+                      dataKey="name"
                       content={(props: any) => {
-                        const { x, y, width, height, value, name } = props;
+                        const { x, y, width, height, index } = props;
+                        if (x === undefined || y === undefined) return null;
+                        
+                        const data = [
+                          { 
+                            name: 'Repuestos', 
+                            value: 100,
+                            cantidad: volumenesRepuestoMapped.repuestos || 0
+                          },
+                          { 
+                            name: 'Con Ganadoras', 
+                            value: volumenesRepuestoMapped.repuestos > 0 
+                              ? (volumenesRepuestoMapped.con_ganadoras / volumenesRepuestoMapped.repuestos) * 100 
+                              : 0,
+                            cantidad: volumenesRepuestoMapped.con_ganadoras || 0
+                          },
+                          { 
+                            name: 'Aceptadas', 
+                            value: volumenesRepuestoMapped.repuestos > 0 
+                              ? (volumenesRepuestoMapped.aceptadas / volumenesRepuestoMapped.repuestos) * 100 
+                              : 0,
+                            cantidad: volumenesRepuestoMapped.aceptadas || 0
+                          }
+                        ];
+                        
+                        const item = data[index];
+                        if (!item) return null;
+                        
+                        // Para la última sección (Aceptadas), subir el texto más arriba
+                        const isLastSection = index === 2;
+                        const offsetY = isLastSection ? -15 : 0;
+                        
                         return (
                           <g>
                             <text 
                               x={x + width / 2} 
-                              y={y + height / 2 - 8} 
-                              fill="#fff" 
+                              y={y + height / 2 - 10 + offsetY} 
+                              fill="white" 
                               textAnchor="middle" 
                               dominantBaseline="middle"
-                              style={{ fontSize: '10px' }}
+                              style={{ fontSize: '11px', fontWeight: '500' }}
                             >
-                              {name}
+                              {item.name}
                             </text>
                             <text 
                               x={x + width / 2} 
-                              y={y + height / 2 + 8} 
-                              fill="#fff" 
+                              y={y + height / 2 + 6 + offsetY} 
+                              fill="white" 
                               textAnchor="middle" 
                               dominantBaseline="middle"
-                              style={{ fontSize: '16px', fontWeight: 'bold' }}
+                              style={{ fontSize: '18px', fontWeight: 'bold' }}
                             >
-                              {value.toFixed(1)}%
+                              {item.value.toFixed(1)}%
+                            </text>
+                            <text 
+                              x={x + width / 2} 
+                              y={y + height / 2 + 22 + offsetY} 
+                              fill="white" 
+                              textAnchor="middle" 
+                              dominantBaseline="middle"
+                              style={{ fontSize: '11px', opacity: 0.9 }}
+                            >
+                              ({item.cantidad})
                             </text>
                           </g>
                         );
@@ -397,8 +544,12 @@ const EmbudoOperativoReport: React.FC<{ dataSolicitud: any; dataRepuesto: any }>
                 </FunnelChart>
               </ResponsiveContainer>
               <div className="mt-2 p-2 bg-orange-50 rounded border border-orange-200">
-                <p className="text-xs text-gray-600 text-center">General</p>
-                <p className="text-xl font-bold text-orange-600 text-center">{(conversionesRepuesto.conversion_general || 0).toFixed(1)}%</p>
+                <p className="text-xs text-gray-600 text-center">Conversión General</p>
+                <p className="text-xl font-bold text-orange-600 text-center">
+                  {(volumenesRepuestoMapped.repuestos > 0 
+                    ? ((volumenesRepuestoMapped.aceptadas / volumenesRepuestoMapped.repuestos) * 100).toFixed(1)
+                    : '0.0')}%
+                </p>
               </div>
             </CardContent>
           </Card>

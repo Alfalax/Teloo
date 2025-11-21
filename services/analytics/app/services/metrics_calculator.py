@@ -179,8 +179,14 @@ class MetricsCalculator:
         try:
             # Seleccionar métodos según nivel
             if nivel == "repuesto":
+                # Calcular volúmenes del embudo
+                volumenes = await self._calcular_volumenes_embudo_repuesto(fecha_inicio, fecha_fin)
+                
                 # Calcular todos los KPIs del embudo a nivel de repuesto
                 embudo = {
+                    # Volúmenes (cantidades) para el embudo
+                    "volumenes": volumenes,
+                    
                     # 1. Tasa de Entrada
                     "tasa_entrada": await self._calcular_tasa_entrada(fecha_inicio, fecha_fin),
                     
@@ -206,8 +212,14 @@ class MetricsCalculator:
                     }
                 }
             else:  # nivel == "solicitud"
+                # Calcular volúmenes del embudo
+                volumenes_embudo = await self._calcular_volumenes_embudo_solicitud(fecha_inicio, fecha_fin)
+                
                 # Calcular todos los KPIs del embudo a nivel de solicitud
                 embudo = {
+                    # Volúmenes del embudo (para gráfica)
+                    "embudo": volumenes_embudo,
+                    
                     # 1. Tasa de Entrada
                     "tasa_entrada": await self._calcular_tasa_entrada(fecha_inicio, fecha_fin),
                     
@@ -339,7 +351,7 @@ class MetricsCalculator:
         SELECT COUNT(*) as total,
                COUNT(CASE WHEN estado = 'ABIERTA' THEN 1 END) as abiertas,
                COUNT(CASE WHEN estado = 'EVALUADA' THEN 1 END) as evaluadas,
-               COUNT(CASE WHEN estado = 'ACEPTADA' THEN 1 END) as aceptadas
+               COUNT(CASE WHEN estado = 'OFERTAS_ACEPTADAS' THEN 1 END) as aceptadas
         FROM solicitudes 
         WHERE created_at BETWEEN $1 AND $2
         """
@@ -600,8 +612,8 @@ class MetricsCalculator:
             SELECT 
                 DATE(s.created_at) as fecha,
                 COUNT(*) as solicitudes,
-                COUNT(CASE WHEN s.estado = 'ACEPTADA' THEN 1 END) as aceptadas,
-                COUNT(CASE WHEN s.estado = 'CERRADA_SIN_OFERTAS' THEN 1 END) as cerradas
+                COUNT(CASE WHEN s.estado = 'OFERTAS_ACEPTADAS' THEN 1 END) as aceptadas,
+                COUNT(CASE WHEN s.estado = 'CERRADA_SIN_OFERTAS' OR s.estado = 'OFERTAS_RECHAZADAS' THEN 1 END) as cerradas
             FROM solicitudes s
             WHERE s.created_at BETWEEN $1 AND $2
             GROUP BY DATE(s.created_at)
@@ -751,6 +763,127 @@ class MetricsCalculator:
         return 0.0
     
     # ============================================================================
+    # VOLÚMENES DEL EMBUDO (Para gráfica visual)
+    # ============================================================================
+    
+    async def _calcular_volumenes_embudo_solicitud(self, fecha_inicio: datetime, fecha_fin: datetime) -> Dict[str, Any]:
+        """
+        Calcular volúmenes absolutos y porcentajes acumulados para el embudo visual
+        Todos los porcentajes son relativos al total de entrada (100%)
+        """
+        query = """
+        WITH totales AS (
+            SELECT 
+                COUNT(DISTINCT s.id) as total_entrada,
+                COUNT(DISTINCT CASE WHEN o.id IS NOT NULL THEN s.id END) as total_con_ofertas,
+                COUNT(DISTINCT CASE WHEN o_ganadora.id IS NOT NULL THEN s.id END) as total_adjudicadas,
+                COUNT(DISTINCT CASE WHEN s.estado = 'OFERTAS_ACEPTADAS' THEN s.id END) as total_aceptadas,
+                COUNT(DISTINCT CASE WHEN s.estado = 'OFERTAS_RECHAZADAS' THEN s.id END) as total_rechazadas
+            FROM solicitudes s
+            LEFT JOIN ofertas o ON s.id = o.solicitud_id
+            LEFT JOIN ofertas o_ganadora ON s.id = o_ganadora.solicitud_id 
+                AND o_ganadora.estado IN ('GANADORA', 'ACEPTADA', 'RECHAZADA')
+            WHERE s.created_at BETWEEN $1 AND $2
+        )
+        SELECT 
+            total_entrada,
+            total_con_ofertas,
+            total_adjudicadas,
+            total_aceptadas,
+            total_rechazadas,
+            CASE WHEN total_entrada > 0 THEN 
+                ROUND((total_con_ofertas::numeric / total_entrada) * 100, 2)
+            ELSE 0 END as porcentaje_con_ofertas,
+            CASE WHEN total_entrada > 0 THEN 
+                ROUND((total_adjudicadas::numeric / total_entrada) * 100, 2)
+            ELSE 0 END as porcentaje_adjudicadas,
+            CASE WHEN total_entrada > 0 THEN 
+                ROUND((total_aceptadas::numeric / total_entrada) * 100, 2)
+            ELSE 0 END as porcentaje_aceptadas
+        FROM totales
+        """
+        
+        result = await self._execute_query(query, [fecha_inicio, fecha_fin])
+        
+        if result and len(result) > 0:
+            data = result[0]
+            return {
+                "entrada": {
+                    "cantidad": data['total_entrada'],
+                    "porcentaje": 100.0
+                },
+                "con_ofertas": {
+                    "cantidad": data['total_con_ofertas'],
+                    "porcentaje": float(data['porcentaje_con_ofertas'])
+                },
+                "adjudicadas": {
+                    "cantidad": data['total_adjudicadas'],
+                    "porcentaje": float(data['porcentaje_adjudicadas'])
+                },
+                "aceptadas": {
+                    "cantidad": data['total_aceptadas'],
+                    "porcentaje": float(data['porcentaje_aceptadas'])
+                },
+                "rechazadas": {
+                    "cantidad": data['total_rechazadas'],
+                    "porcentaje": 0.0  # No se muestra en el embudo principal
+                }
+            }
+        
+        return {
+            "entrada": {"cantidad": 0, "porcentaje": 100.0},
+            "con_ofertas": {"cantidad": 0, "porcentaje": 0.0},
+            "adjudicadas": {"cantidad": 0, "porcentaje": 0.0},
+            "aceptadas": {"cantidad": 0, "porcentaje": 0.0},
+            "rechazadas": {"cantidad": 0, "porcentaje": 0.0}
+        }
+    
+    async def _calcular_volumenes_embudo_repuesto(self, fecha_inicio: datetime, fecha_fin: datetime) -> Dict[str, Any]:
+        """
+        Calcular volúmenes (cantidades) para el embudo de repuestos
+        Entrada: Total de repuestos solicitados
+        Con Ofertas Ganadoras: Repuestos que tienen al menos una oferta ganadora
+        Aceptadas: Repuestos cuya oferta ganadora fue aceptada por el cliente
+        """
+        query = """
+        SELECT 
+            COUNT(DISTINCT rs.id) as total_repuestos,
+            COUNT(DISTINCT CASE 
+                WHEN EXISTS (
+                    SELECT 1 FROM ofertas o 
+                    WHERE o.solicitud_id = rs.solicitud_id 
+                    AND o.estado IN ('GANADORA', 'ACEPTADA', 'RECHAZADA')
+                ) THEN rs.id 
+            END) as con_ganadoras,
+            COUNT(DISTINCT CASE 
+                WHEN EXISTS (
+                    SELECT 1 FROM ofertas o 
+                    WHERE o.solicitud_id = rs.solicitud_id 
+                    AND o.estado = 'ACEPTADA'
+                ) THEN rs.id 
+            END) as aceptadas
+        FROM repuestos_solicitados rs
+        JOIN solicitudes s ON rs.solicitud_id = s.id
+        WHERE s.created_at BETWEEN $1 AND $2
+        """
+        
+        result = await self._execute_query(query, [fecha_inicio, fecha_fin])
+        
+        if result and len(result) > 0:
+            data = result[0]
+            return {
+                "repuestos": data['total_repuestos'],
+                "con_ganadoras": data['con_ganadoras'],
+                "aceptadas": data['aceptadas']
+            }
+        
+        return {
+            "repuestos": 0,
+            "con_ganadoras": 0,
+            "aceptadas": 0
+        }
+    
+    # ============================================================================
     # MÉTODOS DE CONVERSIÓN A NIVEL DE SOLICITUD (Vista Ejecutiva)
     # ============================================================================
     
@@ -800,12 +933,12 @@ class MetricsCalculator:
         query = """
         SELECT 
             COUNT(DISTINCT s.id) as total_adjudicadas,
-            COUNT(DISTINCT CASE WHEN s.estado = 'ACEPTADA' THEN s.id END) as aceptadas
+            COUNT(DISTINCT CASE WHEN s.estado = 'OFERTAS_ACEPTADAS' THEN s.id END) as aceptadas
         FROM solicitudes s
         WHERE EXISTS (
             SELECT 1 FROM ofertas o 
             WHERE o.solicitud_id = s.id 
-            AND o.estado = 'GANADORA'
+            AND o.estado IN ('GANADORA', 'ACEPTADA', 'RECHAZADA')
         )
         AND s.created_at BETWEEN $1 AND $2
         """
@@ -822,7 +955,7 @@ class MetricsCalculator:
         query = """
         SELECT 
             COUNT(*) as total_solicitudes,
-            COUNT(CASE WHEN estado = 'ACEPTADA' THEN 1 END) as aceptadas
+            COUNT(CASE WHEN estado = 'OFERTAS_ACEPTADAS' THEN 1 END) as aceptadas
         FROM solicitudes
         WHERE created_at BETWEEN $1 AND $2
         """
@@ -1344,7 +1477,7 @@ class MetricsCalculator:
             JOIN ofertas_detalle od ON o.id = od.oferta_id
             JOIN solicitudes s ON o.solicitud_id = s.id
             WHERE o.estado = 'GANADORA'
-            AND s.estado = 'ACEPTADA'
+            AND s.estado = 'OFERTAS_ACEPTADAS'
             AND o.created_at BETWEEN $1::timestamptz AND $2::timestamptz
             GROUP BY o.id
         )
@@ -1373,7 +1506,7 @@ class MetricsCalculator:
         WITH solicitudes_aceptadas AS (
             SELECT COUNT(*) as total_solicitudes_aceptadas
             FROM solicitudes
-            WHERE estado = 'ACEPTADA'
+            WHERE estado = 'OFERTAS_ACEPTADAS'
             AND created_at BETWEEN $1::timestamptz AND $2::timestamptz
         ),
         valor_total_aceptado AS (
@@ -1382,7 +1515,7 @@ class MetricsCalculator:
             JOIN ofertas_detalle od ON o.id = od.oferta_id
             JOIN solicitudes s ON o.solicitud_id = s.id
             WHERE o.estado = 'GANADORA'
-            AND s.estado = 'ACEPTADA'
+            AND s.estado = 'OFERTAS_ACEPTADAS'
             AND o.created_at BETWEEN $1::timestamptz AND $2::timestamptz
         )
         SELECT 
@@ -1420,7 +1553,7 @@ class MetricsCalculator:
             JOIN ofertas_detalle od ON o.id = od.oferta_id
             JOIN solicitudes s ON o.solicitud_id = s.id
             WHERE o.estado = 'GANADORA'
-            AND s.estado = 'ACEPTADA'
+            AND s.estado = 'OFERTAS_ACEPTADAS'
             AND o.created_at BETWEEN $1::timestamptz AND $2::timestamptz
         )
         SELECT 
@@ -1558,7 +1691,7 @@ class MetricsCalculator:
         aceptaciones_por_asesor AS (
             SELECT 
                 o.asesor_id,
-                COUNT(CASE WHEN o.estado = 'GANADORA' AND s.estado = 'ACEPTADA' THEN 1 END) as ofertas_aceptadas
+                COUNT(CASE WHEN o.estado = 'GANADORA' AND s.estado = 'OFERTAS_ACEPTADAS' THEN 1 END) as ofertas_aceptadas
             FROM ofertas o
             JOIN solicitudes s ON o.solicitud_id = s.id
             WHERE o.created_at BETWEEN $1::timestamptz AND $2::timestamptz
@@ -1672,7 +1805,7 @@ class MetricsCalculator:
                 -- M: Valor Monetario (GAV_acc en últimos 90 días)
                 COALESCE(SUM(
                     CASE WHEN o.estado = 'GANADORA' 
-                         AND s.estado = 'ACEPTADA' 
+                         AND s.estado = 'OFERTAS_ACEPTADAS' 
                          AND o.created_at >= $3::timestamptz
                     THEN (
                         SELECT SUM(od.precio_unitario * od.cantidad)
