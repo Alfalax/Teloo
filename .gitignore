@@ -232,8 +232,11 @@ files/
 # Local development
 .local/
 local/
-# 
-Logo configuration files (not used)
+
+# Archive folder (historical/temporary files)
+archive/
+
+# Logo configuration files (not used)
 LOGO_CONFIGURABLE_*.md
 CAMBIAR_LOGO_GUIA.md
 frontend/admin/public/Logo.png
