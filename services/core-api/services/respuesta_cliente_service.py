@@ -37,6 +37,10 @@ class RespuestaClienteService:
             Dict with processing result
         """
         try:
+            logger.info(f"🔍 Procesando respuesta del cliente para solicitud {solicitud_id}")
+            logger.info(f"   Texto: '{respuesta_texto}'")
+            logger.info(f"   Usar NLP: {usar_nlp}")
+            
             # Get solicitud
             solicitud = await Solicitud.get(id=solicitud_id).prefetch_related(
                 'cliente__usuario',
@@ -44,10 +48,33 @@ class RespuestaClienteService:
                 'adjudicaciones__repuesto_solicitado'
             )
             
+            logger.info(f"   Solicitud: {solicitud.codigo_solicitud}")
+            logger.info(f"   Estado actual: {solicitud.estado}")
+            
             if solicitud.estado != EstadoSolicitud.EVALUADA:
-                raise ValueError(f"Solicitud no está en estado EVALUADA: {solicitud.estado}")
+                error_msg = f"Solicitud no está en estado EVALUADA: {solicitud.estado}"
+                logger.error(f"❌ {error_msg}")
+                return {
+                    'success': False,
+                    'solicitud_id': solicitud_id,
+                    'error': error_msg
+                }
+            
+            # Check if there are adjudications
+            adjudicaciones_count = len(solicitud.adjudicaciones)
+            logger.info(f"   Adjudicaciones: {adjudicaciones_count}")
+            
+            if adjudicaciones_count == 0:
+                error_msg = "No hay adjudicaciones para esta solicitud"
+                logger.error(f"❌ {error_msg}")
+                return {
+                    'success': False,
+                    'solicitud_id': solicitud_id,
+                    'error': error_msg
+                }
             
             # Detect intent
+            logger.info(f"🤖 Detectando intención...")
             if usar_nlp:
                 intencion = await RespuestaClienteService._detectar_intencion_nlp(
                     respuesta_texto,
@@ -59,9 +86,21 @@ class RespuestaClienteService:
                     solicitud
                 )
             
-            logger.info(f"Intención detectada para solicitud {solicitud.codigo_solicitud}: {intencion}")
+            logger.info(f"✅ Intención detectada: {intencion}")
+            
+            # Check if intent is unknown
+            if intencion['tipo'] == 'desconocido':
+                error_msg = f"No se pudo entender la respuesta. Por favor responde con 'acepto' o 'rechazo'."
+                logger.warning(f"⚠️ {error_msg}")
+                return {
+                    'success': False,
+                    'solicitud_id': solicitud_id,
+                    'error': error_msg
+                }
             
             # Process based on intent
+            logger.info(f"⚙️ Procesando intención: {intencion['tipo']}")
+            
             if intencion['tipo'] == 'aceptar_todo':
                 resultado = await RespuestaClienteService._procesar_aceptacion_total(solicitud)
             
@@ -81,16 +120,26 @@ class RespuestaClienteService:
                 )
             
             else:
-                raise ValueError(f"Intención no reconocida: {intencion['tipo']}")
+                error_msg = f"Intención no reconocida: {intencion['tipo']}"
+                logger.error(f"❌ {error_msg}")
+                return {
+                    'success': False,
+                    'solicitud_id': solicitud_id,
+                    'error': error_msg
+                }
             
             # Update solicitud with response text (timestamp will be updated_at)
             solicitud.respuesta_cliente_texto = respuesta_texto
             await solicitud.save()
             
+            logger.info(f"✅ Respuesta procesada exitosamente: {resultado.get('tipo_respuesta')}")
+            
             return resultado
             
         except Exception as e:
-            logger.error(f"Error procesando respuesta para solicitud {solicitud_id}: {e}")
+            logger.error(f"❌ Error procesando respuesta para solicitud {solicitud_id}: {e}")
+            import traceback
+            logger.error(traceback.format_exc())
             return {
                 'success': False,
                 'solicitud_id': solicitud_id,
@@ -180,7 +229,7 @@ class RespuestaClienteService:
         solicitud: Solicitud
     ) -> Dict[str, Any]:
         """
-        Detect intent using NLP (GPT-4 via Agent IA service)
+        Detect intent using NLP (OpenAI GPT-4o-mini)
         
         Args:
             texto: Response text
@@ -189,9 +238,125 @@ class RespuestaClienteService:
         Returns:
             Dict with intent information
         """
-        # TODO: Integrate with Agent IA NLP service
-        # For now, use simple detection
-        return await RespuestaClienteService._detectar_intencion_simple(texto, solicitud)
+        try:
+            import httpx
+            import os
+            import json
+            
+            # Get adjudicaciones to know how many parts we have
+            adjudicaciones = await AdjudicacionRepuesto.filter(solicitud=solicitud).prefetch_related(
+                'repuesto_solicitado', 'oferta__asesor'
+            ).all()
+            total_repuestos = len(adjudicaciones)
+            
+            logger.info(f"Detectando intención NLP para {total_repuestos} repuestos")
+            
+            # Build repuestos list for context
+            repuestos_info = []
+            for i, adj in enumerate(adjudicaciones, 1):
+                repuestos_info.append(f"{i}. {adj.repuesto_solicitado.nombre}")
+            
+            # Create prompt for OpenAI
+            prompt = f"""Analiza la siguiente respuesta de un cliente a una propuesta de repuestos y determina su intención.
+
+CONTEXTO:
+- El cliente recibió una propuesta con {total_repuestos} repuestos
+- Repuestos en la propuesta:
+{chr(10).join(repuestos_info)}
+
+RESPUESTA DEL CLIENTE:
+"{texto}"
+
+INSTRUCCIONES:
+Determina la intención del cliente y responde SOLO con un JSON válido (sin markdown, sin explicaciones adicionales) con esta estructura:
+
+Para aceptar todo:
+{{"tipo": "aceptar_todo", "confianza": 0.95}}
+
+Para rechazar todo:
+{{"tipo": "rechazar_todo", "confianza": 0.95}}
+
+Para aceptar algunos repuestos específicos:
+{{"tipo": "aceptar_parcial", "repuestos_aceptados": [1, 3, 5], "confianza": 0.90}}
+
+Para rechazar algunos repuestos específicos:
+{{"tipo": "rechazar_parcial", "repuestos_rechazados": [2, 4], "confianza": 0.90}}
+
+Si no está claro:
+{{"tipo": "desconocido", "confianza": 0.0, "texto_original": "{texto}"}}
+
+IMPORTANTE:
+- Interpreta variaciones, errores de tipeo y lenguaje natural
+- ACEPTAR TODO incluye: "acepto", "de acuerdo", "aprobado", "ok", "listo", "dale", "perfecto", "está bien", "estoy de acuerdo", "esta bien", "todo bien", "si", "sí", "confirmo", "conforme", "excelente"
+- RECHAZAR TODO incluye: "no", "rechazo", "cancelar", "no acepto", "no quiero"
+- Si menciona números específicos (ej: "acepto 1,3"), identifícalos como aceptación/rechazo parcial
+- Si NO menciona números Y usa palabras de aceptación = aceptar_todo
+- Responde SOLO con el JSON, sin texto adicional"""
+
+            # Call OpenAI API
+            openai_api_key = os.getenv("OPENAI_API_KEY")
+            if not openai_api_key:
+                logger.warning("OPENAI_API_KEY not found, falling back to simple detection")
+                return await RespuestaClienteService._detectar_intencion_simple(texto, solicitud)
+            
+            logger.info(f"Llamando a OpenAI API para detectar intención: '{texto}'")
+            
+            async with httpx.AsyncClient(timeout=30.0) as client:
+                response = await client.post(
+                    "https://api.openai.com/v1/chat/completions",
+                    headers={
+                        "Authorization": f"Bearer {openai_api_key}",
+                        "Content-Type": "application/json"
+                    },
+                    json={
+                        "model": "gpt-4o-mini",
+                        "messages": [
+                            {
+                                "role": "system",
+                                "content": "Eres un asistente que analiza respuestas de clientes y determina su intención. Respondes SOLO con JSON válido, sin markdown ni texto adicional."
+                            },
+                            {
+                                "role": "user",
+                                "content": prompt
+                            }
+                        ],
+                        "temperature": 0.3,
+                        "max_tokens": 200
+                    }
+                )
+                
+                logger.info(f"OpenAI API response status: {response.status_code}")
+                
+                if response.status_code == 200:
+                    result = response.json()
+                    content = result['choices'][0]['message']['content'].strip()
+                    
+                    logger.info(f"OpenAI raw response: {content}")
+                    
+                    # Remove markdown code blocks if present
+                    content = content.replace('```json', '').replace('```', '').strip()
+                    
+                    # Parse JSON response
+                    intencion = json.loads(content)
+                    
+                    logger.info(f"✅ NLP intent detected: {intencion}")
+                    return intencion
+                else:
+                    logger.error(f"OpenAI API error: {response.status_code} - {response.text}")
+                    logger.warning("Falling back to simple detection")
+                    return await RespuestaClienteService._detectar_intencion_simple(texto, solicitud)
+                    
+        except json.JSONDecodeError as e:
+            logger.error(f"Error parsing OpenAI JSON response: {e}")
+            logger.warning("Falling back to simple detection")
+            return await RespuestaClienteService._detectar_intencion_simple(texto, solicitud)
+        except Exception as e:
+            logger.error(f"Error in NLP intent detection: {e}")
+            import traceback
+            logger.error(traceback.format_exc())
+            # Fallback to simple detection
+            logger.warning("Falling back to simple detection")
+            return await RespuestaClienteService._detectar_intencion_simple(texto, solicitud)
     
     @staticmethod
     async def _procesar_aceptacion_total(solicitud: Solicitud) -> Dict[str, Any]:
@@ -223,13 +388,10 @@ class RespuestaClienteService:
                 await events_service.on_cliente_acepto_oferta(str(oferta_id))
             
             # Update solicitud state
-            from datetime import timezone
             solicitud.estado = EstadoSolicitud.OFERTAS_ACEPTADAS
             solicitud.cliente_acepto = True
-            # Prevent further notifications since client already responded
-            if not solicitud.fecha_notificacion_cliente:
-                solicitud.fecha_notificacion_cliente = datetime.now(timezone.utc)
-            await solicitud.save()
+            # Only update the fields we changed, not fecha_notificacion_cliente
+            await solicitud.save(update_fields=['estado', 'cliente_acepto'])
             
             logger.info(
                 f"Cliente aceptó todas las ofertas para solicitud {solicitud.codigo_solicitud}: "
@@ -279,13 +441,10 @@ class RespuestaClienteService:
                 await events_service.on_cliente_rechazo_oferta(str(oferta_id))
             
             # Update solicitud state
-            from datetime import timezone
             solicitud.estado = EstadoSolicitud.OFERTAS_RECHAZADAS
             solicitud.cliente_acepto = False
-            # Prevent further notifications since client already responded
-            if not solicitud.fecha_notificacion_cliente:
-                solicitud.fecha_notificacion_cliente = datetime.now(timezone.utc)
-            await solicitud.save()
+            # Only update the fields we changed
+            await solicitud.save(update_fields=['estado', 'cliente_acepto'])
             
             logger.info(
                 f"Cliente rechazó todas las ofertas para solicitud {solicitud.codigo_solicitud}"
@@ -353,13 +512,10 @@ class RespuestaClienteService:
                 await events_service.on_cliente_rechazo_oferta(str(oferta_id))
             
             # Update solicitud
-            from datetime import timezone
             solicitud.estado = EstadoSolicitud.OFERTAS_ACEPTADAS  # Partial acceptance is still acceptance
             solicitud.cliente_acepto = True
-            # Prevent further notifications since client already responded
-            if not solicitud.fecha_notificacion_cliente:
-                solicitud.fecha_notificacion_cliente = datetime.now(timezone.utc)
-            await solicitud.save()
+            # Only update the fields we changed
+            await solicitud.save(update_fields=['estado', 'cliente_acepto'])
             
             logger.info(
                 f"Cliente aceptó parcialmente ofertas para solicitud {solicitud.codigo_solicitud}: "
