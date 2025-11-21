@@ -1469,7 +1469,7 @@ class MetricsCalculator:
         return {"total_adjudicadas": 0, "valor_total": 0, "valor_promedio": 0, "valor_minimo": 0, "valor_maximo": 0}
     
     async def _calcular_valor_bruto_aceptado(self, fecha_inicio: datetime, fecha_fin: datetime) -> Dict[str, Any]:
-        """KPI 3: Valor Bruto Aceptado (GAV_acc) - Suma de ofertas ACEPTADA"""
+        """KPI 3: Valor Bruto Aceptado (GAV_acc) - Suma de ofertas ACEPTADA por el cliente"""
         query = """
         WITH valores_aceptadas AS (
             SELECT 
@@ -1478,7 +1478,7 @@ class MetricsCalculator:
             FROM ofertas o
             JOIN ofertas_detalle od ON o.id = od.oferta_id
             JOIN solicitudes s ON o.solicitud_id = s.id
-            WHERE o.estado = 'GANADORA'
+            WHERE o.estado = 'ACEPTADA'
             AND s.estado = 'OFERTAS_ACEPTADAS'
             AND o.created_at BETWEEN $1::timestamptz AND $2::timestamptz
             GROUP BY o.id
