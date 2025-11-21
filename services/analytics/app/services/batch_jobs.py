@@ -156,7 +156,7 @@ class BatchJobsService:
                 JOIN usuarios u ON a.usuario_id = u.id
                 LEFT JOIN ofertas o ON a.id = o.asesor_id AND DATE(o.created_at) = $1
                 LEFT JOIN solicitudes s ON o.solicitud_id = s.id
-                LEFT JOIN oferta_detalles od ON o.id = od.oferta_id
+                LEFT JOIN ofertas_detalle od ON o.id = od.oferta_id
                 LEFT JOIN evaluaciones ev ON o.id = ev.oferta_ganadora_id
                 WHERE a.activo = true
                 GROUP BY a.id, u.nombre_completo
@@ -230,8 +230,8 @@ class BatchJobsService:
                 JOIN usuarios u ON a.usuario_id = u.id
                 JOIN ofertas o ON a.id = o.asesor_id
                 JOIN solicitudes s ON o.solicitud_id = s.id
-                JOIN solicitud_detalles sd ON s.id = sd.solicitud_id
-                JOIN oferta_detalles od ON o.id = od.oferta_id AND sd.nombre_repuesto = od.nombre_repuesto
+                JOIN solicitudes_detalle sd ON s.id = sd.solicitud_id
+                JOIN ofertas_detalle od ON o.id = od.oferta_id AND sd.nombre_repuesto = od.nombre_repuesto
                 WHERE DATE(o.created_at) = $1
                 GROUP BY a.id, u.nombre_completo, sd.nombre_repuesto, sd.categoria_repuesto
             ),
@@ -325,7 +325,7 @@ class BatchJobsService:
             FROM ciudades c
             LEFT JOIN solicitudes s ON c.id = s.ciudad_id AND DATE(s.created_at) = $1
             LEFT JOIN ofertas o ON s.id = o.solicitud_id
-            LEFT JOIN oferta_detalles od ON o.id = od.oferta_id
+            LEFT JOIN ofertas_detalle od ON o.id = od.oferta_id
             GROUP BY c.id, c.nombre
             HAVING COUNT(s.id) > 0
             ORDER BY tasa_conversion DESC, solicitudes_total DESC
@@ -490,7 +490,7 @@ class BatchJobsService:
             FROM asesores a
             JOIN usuarios u ON a.usuario_id = u.id
             JOIN ofertas o ON a.id = o.asesor_id
-            JOIN oferta_detalles od ON o.id = od.oferta_id
+            JOIN ofertas_detalle od ON o.id = od.oferta_id
             WHERE DATE(o.created_at) BETWEEN $1 AND $2
             GROUP BY a.id, u.nombre_completo, DATE(o.created_at)
             ORDER BY a.id, fecha

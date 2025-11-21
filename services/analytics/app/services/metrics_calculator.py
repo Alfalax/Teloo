@@ -413,11 +413,11 @@ class MetricsCalculator:
         """Calcular valor promedio de transacción"""
         query = """
         SELECT 
-            AVG(od.precio * od.cantidad) as valor_promedio,
+            AVG(od.precio_unitario * od.cantidad) as valor_promedio,
             COUNT(DISTINCT o.solicitud_id) as transacciones,
-            SUM(od.precio * od.cantidad) as valor_total
+            SUM(od.precio_unitario * od.cantidad) as valor_total
         FROM ofertas o
-        JOIN oferta_detalles od ON o.id = od.oferta_id
+        JOIN ofertas_detalle od ON o.id = od.oferta_id
         WHERE o.estado = 'GANADORA' 
         AND o.created_at BETWEEN $1 AND $2
         """
