@@ -85,7 +85,12 @@ class NotificacionClienteService:
             
             # Update solicitud with notification timestamp
             solicitud.fecha_notificacion_cliente = datetime.now(timezone.utc)
-            await solicitud.save()
+            try:
+                await solicitud.save()
+                logger.info(f"✅ fecha_notificacion_cliente guardada para solicitud {solicitud.id}")
+            except Exception as save_error:
+                logger.error(f"❌ Error guardando fecha_notificacion_cliente: {save_error}")
+                raise
             
             logger.info(
                 f"Cliente notificado para solicitud {solicitud.codigo_solicitud}: "

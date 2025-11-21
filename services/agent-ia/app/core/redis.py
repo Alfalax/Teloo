@@ -155,3 +155,10 @@ class RedisManager:
 
 # Global Redis manager instance
 redis_manager = RedisManager()
+
+
+async def get_redis() -> redis.Redis:
+    """Get Redis client instance"""
+    if not redis_manager.redis_client:
+        await redis_manager.connect()
+    return redis_manager.redis_client

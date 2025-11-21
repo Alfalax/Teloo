@@ -13,10 +13,16 @@ from app.services.telegram_service import telegram_service
 from app.services.conversation_service import conversation_service
 from app.services.nlp_service import nlp_service
 from app.services.solicitud_service import solicitud_service
+from app.services.context_manager import get_context_manager
 from app.models.telegram import ProcessedTelegramMessage
 from app.models.whatsapp import ProcessedMessage  # Reuse WhatsApp model for compatibility
+import httpx
+import os
 
 logger = logging.getLogger(__name__)
+
+# Core API URL
+CORE_API_URL = os.getenv("CORE_API_URL", "http://core-api:8000")
 
 
 def format_repuestos_list(repuestos: list, max_items: int = 7) -> str:
@@ -103,7 +109,7 @@ class TelegramMessageProcessor:
     
     async def process_message(self, telegram_message: ProcessedTelegramMessage) -> Dict[str, Any]:
         """
-        Process a single Telegram message
+        Process a single Telegram message with context-aware interpretation
         
         Args:
             telegram_message: Processed Telegram message
@@ -114,18 +120,50 @@ class TelegramMessageProcessor:
         try:
             logger.info(f"Processing Telegram message {telegram_message.message_id} from chat {telegram_message.chat_id}")
             
-            # Convert Telegram message to WhatsApp-compatible format
-            # This allows us to reuse all existing NLP and conversation logic
-            whatsapp_message = await self._convert_to_whatsapp_format(telegram_message)
-            
-            # Use chat_id as phone number (unique identifier)
+            # Use chat_id as unique identifier
+            user_id = str(telegram_message.chat_id)
             phone_number = f"+tg{telegram_message.chat_id}"
+            
+            # Get context manager
+            context_mgr = get_context_manager()
+            
+            # Save user message to history
+            if telegram_message.text_content:
+                await context_mgr.add_message(user_id, "user", telegram_message.text_content)
+            
+            # Interpret message with context using GPT-4
+            interpretation = None
+            if telegram_message.text_content:
+                interpretation = await context_mgr.interpret_with_context(user_id, telegram_message.text_content)
+                logger.info(f"🎯 Intent: {interpretation.get('intent')} - {interpretation.get('action')}")
+            
+            # Convert Telegram message to WhatsApp-compatible format
+            whatsapp_message = await self._convert_to_whatsapp_format(telegram_message)
             
             # Get or create conversation context
             conversation = await conversation_service.get_or_create_conversation(phone_number)
             
-            # Check if this is a response to an evaluation result
-            if telegram_message.text_content and await self._is_evaluation_response(telegram_message.text_content, conversation):
+            # Handle based on interpreted intent
+            if interpretation and interpretation.get('intent') == 'cancel':
+                # User wants to cancel current operation
+                await context_mgr.clear_pending_action(user_id)
+                telegram_service = TelegramService()
+                await telegram_service.send_message(
+                    telegram_message.chat_id,
+                    "❌ Operación cancelada. ¿En qué más puedo ayudarte?"
+                )
+                return {"success": True, "action": "cancelled"}
+            
+            elif interpretation and interpretation.get('intent') == 'respond_offers':
+                # User is responding to offers
+                return await self._handle_evaluation_response(telegram_message, conversation)
+            
+            elif interpretation and interpretation.get('intent') == 'correct_data':
+                # User is correcting data in draft
+                return await self._handle_data_correction(telegram_message, conversation, interpretation, user_id)
+            
+            # Check if this is a response to an evaluation result (fallback)
+            elif telegram_message.text_content and await self._is_evaluation_response(telegram_message.text_content, conversation):
                 return await self._handle_evaluation_response(telegram_message, conversation)
             
             # Process as new solicitud or continuation
@@ -167,22 +205,18 @@ class TelegramMessageProcessor:
         )
     
     async def _is_evaluation_response(self, text: str, conversation) -> bool:
-        """Check if message is a response to evaluation results"""
+        """
+        Check if message is a response to evaluation results
+        
+        ALWAYS returns True if there's a solicitud_id, so we use AI to interpret the response.
+        This handles typos, variations, and natural language better than keyword matching.
+        """
         try:
-            if not conversation.solicitud_id:
-                return False
-            
-            text_lower = text.lower().strip()
-            
-            response_keywords = {
-                "accept": ["si", "sí", "yes", "acepto", "aceptar", "ok", "vale", "bueno"],
-                "reject": ["no", "rechazo", "rechazar", "nada", "cancel", "cancelar"],
-                "details": ["detalles", "detalle", "info", "información", "mas info", "más info"]
-            }
-            
-            for category, keywords in response_keywords.items():
-                if any(keyword in text_lower for keyword in keywords):
-                    return True
+            # If there's a solicitud_id, treat it as a potential evaluation response
+            # Let the AI decide what the user meant
+            if conversation.solicitud_id:
+                logger.info(f"Message will be processed as evaluation response (solicitud_id: {conversation.solicitud_id})")
+                return True
             
             return False
             
@@ -204,7 +238,7 @@ class TelegramMessageProcessor:
                     f"{settings.core_api_url}/v1/solicitudes/{conversation.solicitud_id}/respuesta-cliente",
                     json={
                         "respuesta_texto": telegram_message.text_content,
-                        "usar_nlp": False  # Use simple pattern matching
+                        "usar_nlp": True  # ALWAYS use AI to interpret responses (handles typos, variations, natural language)
                     },
                     headers={
                         "X-Service-API-Key": settings.service_api_key,
@@ -248,6 +282,90 @@ class TelegramMessageProcessor:
                 "error": "Error procesando respuesta de evaluación",
                 "details": str(e)
             }
+    
+    async def _handle_data_correction(
+        self, 
+        telegram_message: ProcessedTelegramMessage,
+        conversation,
+        interpretation: Dict,
+        user_id: str
+    ) -> Dict[str, Any]:
+        """Handle data correction in draft solicitud"""
+        try:
+            logger.info(f"🔧 Handling data correction for user {user_id}")
+            
+            context_mgr = get_context_manager()
+            pending = await context_mgr.get_pending_actions(user_id)
+            
+            if not pending or pending.get('type') != 'creating_request':
+                # No draft to correct, process normally
+                logger.info("No draft found, processing as normal message")
+                whatsapp_message = await self._convert_to_whatsapp_format(telegram_message)
+                return await self._handle_solicitud_message(telegram_message, conversation, whatsapp_message)
+            
+            # Extract field and value from interpretation
+            field = interpretation.get('extracted_data', {}).get('field')
+            value = interpretation.get('extracted_data', {}).get('value')
+            
+            if not field or not value:
+                # Can't determine what to correct
+                await telegram_service.send_message(
+                    telegram_message.chat_id,
+                    "No entendí qué dato quieres corregir. Por favor especifica (ej: 'telefono 3001234567')"
+                )
+                return {"success": False, "error": "Could not determine correction"}
+            
+            # Update draft
+            draft = pending.get('data', {}).get('draft', {})
+            
+            if field == 'telefono':
+                draft['telefono'] = value
+            elif field == 'nombre':
+                draft['nombre_cliente'] = value
+            elif field == 'ciudad':
+                draft['ciudad'] = value
+            
+            # Save updated draft
+            pending['data']['draft'] = draft
+            await context_mgr.set_pending_action(user_id, 'creating_request', pending['data'])
+            
+            # Show updated summary
+            response = await self._format_draft_summary(draft)
+            await telegram_service.send_message(telegram_message.chat_id, response)
+            
+            logger.info(f"✅ Data corrected: {field} = {value}")
+            
+            return {"success": True, "action": "data_corrected"}
+            
+        except Exception as e:
+            logger.error(f"Error handling data correction: {e}")
+            return {"success": False, "error": str(e)}
+    
+    async def _format_draft_summary(self, draft: Dict) -> str:
+        """Format draft summary for display"""
+        missing = []
+        if not draft.get('repuestos'): missing.append("repuestos")
+        if not draft.get('marca'): missing.append("marca del vehículo")
+        if not draft.get('anio'): missing.append("año del vehículo")
+        if not draft.get('nombre_cliente'): missing.append("nombre del cliente")
+        if not draft.get('telefono'): missing.append("teléfono del cliente")
+        if not draft.get('ciudad'): missing.append("ciudad")
+        
+        if missing:
+            return f"🤔 Para crear tu solicitud necesito la siguiente información:\n" + \
+                   "\n".join([f"❌ {m}" for m in missing]) + \
+                   "\n\n📝 Por favor envíame la información que falta."
+        
+        # All data complete
+        response = "✅ Perfecto, actualicé la información:\n\n"
+        response += f"👤 Cliente: {draft.get('nombre_cliente', 'N/A')}\n"
+        response += f"📞 Teléfono: {draft.get('telefono', 'N/A')}\n"
+        response += f"📍 Ciudad: {draft.get('ciudad', 'N/A')}\n"
+        response += f"🚗 Vehículo: {draft.get('marca', 'N/A')} {draft.get('modelo', '')} {draft.get('anio', '')}\n\n"
+        response += format_repuestos_list(draft.get('repuestos', []))
+        response += "\n¿Ahora sí está todo correcto?"
+        
+        return response
     
     async def _handle_solicitud_message(
         self, 
@@ -440,7 +558,9 @@ FORMATO DE RESPUESTA:
 
 INTENCIONES:
 - "confirm": Usuario confirma que todo está bien SIN mencionar cambios
-  Ejemplos: "sí", "ok", "perfecto", "todo bien", "correcto", "así está", "confirmar", "adelante", "está bien"
+  Ejemplos: "sí", "ok", "perfecto", "todo bien", "correcto", "así está", "confirmar", "adelante", "está bien",
+            "aprobado", "aprobada", "esta bien aprobada", "está bien aprobado", "listo", "dale", "de acuerdo",
+            "conforme", "excelente", "genial", "bien", "muy bien", "todo correcto", "todo ok"
   NO ES CONFIRMACIÓN: "serían las 2" (menciona cantidad), "sí, pero..." (tiene corrección)
 
 - "reject": Usuario rechaza TODO y quiere empezar de nuevo (SOLO rechazos totales)
