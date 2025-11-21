@@ -290,9 +290,9 @@ class SolicitudesService:
         usuario = await Usuario.get_or_none(telefono=telefono)
         
         if not usuario:
-            # Create new usuario
+            # Create new usuario (email is optional for CLIENT role)
             usuario = await Usuario.create(
-                email=cliente_data.get("email", f"{telefono}@teloo.temp"),
+                email=cliente_data.get("email"),  # Can be None for clients
                 password_hash="temp_hash",  # Will be set when user registers
                 nombre=cliente_data["nombre"].split()[0] if cliente_data["nombre"] else "Cliente",
                 apellido=" ".join(cliente_data["nombre"].split()[1:]) if len(cliente_data["nombre"].split()) > 1 else "",
@@ -301,9 +301,17 @@ class SolicitudesService:
                 estado=EstadoUsuario.ACTIVO
             )
             
+            # Buscar municipio por ID para el nuevo cliente
+            from models.geografia import Municipio
+            municipio_obj = await Municipio.get_or_none(id=municipio_id)
+            
+            if not municipio_obj:
+                raise ValueError(f"Municipio con ID {municipio_id} no encontrado en base de datos")
+            
             # Create cliente profile
             cliente = await Cliente.create(
                 usuario=usuario,
+                municipio=municipio_obj,
                 ciudad=ciudad_origen,
                 departamento=departamento_origen
             )

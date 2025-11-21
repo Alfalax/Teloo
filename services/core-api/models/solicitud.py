@@ -57,9 +57,15 @@ class Solicitud(BaseModel):
     fecha_escalamiento = fields.DatetimeField(null=True)
     fecha_evaluacion = fields.DatetimeField(null=True)
     fecha_expiracion = fields.DatetimeField(null=True)
+    fecha_notificacion_cliente = fields.DatetimeField(null=True)
+    fecha_respuesta_cliente = fields.DatetimeField(null=True)
     
     # Metadata adicional (JSON para flexibilidad)
     metadata_json = fields.JSONField(default=dict)
+    
+    # Client response tracking
+    cliente_acepto = fields.BooleanField(null=True)
+    respuesta_cliente_texto = fields.TextField(null=True)
     
     # Métricas calculadas
     total_repuestos = fields.IntField(default=0)
