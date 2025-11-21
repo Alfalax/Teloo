@@ -17,7 +17,7 @@ SELECT
     AVG(EXTRACT(EPOCH FROM (s.updated_at - s.created_at))) as tiempo_promedio_cierre_seg,
     COUNT(DISTINCT o.id) as ofertas_totales,
     COUNT(CASE WHEN o.estado = 'GANADORA' THEN 1 END) as ofertas_ganadoras,
-    COUNT(CASE WHEN o.estado = 'ACEPTADA' THEN 1 END) as ofertas_aceptadas,
+    COUNT(CASE WHEN o.estado = 'ACEPTADA' THEN 1 END) as ofertas_aceptadas_cliente,
     AVG(od.precio_unitario) as precio_promedio_ofertas,
     MIN(od.precio_unitario) as precio_minimo_ofertas,
     MAX(od.precio_unitario) as precio_maximo_ofertas,

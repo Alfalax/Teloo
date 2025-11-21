@@ -351,13 +351,15 @@ class MetricsCalculator:
         SELECT COUNT(*) as total,
                COUNT(CASE WHEN estado = 'ABIERTA' THEN 1 END) as abiertas,
                COUNT(CASE WHEN estado = 'EVALUADA' THEN 1 END) as evaluadas,
-               COUNT(CASE WHEN estado = 'OFERTAS_ACEPTADAS' THEN 1 END) as aceptadas
+               COUNT(CASE WHEN estado = 'OFERTAS_ACEPTADAS' THEN 1 END) as aceptadas,
+               COUNT(CASE WHEN estado = 'OFERTAS_RECHAZADAS' THEN 1 END) as rechazadas,
+               COUNT(CASE WHEN estado = 'CERRADA_SIN_OFERTAS' THEN 1 END) as cerradas_sin_ofertas
         FROM solicitudes 
         WHERE created_at BETWEEN $1 AND $2
         """
         
         result = await self._execute_query(query, [fecha_inicio, fecha_fin])
-        return result[0] if result else {"total": 0, "abiertas": 0, "evaluadas": 0, "aceptadas": 0}
+        return result[0] if result else {"total": 0, "abiertas": 0, "evaluadas": 0, "aceptadas": 0, "rechazadas": 0, "cerradas_sin_ofertas": 0}
         
     async def _calcular_tasa_conversion(self, fecha_inicio: datetime, fecha_fin: datetime) -> Dict[str, Any]:
         """Calcular tasa de conversión"""
@@ -566,7 +568,7 @@ class MetricsCalculator:
         query = """
         SELECT COUNT(*) as total 
         FROM solicitudes 
-        WHERE estado IN ('CERRADA_SIN_OFERTAS', 'CERRADA') 
+        WHERE estado IN ('CERRADA_SIN_OFERTAS', 'OFERTAS_RECHAZADAS', 'OFERTAS_ACEPTADAS') 
         AND created_at BETWEEN $1 AND $2
         """
         result = await self._execute_query(query, [fecha_inicio, fecha_fin])
