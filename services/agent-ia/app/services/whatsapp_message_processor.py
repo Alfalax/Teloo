@@ -122,9 +122,15 @@ class WhatsAppMessageProcessor:
             if interpretation and interpretation.get('intent') == 'cancel':
                 # User wants to cancel current operation
                 await context_mgr.clear_pending_action(user_id)
+                
+                # Clear draft from Redis
+                from app.core.redis import redis_manager
+                draft_key = f"solicitud_draft:{whatsapp_message.from_number}"
+                await redis_manager.delete(draft_key)
+                
                 await whatsapp_service.send_text_message(
                     whatsapp_message.from_number,
-                    "❌ Operación cancelada. ¿En qué más puedo ayudarte?"
+                    "✅ Entendido, he cancelado todo.\n\nSi cambias de opinión y necesitas repuestos, solo escríbeme. ¡Estoy aquí para ayudarte!"
                 )
                 return {"success": True, "action": "cancelled"}
             
