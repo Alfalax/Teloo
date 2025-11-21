@@ -314,12 +314,12 @@ class BatchJobsService:
                 c.nombre as ciudad,
                 COUNT(s.id) as solicitudes_total,
                 COUNT(CASE WHEN s.estado != 'ABIERTA' THEN 1 END) as solicitudes_procesadas,
-                COUNT(CASE WHEN s.estado = 'ACEPTADA' THEN 1 END) as solicitudes_aceptadas,
+                COUNT(CASE WHEN s.estado = 'OFERTAS_ACEPTADAS' THEN 1 END) as solicitudes_aceptadas,
                 COUNT(DISTINCT o.id) as ofertas_total,
                 AVG(od.precio * od.cantidad) as valor_promedio_transaccion,
                 CASE 
                     WHEN COUNT(s.id) > 0 THEN 
-                        ROUND((COUNT(CASE WHEN s.estado = 'ACEPTADA' THEN 1 END)::float / COUNT(s.id)) * 100, 2)
+                        ROUND((COUNT(CASE WHEN s.estado = 'OFERTAS_ACEPTADAS' THEN 1 END)::float / COUNT(s.id)) * 100, 2)
                     ELSE 0 
                 END as tasa_conversion
             FROM ciudades c
@@ -416,7 +416,7 @@ class BatchJobsService:
             SELECT 
                 DATE(created_at) as fecha,
                 COUNT(*) as solicitudes_dia,
-                COUNT(CASE WHEN estado = 'ACEPTADA' THEN 1 END) as aceptadas_dia,
+                COUNT(CASE WHEN estado = 'OFERTAS_ACEPTADAS' THEN 1 END) as aceptadas_dia,
                 AVG(EXTRACT(HOUR FROM created_at)) as hora_promedio_solicitud,
                 COUNT(DISTINCT ciudad_id) as ciudades_activas
             FROM solicitudes
@@ -562,7 +562,7 @@ class BatchJobsService:
                 sd.categoria_repuesto,
                 sd.nombre_repuesto,
                 COUNT(s.id) as solicitudes_total,
-                COUNT(CASE WHEN s.estado = 'ACEPTADA' THEN 1 END) as solicitudes_exitosas,
+                COUNT(CASE WHEN s.estado = 'OFERTAS_ACEPTADAS' THEN 1 END) as solicitudes_exitosas,
                 AVG(sd.cantidad) as cantidad_promedio,
                 EXTRACT(DOW FROM s.created_at) as dia_semana,
                 EXTRACT(HOUR FROM s.created_at) as hora_dia,

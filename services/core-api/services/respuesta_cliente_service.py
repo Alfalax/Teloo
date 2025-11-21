@@ -223,8 +223,12 @@ class RespuestaClienteService:
                 await events_service.on_cliente_acepto_oferta(str(oferta_id))
             
             # Update solicitud state
-            solicitud.estado = EstadoSolicitud.EVALUADA
+            from datetime import timezone
+            solicitud.estado = EstadoSolicitud.OFERTAS_ACEPTADAS
             solicitud.cliente_acepto = True
+            # Prevent further notifications since client already responded
+            if not solicitud.fecha_notificacion_cliente:
+                solicitud.fecha_notificacion_cliente = datetime.now(timezone.utc)
             await solicitud.save()
             
             logger.info(
@@ -275,8 +279,12 @@ class RespuestaClienteService:
                 await events_service.on_cliente_rechazo_oferta(str(oferta_id))
             
             # Update solicitud state
-            solicitud.estado = EstadoSolicitud.CERRADA_SIN_OFERTAS
+            from datetime import timezone
+            solicitud.estado = EstadoSolicitud.OFERTAS_RECHAZADAS
             solicitud.cliente_acepto = False
+            # Prevent further notifications since client already responded
+            if not solicitud.fecha_notificacion_cliente:
+                solicitud.fecha_notificacion_cliente = datetime.now(timezone.utc)
             await solicitud.save()
             
             logger.info(
@@ -345,8 +353,12 @@ class RespuestaClienteService:
                 await events_service.on_cliente_rechazo_oferta(str(oferta_id))
             
             # Update solicitud
-            solicitud.estado = EstadoSolicitud.EVALUADA
-            solicitud.cliente_acepto = True  # Partial acceptance is still acceptance
+            from datetime import timezone
+            solicitud.estado = EstadoSolicitud.OFERTAS_ACEPTADAS  # Partial acceptance is still acceptance
+            solicitud.cliente_acepto = True
+            # Prevent further notifications since client already responded
+            if not solicitud.fecha_notificacion_cliente:
+                solicitud.fecha_notificacion_cliente = datetime.now(timezone.utc)
             await solicitud.save()
             
             logger.info(

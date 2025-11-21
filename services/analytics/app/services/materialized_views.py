@@ -54,8 +54,8 @@ class MaterializedViewsService:
         SELECT 
             DATE_TRUNC('month', s.created_at) as mes,
             COUNT(*) as solicitudes_creadas,
-            COUNT(CASE WHEN s.estado = 'ACEPTADA' THEN 1 END) as solicitudes_aceptadas,
-            COUNT(CASE WHEN s.estado = 'RECHAZADA' THEN 1 END) as solicitudes_rechazadas,
+            COUNT(CASE WHEN s.estado = 'OFERTAS_ACEPTADAS' THEN 1 END) as solicitudes_aceptadas,
+            COUNT(CASE WHEN s.estado = 'OFERTAS_RECHAZADAS' THEN 1 END) as solicitudes_rechazadas,
             COUNT(CASE WHEN s.estado = 'EXPIRADA' THEN 1 END) as solicitudes_expiradas,
             AVG(EXTRACT(EPOCH FROM (s.updated_at - s.created_at))) as tiempo_promedio_cierre_seg,
             COUNT(DISTINCT o.id) as ofertas_totales,

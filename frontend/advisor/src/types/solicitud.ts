@@ -3,7 +3,7 @@ export interface Solicitud {
   cliente_id: string;
   cliente_nombre?: string;
   cliente_telefono?: string;
-  estado: 'ABIERTA' | 'EVALUADA' | 'CERRADA_SIN_OFERTAS';
+  estado: 'ABIERTA' | 'EVALUADA' | 'OFERTAS_ACEPTADAS' | 'OFERTAS_RECHAZADAS' | 'CERRADA_SIN_OFERTAS';
   nivel_actual: number;
   ciudad_origen: string;
   departamento_origen: string;

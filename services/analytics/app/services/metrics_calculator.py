@@ -859,7 +859,7 @@ class MetricsCalculator:
                 WHEN EXISTS (
                     SELECT 1 FROM ofertas o 
                     WHERE o.solicitud_id = rs.solicitud_id 
-                    AND o.estado = 'ACEPTADA'
+                    AND o.estado = 'OFERTAS_ACEPTADAS'
                 ) THEN rs.id 
             END) as aceptadas
         FROM repuestos_solicitados rs
