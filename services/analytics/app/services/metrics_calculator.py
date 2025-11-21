@@ -352,10 +352,10 @@ class MetricsCalculator:
         query = """
         SELECT 
             COUNT(*) as total_solicitudes,
-            COUNT(CASE WHEN estado = 'ACEPTADA' THEN 1 END) as aceptadas,
+            COUNT(CASE WHEN cliente_acepto = true THEN 1 END) as aceptadas,
             CASE 
                 WHEN COUNT(*) > 0 THEN 
-                    ROUND(CAST((COUNT(CASE WHEN estado = 'ACEPTADA' THEN 1 END)::float / COUNT(*)) * 100 AS numeric), 2)
+                    ROUND(CAST((COUNT(CASE WHEN cliente_acepto = true THEN 1 END)::float / COUNT(*)) * 100 AS numeric), 2)
                 ELSE 0 
             END as tasa_conversion
         FROM solicitudes 
@@ -538,10 +538,10 @@ class MetricsCalculator:
         query = """
         SELECT 
             COUNT(*) as total_solicitudes,
-            COUNT(CASE WHEN estado = 'ACEPTADA' THEN 1 END) as aceptadas,
+            COUNT(CASE WHEN cliente_acepto = true THEN 1 END) as aceptadas,
             CASE 
                 WHEN COUNT(*) > 0 THEN 
-                    ROUND(CAST((COUNT(CASE WHEN estado = 'ACEPTADA' THEN 1 END)::float / COUNT(*)) * 100 AS numeric), 2)
+                    ROUND(CAST((COUNT(CASE WHEN cliente_acepto = true THEN 1 END)::float / COUNT(*)) * 100 AS numeric), 2)
                 ELSE 0 
             END as tasa_aceptacion
         FROM solicitudes 
@@ -1179,7 +1179,7 @@ class MetricsCalculator:
         WITH ofertas_adjudicadas AS (
             SELECT 
                 COUNT(*) as total_adjudicadas,
-                COUNT(CASE WHEN s.estado = 'ACEPTADA' THEN 1 END) as aceptadas
+                COUNT(CASE WHEN s.cliente_acepto = true THEN 1 END) as aceptadas
             FROM ofertas o
             JOIN solicitudes s ON o.solicitud_id = s.id
             WHERE o.estado = 'GANADORA'
