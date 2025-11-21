@@ -124,6 +124,15 @@ class RedisManager:
             logger.error(f"Redis RPOP error for key {key}: {e}")
             return None
     
+    async def brpop(self, key: str, timeout: int = 0) -> Optional[tuple]:
+        """Blocking pop value from right of list"""
+        try:
+            result = await self.redis_client.brpop(key, timeout)
+            return result
+        except Exception as e:
+            logger.error(f"Redis BRPOP error for key {key}: {e}")
+            return None
+    
     async def llen(self, key: str) -> int:
         """Get length of list"""
         try:

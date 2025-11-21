@@ -155,14 +155,16 @@ INTENCIONES POSIBLES:
 - correct_data: Usuario corrige un dato de la solicitud en creación
 - confirm: Usuario confirma que los datos están correctos
 - query: Usuario hace una pregunta o consulta
-- cancel: Usuario quiere cancelar/empezar de nuevo
+- cancel: Usuario quiere CANCELAR COMPLETAMENTE y NO continuar (ej: "ya no quiero", "déjalo", "olvídalo", "no voy a hacer solicitud")
 
-REGLAS:
-1. Si hay acción pendiente "creating_request" y el mensaje es un número de teléfono (10 dígitos), es "correct_data"
-2. Si hay acción pendiente "awaiting_offer_response" y el mensaje contiene "acepto/si/ok", es "respond_offers"
-3. Si el mensaje menciona repuestos/vehículo/marca sin acción pendiente, es "create_request"
-4. Palabras como "si/confirmar/correcto/listo" después de mostrar resumen = "confirm"
-5. Un número solo (sin contexto claro) probablemente es "correct_data" si falta un dato numérico
+REGLAS CRÍTICAS:
+1. CANCEL vs REINICIAR: Si el usuario dice "ya no quiero", "no voy a hacer solicitud", "déjalo", "olvídalo" = es CANCEL (terminar todo)
+2. Si dice "empecemos de nuevo", "reiniciar", "otra vez" = es create_request (nueva solicitud)
+3. Si hay acción pendiente "creating_request" y el mensaje es un número de teléfono (10 dígitos), es "correct_data"
+4. Si hay acción pendiente "awaiting_offer_response" y el mensaje contiene "acepto/si/ok", es "respond_offers"
+5. Si el mensaje menciona repuestos/vehículo/marca sin acción pendiente, es "create_request"
+6. Palabras como "si/confirmar/correcto/listo" después de mostrar resumen = "confirm"
+7. Un número solo (sin contexto claro) probablemente es "correct_data" si falta un dato numérico
 
 Responde SOLO con JSON válido (sin markdown):
 {{

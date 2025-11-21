@@ -147,10 +147,16 @@ class TelegramMessageProcessor:
             if interpretation and interpretation.get('intent') == 'cancel':
                 # User wants to cancel current operation
                 await context_mgr.clear_pending_action(user_id)
+                
+                # Clear draft from Redis
+                from app.core.redis import redis_manager
+                draft_key = f"solicitud_draft:{telegram_message.chat_id}"
+                await redis_manager.delete(draft_key)
+                
                 telegram_service = TelegramService()
                 await telegram_service.send_message(
                     telegram_message.chat_id,
-                    "❌ Operación cancelada. ¿En qué más puedo ayudarte?"
+                    "✅ Entendido, he cancelado todo.\n\nSi cambias de opinión y necesitas repuestos, solo escríbeme. ¡Estoy aquí para ayudarte!"
                 )
                 return {"success": True, "action": "cancelled"}
             
@@ -646,24 +652,24 @@ Usuario: "agrega pastillas de freno traseras"
                                 existing_draft = None
                                 # El código continúa después del bloque if existing_draft
                             
-                            # Usuario RECHAZA TODO - borrar y empezar de nuevo
+                            # Usuario RECHAZA TODO - cancelar completamente
                             elif intent == "reject":
-                                logger.info(f"User rejected everything (natural language)")
+                                logger.info(f"User rejected everything - cancelling (natural language)")
                                 await redis_manager.delete(draft_key)
                                 
-                                help_msg = "❌ Entendido. Empecemos de nuevo.\n\n"
-                                help_msg += "Por favor envíame la información completa:\n"
-                                help_msg += "• Tu nombre\n"
-                                help_msg += "• Tu teléfono\n"
-                                help_msg += "• Repuestos que necesitas\n"
-                                help_msg += "• Marca, modelo y año del vehículo\n"
-                                help_msg += "• Tu ciudad"
+                                # Clear pending actions
+                                context_mgr = get_context_manager()
+                                user_id = f"+tg{telegram_message.chat_id}"
+                                await context_mgr.clear_pending_action(user_id)
                                 
-                                await telegram_service.send_message(telegram_message.chat_id, help_msg)
+                                cancel_msg = "✅ Entendido, he cancelado todo.\n\n"
+                                cancel_msg += "Si cambias de opinión y necesitas repuestos, solo escríbeme. ¡Estoy aquí para ayudarte!"
+                                
+                                await telegram_service.send_message(telegram_message.chat_id, cancel_msg)
                                 
                                 return {
                                     "success": True,
-                                    "action": "confirmation_rejected"
+                                    "action": "cancelled"
                                 }
                             
                             # Usuario HACE UNA PREGUNTA - responder y mantener datos
