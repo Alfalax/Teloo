@@ -302,6 +302,14 @@ CHECKLIST_*.md
 INSTALACION_*.md
 EJEMPLOS_*.md
 FLUJO_*.md
+ANALISIS_*.md
+MIGRACION_*.md
+
+# Temporary scripts (root level)
+create_admin_*.py
+
+# Service-specific documentation (temporary)
+services/agent-ia/CIUDAD_NORMALIZACION.md
 
 # Service-specific test files
 services/agent-ia/.env.test
