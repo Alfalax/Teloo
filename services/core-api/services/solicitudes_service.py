@@ -268,15 +268,27 @@ class SolicitudesService:
         from models.user import Usuario, Cliente
         from models.enums import RolUsuario, EstadoUsuario
         
-        # Validate geography (optional for development)
-        geografia_service = GeografiaService()
-        ciudad_valida = await geografia_service.validar_ciudad(ciudad_origen, departamento_origen)
+        # Validate and normalize ciudad_origen
+        # Importar función de limpieza de ciudad
+        from models.geografia import Municipio
         
-        if not ciudad_valida:
-            # Log warning but allow creation for development
-            logger.warning(f"Ciudad {ciudad_origen} no encontrada en base de datos geográfica. Ciudades disponibles: BOGOTA, MEDELLIN, CALI, BARRANQUILLA")
-            # TODO: Enable strict validation in production
-            # raise ValueError(f"Ciudad {ciudad_origen} no válida. Ciudades disponibles: BOGOTA, MEDELLIN, CALI, BARRANQUILLA")
+        # Normalizar ciudad_origen (quitar departamentos, tildes, mayúsculas)
+        ciudad_normalizada = Municipio.normalizar_ciudad(ciudad_origen)
+        
+        # Validar que el municipio_id corresponda a la ciudad_origen
+        municipio_validacion = await Municipio.get_or_none(id=municipio_id)
+        if not municipio_validacion:
+            raise ValueError(f"Municipio con ID {municipio_id} no encontrado en base de datos")
+        
+        # Verificar que la ciudad normalizada coincida con el municipio
+        if municipio_validacion.municipio_norm != ciudad_normalizada:
+            logger.warning(
+                f"Ciudad origen '{ciudad_origen}' (normalizada: '{ciudad_normalizada}') "
+                f"no coincide con municipio_id {municipio_id} (municipio: '{municipio_validacion.municipio_norm}'). "
+                f"Se usará el nombre del municipio de la base de datos."
+            )
+            # Usar el nombre correcto del municipio de la base de datos
+            ciudad_origen = municipio_validacion.municipio_norm
         
         # Normalize phone number to Colombian format
         telefono = cliente_data["telefono"]
