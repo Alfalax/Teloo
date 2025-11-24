@@ -1049,6 +1049,7 @@ Mensaje: "para una Yamaha FZ 2.0 del 2018"
                     municipio_data = geo_response.json()
                     municipio_id = municipio_data["id"]
                     departamento = municipio_data["departamento"]
+                    ciudad_display = f"{ciudad_normalizada.title()} - {departamento}"
                 else:
                     # Ciudad no encontrada - verificar si es primera o segunda vez
                     ciudad_invalida_key = f"ciudad_invalida:{telegram_message.chat_id}"
@@ -1126,7 +1127,7 @@ Mensaje: "para una Yamaha FZ 2.0 del 2018"
                     response_msg += f"📋 Número: {solicitud_id[:8]}...\n\n"
                     response_msg += f"👤 Cliente: {cliente['nombre']}\n"
                     response_msg += f"📞 Teléfono: {telefono}\n"
-                    response_msg += f"📍 Ciudad: {cliente['ciudad']}\n\n"
+                    response_msg += f"📍 Ciudad: {ciudad_display}\n\n"
                     
                     # Usar función para formatear repuestos (muestra solo cantidad si >7)
                     response_msg += format_repuestos_list(extracted_data["repuestos"])
