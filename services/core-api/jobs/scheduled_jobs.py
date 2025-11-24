@@ -694,3 +694,254 @@ async def verificar_timeouts_escalamiento(
             'timestamp': datetime.now().isoformat(),
             'message': 'Error verificando timeouts de escalamiento'
         }
+
+
+
+async def enviar_recordatorios_cliente(
+    redis_client: Optional[redis.Redis] = None
+) -> Dict[str, Any]:
+    """
+    Send reminders to clients about pending offer responses
+    
+    Sends:
+    - Intermediate reminder at 12 hours
+    - Final reminder at 23 hours
+    - Auto-closes at 24 hours (timeout)
+    
+    Args:
+        redis_client: Redis client for publishing events
+        
+    Returns:
+        Dict with result
+    """
+    try:
+        logger.debug("🔍 Verificando solicitudes con respuestas pendientes...")
+        
+        from models.solicitud import Solicitud
+        from models.enums import EstadoSolicitud
+        from services.notificacion_cliente_service import NotificacionClienteService
+        from services.configuracion_service import ConfiguracionService
+        from datetime import timezone, timedelta
+        
+        # Get timeout configuration (reuse existing timeout_ofertas_horas)
+        config = await ConfiguracionService.get_config('parametros_generales')
+        timeout_horas = config.get('timeout_ofertas_horas', 20)
+        
+        # Find solicitudes EVALUADAS waiting for client response
+        solicitudes_pendientes = await Solicitud.filter(
+            estado=EstadoSolicitud.EVALUADA,
+            fecha_notificacion_cliente__isnull=False,
+            fecha_respuesta_cliente__isnull=True  # No response yet
+        ).prefetch_related('cliente__usuario')
+        
+        logger.info(f"📋 Encontradas {len(solicitudes_pendientes)} solicitudes esperando respuesta")
+        
+        recordatorios_intermedios = 0
+        recordatorios_finales = 0
+        solicitudes_cerradas = 0
+        
+        ahora = datetime.now(timezone.utc)
+        
+        for solicitud in solicitudes_pendientes:
+            try:
+                # Calculate time elapsed since notification
+                tiempo_transcurrido = ahora - solicitud.fecha_notificacion_cliente
+                horas_transcurridas = tiempo_transcurrido.total_seconds() / 3600
+                
+                logger.debug(
+                    f"📊 Solicitud {str(solicitud.id)[:8]}: "
+                    f"{horas_transcurridas:.1f}h / {timeout_horas}h"
+                )
+                
+                # Check if timeout reached (24 hours)
+                if horas_transcurridas >= timeout_horas:
+                    logger.warning(
+                        f"⏰ Timeout alcanzado para solicitud {solicitud.codigo_solicitud}: "
+                        f"{horas_transcurridas:.1f}h >= {timeout_horas}h"
+                    )
+                    
+                    # Auto-reject all offers due to timeout
+                    from services.respuesta_cliente_service import RespuestaClienteService
+                    
+                    resultado = await RespuestaClienteService.procesar_respuesta(
+                        solicitud_id=str(solicitud.id),
+                        respuesta_texto="rechazo todo",  # Auto-reject
+                        usar_nlp=False
+                    )
+                    
+                    if resultado['success']:
+                        logger.info(f"✅ Solicitud {solicitud.codigo_solicitud} cerrada por timeout")
+                        solicitudes_cerradas += 1
+                        
+                        # Notify client about timeout
+                        if redis_client:
+                            event_data = {
+                                'tipo_evento': 'cliente.timeout_respuesta',
+                                'solicitud_id': str(solicitud.id),
+                                'codigo_solicitud': solicitud.codigo_solicitud,
+                                'cliente_telefono': solicitud.cliente.usuario.telefono,
+                                'cliente_nombre': solicitud.cliente.usuario.nombre_completo,
+                                'mensaje': 'El tiempo para responder ha expirado. Las ofertas han sido rechazadas automáticamente.',
+                                'timestamp': ahora.isoformat()
+                            }
+                            await redis_client.publish(
+                                'cliente.timeout_respuesta',
+                                json.dumps(event_data)
+                            )
+                    
+                    continue
+                
+                # Check if final reminder needed (23 hours)
+                if horas_transcurridas >= (timeout_horas - 1):
+                    # Check if final reminder already sent
+                    if redis_client:
+                        reminder_key = f"reminder_final:{solicitud.id}"
+                        if await redis_client.exists(reminder_key):
+                            continue
+                        
+                        # Send final reminder
+                        await NotificacionClienteService.enviar_recordatorio(
+                            solicitud_id=str(solicitud.id),
+                            tipo_recordatorio='final',
+                            redis_client=redis_client
+                        )
+                        
+                        # Mark as sent (expires in 2 hours)
+                        await redis_client.setex(reminder_key, 7200, "sent")
+                        recordatorios_finales += 1
+                        
+                        logger.info(f"⚠️ Recordatorio final enviado para {solicitud.codigo_solicitud}")
+                    
+                    continue
+                
+                # Check if intermediate reminder needed (12 hours)
+                if horas_transcurridas >= (timeout_horas / 2):
+                    # Check if intermediate reminder already sent
+                    if redis_client:
+                        reminder_key = f"reminder_intermedio:{solicitud.id}"
+                        if await redis_client.exists(reminder_key):
+                            continue
+                        
+                        # Send intermediate reminder
+                        await NotificacionClienteService.enviar_recordatorio(
+                            solicitud_id=str(solicitud.id),
+                            tipo_recordatorio='intermedio',
+                            redis_client=redis_client
+                        )
+                        
+                        # Mark as sent (expires in 24 hours)
+                        await redis_client.setex(reminder_key, 86400, "sent")
+                        recordatorios_intermedios += 1
+                        
+                        logger.info(f"⏰ Recordatorio intermedio enviado para {solicitud.codigo_solicitud}")
+                
+            except Exception as e:
+                logger.error(f"Error procesando solicitud {solicitud.id}: {e}")
+                continue
+        
+        logger.info(
+            f"✅ Recordatorios procesados: {recordatorios_intermedios} intermedios, "
+            f"{recordatorios_finales} finales, {solicitudes_cerradas} cerradas por timeout"
+        )
+        
+        return {
+            'success': True,
+            'recordatorios_intermedios': recordatorios_intermedios,
+            'recordatorios_finales': recordatorios_finales,
+            'solicitudes_cerradas_timeout': solicitudes_cerradas,
+            'timestamp': datetime.now().isoformat()
+        }
+        
+    except Exception as e:
+        logger.error(f"Error en job de recordatorios: {e}")
+        import traceback
+        logger.error(traceback.format_exc())
+        return {
+            'success': False,
+            'error': str(e),
+            'timestamp': datetime.now().isoformat()
+        }
+
+
+async def notificar_clientes_ofertas_ganadoras(
+    redis_client: Optional[redis.Redis] = None
+) -> Dict[str, Any]:
+    """
+    Notify clients about winning offers after evaluation
+    
+    This job runs after evaluation is completed and sends:
+    - PDF with winning offers
+    - Personalized message with metrics
+    
+    Args:
+        redis_client: Redis client for publishing events
+        
+    Returns:
+        Dict with result
+    """
+    try:
+        logger.debug("🔍 Buscando solicitudes evaluadas sin notificar...")
+        
+        from models.solicitud import Solicitud
+        from models.enums import EstadoSolicitud
+        from services.notificacion_cliente_service import NotificacionClienteService
+        
+        # Find solicitudes EVALUADAS that haven't been notified yet
+        solicitudes_sin_notificar = await Solicitud.filter(
+            estado=EstadoSolicitud.EVALUADA,
+            fecha_evaluacion__isnull=False,
+            fecha_notificacion_cliente__isnull=True
+        ).prefetch_related('cliente__usuario', 'adjudicaciones')
+        
+        logger.info(f"📋 Encontradas {len(solicitudes_sin_notificar)} solicitudes para notificar")
+        
+        notificaciones_enviadas = 0
+        
+        for solicitud in solicitudes_sin_notificar:
+            try:
+                # Check if there are adjudications
+                adjudicaciones_count = len(solicitud.adjudicaciones)
+                
+                if adjudicaciones_count == 0:
+                    logger.warning(f"⚠️ Solicitud {solicitud.codigo_solicitud} sin adjudicaciones, omitiendo")
+                    continue
+                
+                # Send notification
+                resultado = await NotificacionClienteService.notificar_ofertas_ganadoras(
+                    solicitud_id=str(solicitud.id),
+                    redis_client=redis_client
+                )
+                
+                if resultado['success']:
+                    notificaciones_enviadas += 1
+                    logger.info(
+                        f"✅ Cliente notificado: {solicitud.codigo_solicitud} "
+                        f"({adjudicaciones_count} repuestos)"
+                    )
+                else:
+                    logger.error(
+                        f"❌ Error notificando {solicitud.codigo_solicitud}: "
+                        f"{resultado.get('error')}"
+                    )
+                
+            except Exception as e:
+                logger.error(f"Error notificando solicitud {solicitud.id}: {e}")
+                continue
+        
+        logger.info(f"✅ Notificaciones enviadas: {notificaciones_enviadas}")
+        
+        return {
+            'success': True,
+            'notificaciones_enviadas': notificaciones_enviadas,
+            'timestamp': datetime.now().isoformat()
+        }
+        
+    except Exception as e:
+        logger.error(f"Error en job de notificaciones: {e}")
+        import traceback
+        logger.error(traceback.format_exc())
+        return {
+            'success': False,
+            'error': str(e),
+            'timestamp': datetime.now().isoformat()
+        }

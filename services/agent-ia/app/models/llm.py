@@ -73,7 +73,7 @@ class LLMRequest(BaseModel):
 class LLMResponse(BaseModel):
     """Response from LLM provider"""
     content: str
-    usage: Optional[Dict[str, int]] = None
+    usage: Optional[Dict[str, Any]] = None  # Changed to Any to support nested objects from OpenAI
     model: str
     provider: str
     latency_ms: int

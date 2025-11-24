@@ -193,13 +193,28 @@ class WhatsAppService:
             logger.error(f"Error queuing message {message.message_id}: {e}")
             return False
     
-    async def send_text_message(self, to_number: str, text: str) -> bool:
-        """Send text message via WhatsApp API with circuit breaker and retry logic"""
+    async def send_text_message(
+        self, 
+        to_number: str, 
+        text: str,
+        reply_to_message_id: Optional[str] = None
+    ) -> Dict[str, Any]:
+        """
+        Send text message via WhatsApp API with circuit breaker and retry logic
+        
+        Args:
+            to_number: Recipient phone number
+            text: Message text
+            reply_to_message_id: Message ID to reply to (optional)
+            
+        Returns:
+            API response dict with 'ok' status
+        """
         try:
             # Check circuit breaker
             if not await self.circuit_breaker.is_available():
                 logger.error(f"WhatsApp API circuit breaker is OPEN, cannot send message to {to_number}")
-                return False
+                return {"ok": False, "error": "Circuit breaker open"}
             
             async def _send_message():
                 message = WhatsAppOutgoingMessage(
@@ -228,11 +243,11 @@ class WhatsAppService:
             )
             
             logger.info(f"Message sent successfully to {to_number}")
-            return True
+            return {"ok": True, "result": response.json()}
                 
         except Exception as e:
             logger.error(f"Error sending message to {to_number}: {e}")
-            return False
+            return {"ok": False, "error": str(e)}
     
     async def send_template_message(self, to_number: str, template_name: str, parameters: list = None) -> bool:
         """Send template message via WhatsApp API with circuit breaker and retry logic"""

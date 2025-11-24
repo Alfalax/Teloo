@@ -125,6 +125,48 @@ class EventsService:
                 logger.info(f"✅ Asesor {asesor_id} marcado como respondido")
         except Exception as e:
             logger.error(f"❌ Error actualizando respuesta de asesor: {e}", exc_info=True)
+    
+    @staticmethod
+    async def on_cliente_acepto_oferta(oferta_id: str):
+        """
+        Evento: Cliente aceptó una oferta
+        Actualiza ofertas_historicas para analytics
+        """
+        try:
+            # Actualizar tabla histórica
+            historico = await OfertaHistorica.filter(
+                metadata_oferta__contains={'oferta_id': oferta_id}
+            ).first()
+            
+            if historico:
+                historico.aceptada_cliente = True
+                await historico.save()
+                logger.info(f"✅ Evento cliente_acepto_oferta registrado: {oferta_id}")
+            else:
+                logger.warning(f"⚠️ No se encontró registro histórico para oferta {oferta_id}")
+        except Exception as e:
+            logger.error(f"❌ Error registrando evento cliente_acepto_oferta: {e}", exc_info=True)
+    
+    @staticmethod
+    async def on_cliente_rechazo_oferta(oferta_id: str):
+        """
+        Evento: Cliente rechazó una oferta
+        Actualiza ofertas_historicas para analytics
+        """
+        try:
+            # Actualizar tabla histórica
+            historico = await OfertaHistorica.filter(
+                metadata_oferta__contains={'oferta_id': oferta_id}
+            ).first()
+            
+            if historico:
+                historico.aceptada_cliente = False
+                await historico.save()
+                logger.info(f"✅ Evento cliente_rechazo_oferta registrado: {oferta_id}")
+            else:
+                logger.warning(f"⚠️ No se encontró registro histórico para oferta {oferta_id}")
+        except Exception as e:
+            logger.error(f"❌ Error registrando evento cliente_rechazo_oferta: {e}", exc_info=True)
 
 
 # Instancia global del servicio

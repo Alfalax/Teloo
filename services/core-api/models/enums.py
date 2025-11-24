@@ -26,6 +26,8 @@ class EstadoSolicitud(str, Enum):
     """Estados de solicitud"""
     ABIERTA = "ABIERTA"
     EVALUADA = "EVALUADA"
+    OFERTAS_ACEPTADAS = "OFERTAS_ACEPTADAS"
+    OFERTAS_RECHAZADAS = "OFERTAS_RECHAZADAS"
     CERRADA_SIN_OFERTAS = "CERRADA_SIN_OFERTAS"
 
 

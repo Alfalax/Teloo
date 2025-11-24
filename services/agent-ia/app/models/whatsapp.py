@@ -56,6 +56,22 @@ class ProcessedMessage(BaseModel):
     media_url: Optional[str] = None
     media_type: Optional[str] = None
     context_message_id: Optional[str] = None
+    
+    def is_text_message(self) -> bool:
+        """Check if message contains text"""
+        return self.message_type == "text" and bool(self.text_content)
+    
+    def is_media_message(self) -> bool:
+        """Check if message contains media"""
+        return self.media_url is not None
+    
+    def is_audio_message(self) -> bool:
+        """Check if message is audio/voice"""
+        return self.media_type in ["audio", "voice"]
+    
+    def is_document_message(self) -> bool:
+        """Check if message is a document"""
+        return self.media_type == "document"
 
 
 class WhatsAppOutgoingMessage(BaseModel):

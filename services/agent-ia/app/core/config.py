@@ -22,6 +22,10 @@ class Settings(BaseSettings):
     core_api_url: str = "http://core-api:8000"
     core_api_timeout: int = 30
     
+    # Service Authentication
+    service_name: str = "agent-ia"
+    service_api_key: Optional[str] = None
+    
     # Redis Configuration
     redis_url: str = "redis://redis:6379"
     redis_pool_size: int = 10
@@ -34,9 +38,22 @@ class Settings(BaseSettings):
     whatsapp_api_version: str = "v18.0"
     whatsapp_api_url: str = "https://graph.facebook.com"
     
+    # Telegram Configuration
+    telegram_bot_token: Optional[str] = None
+    telegram_enabled: bool = True
+    
+    # Audio Processing Configuration
+    audio_primary_strategy: str = "whisper"  # whisper, anthropic, gemini, openai
+    audio_fallback_strategy: str = "openai"  # openai, anthropic, gemini
+    audio_fallback_enabled: bool = True
+    audio_fallback_confidence_threshold: float = 0.6
+    audio_min_transcription_length: int = 10
+    audio_transcription_cache_enabled: bool = True
+    audio_transcription_cache_ttl: int = 86400  # 24 hours
+    
     # LLM Providers Configuration
     openai_api_key: Optional[str] = None
-    openai_model: str = "gpt-4o"
+    openai_model: str = "gpt-4o-mini"  # Economical model - $0.15/1M tokens
     openai_max_tokens: int = 1000
     openai_temperature: float = 0.3
     
@@ -45,7 +62,7 @@ class Settings(BaseSettings):
     anthropic_max_tokens: int = 1000
     
     gemini_api_key: Optional[str] = None
-    gemini_model: str = "gemini-1.5-pro"
+    gemini_model: str = "gemini-2.0-flash"  # Latest fast model
     
     deepseek_api_key: Optional[str] = None
     deepseek_api_url: str = "https://api.deepseek.com/v1"

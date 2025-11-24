@@ -56,3 +56,6 @@ black==23.11.0
 isort==5.12.0
 flake8==6.1.0
 mypy==1.7.1
+
+# PDF Generation
+reportlab==4.4.5

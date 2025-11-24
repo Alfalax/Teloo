@@ -232,8 +232,11 @@ files/
 # Local development
 .local/
 local/
-# 
-Logo configuration files (not used)
+
+# Archive folder (historical/temporary files)
+archive/
+
+# Logo configuration files (not used)
 LOGO_CONFIGURABLE_*.md
 CAMBIAR_LOGO_GUIA.md
 frontend/admin/public/Logo.png
@@ -246,3 +249,66 @@ scripts/add_branding_config.sql
 
 # Excel temp files
 data/~$*.xlsx
+
+# Test and debug scripts (root level)
+test_*.py
+verify_*.py
+check_*.py
+debug_*.py
+diagnostico_*.py
+trigger_*.py
+update_*.py
+fix_*.py
+clear_*.py
+calculo_*.py
+calcular_*.py
+analisis_*.py
+comparar_*.py
+monitorear_*.py
+ofertas_*.py
+simular_*.py
+iniciar_*.bat
+
+# SQL debug scripts (root level)
+*.sql
+!scripts/*.sql
+!scripts/**/*.sql
+
+# JSON debug files
+diagnostico_*.json
+login.json
+
+# Implementation and summary docs (root level)
+*_IMPLEMENTATION_*.md
+*_REVISION_*.md
+*_SUMMARY.md
+DEPLOYMENT_*.md
+RESUMEN_*.md
+IMPLEMENTACION_*.md
+INTEGRACION_*.md
+EMBUDO_*.md
+FIX_*.md
+BUG_*.md
+MEJORA_*.md
+NUEVO_*.md
+CAMBIOS_*.md
+CORRECCION_*.md
+ELIMINACION_*.md
+TELEGRAM_*.md
+SECURITY_*.md
+AUDIO_*.md
+AGENT_*.md
+CHECKLIST_*.md
+INSTALACION_*.md
+EJEMPLOS_*.md
+FLUJO_*.md
+
+# Service-specific test files
+services/agent-ia/.env.test
+services/agent-ia/start_telegram_bot.py
+services/agent-ia/test_api_keys.py
+services/analytics/test_query.py
+services/analytics/test_query_container.py
+services/analytics/test_simple.py
+services/core-api/requirements_notificacion_cliente.txt
+services/core-api/trigger_notificacion_manual.py

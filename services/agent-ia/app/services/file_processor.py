@@ -250,11 +250,17 @@ class FileProcessor:
             # Detect and analyze column structure
             column_analysis = self._analyze_excel_columns(df)
             
+            # Limit rows for processing (max 20 rows to avoid token limits)
+            df_limited = df.head(20) if len(df) > 20 else df
+            
             # Convert DataFrame to structured text for LLM processing
-            excel_text = self._dataframe_to_structured_text(df, column_analysis)
+            excel_text = self._dataframe_to_structured_text(df_limited, column_analysis)
+            
+            # Add summary info
+            summary_info = f"Archivo Excel con {len(df)} filas totales (mostrando primeras {len(df_limited)} para análisis)\n"
             
             # Add caption if provided
-            full_text = f"Archivo Excel de repuestos automotrices: {caption}\n\n{excel_text}" if caption else f"Archivo Excel de repuestos automotrices:\n\n{excel_text}"
+            full_text = f"Archivo Excel de repuestos automotrices: {caption}\n\n{summary_info}{excel_text}" if caption else f"Archivo Excel de repuestos automotrices:\n\n{summary_info}{excel_text}"
             
             # Process with LLM (will route to OpenAI GPT-4 for structured documents)
             result = await llm_provider_service.process_content(
@@ -327,36 +333,38 @@ class FileProcessor:
     
     def _dataframe_to_structured_text(self, df: pd.DataFrame, column_analysis: Dict[str, Any], max_rows: int = 50) -> str:
         """
-        Convert DataFrame to structured text optimized for LLM processing
+        Convert DataFrame to structured text optimized for LLM processing - COMPACT VERSION
         """
         try:
-            # Limit rows to avoid token limits
-            if len(df) > max_rows:
-                df_sample = df.head(max_rows)
-                text = f"Primeras {max_rows} filas de {len(df)} total:\n\n"
-            else:
-                df_sample = df
-                text = f"Todas las {len(df)} filas:\n\n"
+            text_parts = []
             
-            # Add column analysis context
-            text += "ANÁLISIS DE COLUMNAS:\n"
-            for category, columns in column_analysis.items():
-                if columns:
-                    text += f"- {category}: {', '.join(columns)}\n"
-            text += "\n"
+            # Compact header with columns
+            text_parts.append(f"Columnas: {', '.join(df.columns)}")
+            text_parts.append("\nRepuestos:")
             
-            # Convert to string with proper formatting
-            text += "DATOS:\n"
-            text += df_sample.to_string(index=False, max_cols=10)
+            # Convert each row to compact format - only non-empty values
+            for idx, row in df.iterrows():
+                if idx >= 15:  # Limit to 15 rows max
+                    text_parts.append(f"... y {len(df) - 15} repuestos más")
+                    break
+                
+                # Create compact row representation
+                row_values = []
+                for col in df.columns:
+                    value = row[col]
+                    if pd.notna(value) and str(value).strip():
+                        # Shorten column names for compactness
+                        short_col = col[:20] if len(col) > 20 else col
+                        row_values.append(f"{short_col}: {value}")
+                
+                if row_values:  # Only add rows with data
+                    text_parts.append(f"{idx + 1}. {' | '.join(row_values)}")
             
-            # Add summary statistics for numeric columns
-            numeric_cols = df_sample.select_dtypes(include=['number']).columns
-            if len(numeric_cols) > 0:
-                text += f"\n\nESTADÍSTICAS NUMÉRICAS:\n"
-                for col in numeric_cols:
-                    text += f"- {col}: min={df_sample[col].min()}, max={df_sample[col].max()}, promedio={df_sample[col].mean():.2f}\n"
+            return "\n".join(text_parts)
             
-            return text
+        except Exception as e:
+            logger.error(f"Error converting DataFrame to text: {e}")
+            return "Error procesando datos del Excel"
             
         except Exception as e:
             logger.error(f"Error converting DataFrame to structured text: {e}")

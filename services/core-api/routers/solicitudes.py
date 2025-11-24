@@ -11,14 +11,17 @@ from models.solicitud import Solicitud, RepuestoSolicitado
 from models.enums import EstadoSolicitud
 from models.user import Usuario
 from middleware.auth_middleware import get_current_user
+from middleware.service_auth import verify_service_api_key
 from services.solicitudes_service import SolicitudesService
 from pydantic import BaseModel, Field
 from datetime import datetime
 import uuid
 import pandas as pd
 import io
+import logging
 
 router = APIRouter(prefix="/v1/solicitudes", tags=["solicitudes"])
+logger = logging.getLogger(__name__)
 
 
 class RepuestoSolicitadoInput(BaseModel):
@@ -440,6 +443,120 @@ async def create_solicitud(
         )
 
 
+@router.get("/services/municipio")
+async def buscar_municipio_servicio(
+    ciudad: str = Query(..., description="Nombre de la ciudad a buscar"),
+    service_name: str = Depends(verify_service_api_key)
+):
+    """
+    Buscar municipio por nombre - Endpoint para servicios autenticados
+    Retorna el primer municipio que coincida con el nombre
+    
+    Requiere autenticación de servicio mediante:
+    - Header: X-Service-Name (ej: "agent-ia")
+    - Header: X-Service-API-Key (API key del servicio)
+    """
+    try:
+        from models.geografia import Municipio
+        import logging
+        
+        logger = logging.getLogger(__name__)
+        logger.info(f"Service '{service_name}' searching for municipio: {ciudad}")
+        
+        # Normalizar búsqueda (quitar tildes y convertir a mayúsculas)
+        ciudad_norm = Municipio.normalizar_ciudad(ciudad)
+        
+        # Estrategia de búsqueda en orden de prioridad:
+        # 1. Coincidencia exacta
+        municipio = await Municipio.filter(municipio_norm=ciudad_norm).first()
+        
+        # 2. Coincidencia que empiece con el término buscado
+        if not municipio:
+            municipio = await Municipio.filter(municipio_norm__istartswith=ciudad_norm).first()
+        
+        # 3. Coincidencia parcial (para casos como "BOGOTA" -> "BOGOTA, D.C.")
+        if not municipio:
+            municipio = await Municipio.filter(municipio_norm__icontains=ciudad_norm).first()
+        
+        if not municipio:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Municipio '{ciudad}' no encontrado"
+            )
+        
+        return {
+            "id": str(municipio.id),
+            "municipio": municipio.municipio,
+            "departamento": municipio.departamento,
+            "hub_logistico": municipio.hub_logistico
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error buscando municipio: {str(e)}"
+        )
+
+
+@router.post("/services/bot", response_model=SolicitudResponse, status_code=status.HTTP_201_CREATED)
+async def create_solicitud_from_bot(
+    request: CreateSolicitudRequest,
+    service_name: str = Depends(verify_service_api_key)
+):
+    """
+    Crear solicitud desde bot (Telegram/WhatsApp) - Endpoint seguro para servicios
+    
+    Requiere autenticación de servicio mediante:
+    - Header: X-Service-Name (ej: "agent-ia")
+    - Header: X-Service-API-Key (API key del servicio)
+    
+    Este endpoint está protegido con:
+    - Autenticación de servicio
+    - Rate limiting
+    - Logging completo para auditoría
+    """
+    logger = logging.getLogger(__name__)
+    
+    try:
+        # Logging para auditoría
+        logger.info(f"Service '{service_name}' creating solicitud for client: {request.cliente.nombre}")
+        logger.debug(f"Solicitud data: municipio_id={request.municipio_id}, repuestos_count={len(request.repuestos)}")
+        
+        # Convert request to dict
+        cliente_data = request.cliente.model_dump()
+        repuestos_data = [rep.model_dump() for rep in request.repuestos]
+        
+        solicitud = await SolicitudesService.create_solicitud(
+            cliente_data=cliente_data,
+            municipio_id=request.municipio_id,
+            ciudad_origen=request.ciudad_origen,
+            departamento_origen=request.departamento_origen,
+            repuestos=repuestos_data
+        )
+        
+        # Log éxito
+        logger.info(f"Solicitud created successfully by '{service_name}': {solicitud['id']}")
+        
+        return solicitud
+        
+    except ValueError as e:
+        logger.warning(f"Validation error from '{service_name}': {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e)
+        )
+    except Exception as e:
+        import traceback
+        logger.error(f"Error creating solicitud from '{service_name}': {str(e)}")
+        logger.error(traceback.format_exc())
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error creating solicitud: {str(e)}"
+        )
+
+
 @router.get("/{solicitud_id}/plantilla-oferta")
 async def descargar_plantilla_oferta(
     solicitud_id: uuid.UUID,
@@ -553,3 +670,114 @@ async def get_solicitud(
 
 
 
+
+
+# ============================================================================
+# CLIENT RESPONSE ENDPOINTS
+# ============================================================================
+
+class RespuestaClienteRequest(BaseModel):
+    """Request model for client response to offers"""
+    respuesta_texto: str = Field(..., min_length=1, description="Client's response text")
+    usar_nlp: bool = Field(True, description="Whether to use NLP for intent detection")
+
+
+class RespuestaClienteResponse(BaseModel):
+    """Response model for client response processing"""
+    success: bool
+    solicitud_id: str
+    tipo_respuesta: str
+    mensaje: str
+    repuestos_aceptados: Optional[List[str]] = None
+    repuestos_rechazados: Optional[List[str]] = None
+
+
+@router.post("/{solicitud_id}/respuesta-cliente", response_model=RespuestaClienteResponse)
+async def procesar_respuesta_cliente(
+    solicitud_id: uuid.UUID,
+    request: RespuestaClienteRequest,
+    _: str = Depends(verify_service_api_key)
+):
+    """
+    Process client response to winning offers
+    
+    This endpoint is called by Agent IA service when client responds
+    to the offers notification via WhatsApp/Telegram.
+    
+    Supports:
+    - Total acceptance: "acepto", "acepto todo"
+    - Total rejection: "rechazo", "no"
+    - Partial acceptance: "acepto 1,3,5"
+    - Partial rejection: "rechazo 2"
+    """
+    try:
+        from services.respuesta_cliente_service import RespuestaClienteService
+        
+        resultado = await RespuestaClienteService.procesar_respuesta(
+            solicitud_id=str(solicitud_id),
+            respuesta_texto=request.respuesta_texto,
+            usar_nlp=request.usar_nlp
+        )
+        
+        if not resultado['success']:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=resultado.get('error', 'Error procesando respuesta')
+            )
+        
+        return RespuestaClienteResponse(
+            success=True,
+            solicitud_id=resultado['solicitud_id'],
+            tipo_respuesta=resultado['tipo_respuesta'],
+            mensaje=resultado['mensaje'],
+            repuestos_aceptados=resultado.get('repuestos_aceptados'),
+            repuestos_rechazados=resultado.get('repuestos_rechazados')
+        )
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error en endpoint respuesta-cliente: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error procesando respuesta del cliente: {str(e)}"
+        )
+
+
+@router.get("/{solicitud_id}/pdf-ofertas")
+async def descargar_pdf_ofertas(
+    solicitud_id: uuid.UUID,
+    _: str = Depends(verify_service_api_key)
+):
+    """
+    Download PDF with winning offers
+    
+    This endpoint is called by Agent IA service to get the PDF
+    for sending to clients via WhatsApp/Telegram.
+    """
+    try:
+        from services.pdf_generator_service import PDFGeneratorService
+        from fastapi.responses import StreamingResponse
+        
+        # Generate PDF
+        pdf_buffer = await PDFGeneratorService.generar_pdf_ofertas_ganadoras(
+            str(solicitud_id)
+        )
+        
+        # Return as streaming response
+        pdf_buffer.seek(0)
+        
+        return StreamingResponse(
+            pdf_buffer,
+            media_type="application/pdf",
+            headers={
+                "Content-Disposition": f"attachment; filename=Propuesta_{solicitud_id}.pdf"
+            }
+        )
+        
+    except Exception as e:
+        logger.error(f"Error generating PDF: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error generando PDF: {str(e)}"
+        )

@@ -38,6 +38,13 @@ async def lifespan(app: FastAPI):
         await redis_manager.connect()
         logger.info("Connected to Redis successfully")
         
+        # Start client notification listener in background
+        import asyncio
+        from app.services.client_notification_listener import client_notification_listener
+        
+        listener_task = asyncio.create_task(client_notification_listener.start_listening())
+        logger.info("Client notification listener started")
+        
         logger.info("Agent IA Service started successfully")
         yield
         
@@ -47,6 +54,14 @@ async def lifespan(app: FastAPI):
     finally:
         # Shutdown
         logger.info("Shutting down Agent IA Service...")
+        
+        # Cancel listener task
+        if 'listener_task' in locals():
+            listener_task.cancel()
+            try:
+                await listener_task
+            except asyncio.CancelledError:
+                pass
         
         # Close connections
         await redis_manager.disconnect()
@@ -87,6 +102,10 @@ app.include_router(webhooks.router)
 # Import and include results router
 from app.routers import results
 app.include_router(results.router)
+
+# Import and include Telegram router
+from app.routers import telegram
+app.include_router(telegram.router)
 
 
 @app.get("/")

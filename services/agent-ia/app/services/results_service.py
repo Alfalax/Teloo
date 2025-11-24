@@ -299,41 +299,101 @@ Responde con:
     
     async def handle_client_response(self, phone_number: str, response: str, solicitud_id: str) -> Dict[str, Any]:
         """
-        Handle client response to evaluation results (Requirement 6.3)
+        Handle client response to evaluation results using new endpoint
         
         Args:
             phone_number: Client phone number
-            response: Client response (SÍ, NO, DETALLES)
+            response: Client response text (natural language)
             solicitud_id: ID of the solicitud
             
         Returns:
             Dict with operation result
         """
         try:
-            response_normalized = response.upper().strip()
+            # Call new endpoint that handles NLP detection
+            response_data = await self.client.post(
+                f"{self.core_api_url}/v1/solicitudes/{solicitud_id}/respuesta-cliente",
+                json={
+                    "respuesta_texto": response,
+                    "usar_nlp": True
+                },
+                headers={"X-API-Key": self.service_api_key}
+            )
             
-            if response_normalized in ["SI", "SÍ", "YES", "ACEPTO", "ACEPTAR"]:
-                return await self._handle_accept_response(phone_number, solicitud_id)
-            elif response_normalized in ["NO", "RECHAZO", "RECHAZAR"]:
-                return await self._handle_reject_response(phone_number, solicitud_id)
-            elif response_normalized in ["DETALLES", "DETALLE", "INFO", "INFORMACIÓN", "MAS INFO"]:
-                return await self._handle_details_response(phone_number, solicitud_id)
-            else:
-                # Send clarification message
-                clarification_msg = """No entendí tu respuesta. Por favor responde con:
-
-• *SÍ* - Para aceptar la oferta
-• *NO* - Para rechazar la oferta
-• *DETALLES* - Para más información
-
-¿Cuál es tu decisión? 🤔"""
+            if response_data.status_code == 200:
+                result = response_data.json()
                 
-                await whatsapp_service.send_text_message(phone_number, clarification_msg)
+                # Send confirmation message based on response type
+                is_telegram = phone_number.startswith('+tg')
+                
+                if result['tipo_respuesta'] == 'aceptacion_total':
+                    confirmation_msg = """✅ *¡Perfecto! Ofertas aceptadas*
+
+Hemos notificado a tu(s) asesor(es) y pronto se pondrán en contacto contigo para coordinar la entrega.
+
+*Próximos pasos:*
+• El asesor te contactará directamente
+• Coordinarán lugar y forma de entrega
+• Realizarás el pago según lo acordado
+
+¡Gracias por usar TeLOO! 🚗✨"""
+                
+                elif result['tipo_respuesta'] == 'rechazo_total':
+                    confirmation_msg = """❌ *Ofertas rechazadas*
+
+Entendemos que las ofertas no cumplieron tus expectativas.
+
+¿Te gustaría crear una nueva solicitud con otros repuestos?
+
+¡Gracias por usar TeLOO! 🚗"""
+                
+                elif result['tipo_respuesta'] == 'aceptacion_parcial':
+                    repuestos_aceptados = result.get('repuestos_aceptados', [])
+                    confirmation_msg = f"""✅ *Ofertas aceptadas parcialmente*
+
+Has aceptado {len(repuestos_aceptados)} repuesto(s):
+"""
+                    for rep in repuestos_aceptados:
+                        confirmation_msg += f"• {rep}\n"
+                    
+                    confirmation_msg += """
+Los asesores de estos repuestos te contactarán pronto.
+
+¡Gracias por usar TeLOO! 🚗✨"""
+                
+                else:
+                    confirmation_msg = result.get('mensaje', 'Respuesta procesada correctamente')
+                
+                # Send via appropriate channel
+                if is_telegram:
+                    from app.services.telegram_service import telegram_service
+                    chat_id = int(phone_number.replace('+tg', ''))
+                    await telegram_service.send_message(chat_id, confirmation_msg)
+                else:
+                    await whatsapp_service.send_text_message(phone_number, confirmation_msg)
                 
                 return {
                     "success": True,
-                    "action": "clarification_sent",
-                    "message": "Mensaje de aclaración enviado"
+                    "action": result['tipo_respuesta'],
+                    "message": confirmation_msg
+                }
+            
+            else:
+                logger.error(f"Failed to process response: {response_data.status_code} - {response_data.text}")
+                
+                # Send error message
+                error_msg = "Lo siento, hubo un error procesando tu respuesta. ¿Podrías intentar de nuevo?"
+                
+                if phone_number.startswith('+tg'):
+                    from app.services.telegram_service import telegram_service
+                    chat_id = int(phone_number.replace('+tg', ''))
+                    await telegram_service.send_message(chat_id, error_msg)
+                else:
+                    await whatsapp_service.send_text_message(phone_number, error_msg)
+                
+                return {
+                    "success": False,
+                    "error": "Error procesando respuesta en Core API"
                 }
                 
         except Exception as e:

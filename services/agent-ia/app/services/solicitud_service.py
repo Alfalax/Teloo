@@ -5,6 +5,7 @@ Service for creating solicitudes from WhatsApp conversations
 import logging
 import httpx
 import json
+import unicodedata
 from typing import Dict, Any, Optional, List
 from datetime import datetime
 import re
@@ -15,6 +16,56 @@ from app.core.config import settings
 from app.services.whatsapp_service import whatsapp_service
 
 logger = logging.getLogger(__name__)
+
+
+def limpiar_ciudad(ciudad: str) -> str:
+    """
+    Limpia el nombre de la ciudad removiendo departamentos que las personas suelen agregar.
+    
+    Ejemplos:
+        "Bello Antioquia" -> "BELLO"
+        "Cali Valle" -> "CALI"
+        "Medellín Antioquia" -> "MEDELLIN"
+    
+    Args:
+        ciudad: Nombre de la ciudad posiblemente con departamento
+        
+    Returns:
+        Nombre de la ciudad limpio y normalizado (sin tildes, mayúsculas)
+    """
+    if not ciudad:
+        return ""
+    
+    ciudad_limpia = ciudad.strip()
+    
+    # Departamentos de Colombia que las personas suelen agregar
+    departamentos_colombia = [
+        'ANTIOQUIA', 'VALLE DEL CAUCA', 'VALLE', 'CUNDINAMARCA', 'ATLANTICO', 
+        'BOLIVAR', 'SANTANDER', 'NORTE DE SANTANDER', 'CAUCA', 'NARIÑO', 'NARINO',
+        'TOLIMA', 'HUILA', 'META', 'CORDOBA', 'CESAR', 'MAGDALENA', 
+        'BOYACA', 'CALDAS', 'RISARALDA', 'QUINDIO', 'CHOCO', 'SUCRE',
+        'LA GUAJIRA', 'GUAJIRA', 'CASANARE', 'ARAUCA', 'PUTUMAYO',
+        'CAQUETA', 'VICHADA', 'GUAINIA', 'GUAVIARE', 'VAUPES', 'AMAZONAS'
+    ]
+    
+    # Normalizar: quitar tildes y convertir a mayúsculas
+    ciudad_normalizada = ''.join(
+        c for c in unicodedata.normalize('NFD', ciudad_limpia)
+        if unicodedata.category(c) != 'Mn'
+    ).upper()
+    
+    # Remover departamento si está presente al final o al inicio
+    for depto in departamentos_colombia:
+        if ciudad_normalizada.endswith(f" {depto}"):
+            ciudad_normalizada = ciudad_normalizada.replace(f" {depto}", "").strip()
+            logger.info(f"Ciudad limpiada: '{ciudad}' -> '{ciudad_normalizada}'")
+            break
+        elif ciudad_normalizada.startswith(f"{depto} "):
+            ciudad_normalizada = ciudad_normalizada.replace(f"{depto} ", "").strip()
+            logger.info(f"Ciudad limpiada: '{ciudad}' -> '{ciudad_normalizada}'")
+            break
+    
+    return ciudad_normalizada
 
 
 class SolicitudService:
@@ -265,10 +316,13 @@ class SolicitudService:
                 repuestos_data.append(repuesto_data)
             
             # Prepare cliente data
+            # Limpiar ciudad antes de enviar (remover departamentos)
+            ciudad_limpia = limpiar_ciudad(cliente.get("ciudad", "")) if cliente.get("ciudad") else ""
+            
             cliente_data = {
                 "telefono": cliente.get("telefono", ""),
                 "nombre": cliente.get("nombre", "Cliente WhatsApp"),
-                "ciudad": cliente.get("ciudad", ""),
+                "ciudad": ciudad_limpia,  # Ciudad limpia sin departamento
                 "departamento": cliente.get("departamento", "")
             }
             
@@ -286,7 +340,7 @@ class SolicitudService:
             return {
                 "repuestos": repuestos_data,
                 "cliente": cliente_data,
-                "ciudad_origen": cliente.get("ciudad", ""),
+                "ciudad_origen": ciudad_limpia,  # Ciudad limpia sin departamento
                 "departamento_origen": cliente.get("departamento", ""),
                 "metadata_json": metadata
             }

@@ -36,6 +36,7 @@ class Usuario(BaseModel):
     email = fields.CharField(
         max_length=255, 
         unique=True,
+        null=True,  # Nullable for CLIENT role users
         validators=[validate_email]
     )
     password_hash = fields.CharField(max_length=255)

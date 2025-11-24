@@ -10,14 +10,14 @@ CREATE MATERIALIZED VIEW mv_metricas_mensuales AS
 SELECT 
     DATE_TRUNC('month', s.created_at) as mes,
     COUNT(*) as solicitudes_creadas,
-    COUNT(CASE WHEN s.estado = 'ACEPTADA' THEN 1 END) as solicitudes_aceptadas,
-    COUNT(CASE WHEN s.estado = 'RECHAZADA' THEN 1 END) as solicitudes_rechazadas,
-    COUNT(CASE WHEN s.estado = 'EXPIRADA' THEN 1 END) as solicitudes_expiradas,
+    COUNT(CASE WHEN s.cliente_acepto = true THEN 1 END) as solicitudes_aceptadas,
+    COUNT(CASE WHEN s.cliente_acepto = false THEN 1 END) as solicitudes_rechazadas,
+    COUNT(CASE WHEN s.estado = 'CERRADA_SIN_OFERTAS' THEN 1 END) as solicitudes_expiradas,
     COUNT(CASE WHEN s.estado = 'CERRADA_SIN_OFERTAS' THEN 1 END) as solicitudes_sin_ofertas,
     AVG(EXTRACT(EPOCH FROM (s.updated_at - s.created_at))) as tiempo_promedio_cierre_seg,
     COUNT(DISTINCT o.id) as ofertas_totales,
     COUNT(CASE WHEN o.estado = 'GANADORA' THEN 1 END) as ofertas_ganadoras,
-    COUNT(CASE WHEN o.estado = 'ACEPTADA' THEN 1 END) as ofertas_aceptadas,
+    COUNT(CASE WHEN o.estado = 'ACEPTADA' THEN 1 END) as ofertas_aceptadas_cliente,
     AVG(od.precio_unitario) as precio_promedio_ofertas,
     MIN(od.precio_unitario) as precio_minimo_ofertas,
     MAX(od.precio_unitario) as precio_maximo_ofertas,
@@ -30,7 +30,7 @@ SELECT
     -- Métricas calculadas
     CASE 
         WHEN COUNT(*) > 0 THEN 
-            (COUNT(CASE WHEN s.estado = 'ACEPTADA' THEN 1 END)::float / COUNT(*)::float) * 100
+            (COUNT(CASE WHEN s.cliente_acepto = true THEN 1 END)::float / COUNT(*)::float) * 100
         ELSE 0 
     END as tasa_aceptacion_pct,
     CASE 

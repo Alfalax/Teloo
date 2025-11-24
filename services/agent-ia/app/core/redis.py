@@ -41,6 +41,9 @@ class RedisManager:
     
     async def get(self, key: str) -> Optional[str]:
         """Get value from Redis"""
+        if not self.redis_client:
+            logger.warning(f"Redis not connected, cannot GET key {key}")
+            return None
         try:
             return await self.redis_client.get(key)
         except Exception as e:
@@ -49,6 +52,9 @@ class RedisManager:
     
     async def set(self, key: str, value: str, ttl: Optional[int] = None) -> bool:
         """Set value in Redis with optional TTL"""
+        if not self.redis_client:
+            logger.warning(f"Redis not connected, cannot SET key {key}")
+            return False
         try:
             if ttl:
                 return await self.redis_client.setex(key, ttl, value)
@@ -60,6 +66,9 @@ class RedisManager:
     
     async def delete(self, key: str) -> bool:
         """Delete key from Redis"""
+        if not self.redis_client:
+            logger.warning(f"Redis not connected, cannot DELETE key {key}")
+            return False
         try:
             return bool(await self.redis_client.delete(key))
         except Exception as e:
@@ -115,6 +124,15 @@ class RedisManager:
             logger.error(f"Redis RPOP error for key {key}: {e}")
             return None
     
+    async def brpop(self, key: str, timeout: int = 0) -> Optional[tuple]:
+        """Blocking pop value from right of list"""
+        try:
+            result = await self.redis_client.brpop(key, timeout)
+            return result
+        except Exception as e:
+            logger.error(f"Redis BRPOP error for key {key}: {e}")
+            return None
+    
     async def llen(self, key: str) -> int:
         """Get length of list"""
         try:
@@ -122,7 +140,34 @@ class RedisManager:
         except Exception as e:
             logger.error(f"Redis LLEN error for key {key}: {e}")
             return 0
+    
+    async def get_json(self, key: str) -> Optional[dict]:
+        """Get JSON value from Redis"""
+        try:
+            value = await self.get(key)
+            if value:
+                return json.loads(value)
+            return None
+        except Exception as e:
+            logger.error(f"Redis GET_JSON error for key {key}: {e}")
+            return None
+    
+    async def set_json(self, key: str, value: dict, ttl: Optional[int] = None) -> bool:
+        """Set JSON value in Redis with optional TTL"""
+        try:
+            json_str = json.dumps(value)
+            return await self.set(key, json_str, ttl)
+        except Exception as e:
+            logger.error(f"Redis SET_JSON error for key {key}: {e}")
+            return False
 
 
 # Global Redis manager instance
 redis_manager = RedisManager()
+
+
+async def get_redis() -> redis.Redis:
+    """Get Redis client instance"""
+    if not redis_manager.redis_client:
+        await redis_manager.connect()
+    return redis_manager.redis_client

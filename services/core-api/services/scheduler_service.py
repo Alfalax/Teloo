@@ -129,6 +129,24 @@ class SchedulerService:
             replace_existing=True
         )
         
+        # Job 5: Notify clients about winning offers every 5 minutes
+        self.scheduler.add_job(
+            func=self._notificar_clientes_ofertas_ganadoras,
+            trigger=IntervalTrigger(minutes=5),
+            id='notificar_clientes_ofertas_ganadoras',
+            name='Notificar clientes sobre ofertas ganadoras',
+            replace_existing=True
+        )
+        
+        # Job 6: Send reminders to clients every hour
+        self.scheduler.add_job(
+            func=self._enviar_recordatorios_cliente,
+            trigger=IntervalTrigger(hours=1),
+            id='enviar_recordatorios_cliente',
+            name='Enviar recordatorios a clientes',
+            replace_existing=True
+        )
+        
         logger.info("Scheduled jobs configured")
     
     async def _procesar_expiracion_ofertas(self):
@@ -198,6 +216,50 @@ class SchedulerService:
                     logger.info(f"Job escalamiento completado: {result['solicitudes_escaladas']} escaladas, {result['solicitudes_cerradas']} cerradas")
             else:
                 logger.error(f"Job escalamiento falló: {result.get('error', 'Error desconocido')}")
+        
+        except Exception as e:
+            logger.error(f"Error ejecutando job de escalamiento: {e}")
+    
+    async def _notificar_clientes_ofertas_ganadoras(self):
+        """
+        Notify clients about winning offers after evaluation
+        Runs every 5 minutes to check for evaluated solicitudes without notification
+        """
+        try:
+            from jobs.scheduled_jobs import notificar_clientes_ofertas_ganadoras
+            result = await notificar_clientes_ofertas_ganadoras(redis_client=self.redis_client)
+            
+            if result['success']:
+                if result['notificaciones_enviadas'] > 0:
+                    logger.info(f"Job notificación clientes completado: {result['notificaciones_enviadas']} notificaciones enviadas")
+            else:
+                logger.error(f"Job notificación clientes falló: {result.get('error', 'Error desconocido')}")
+        
+        except Exception as e:
+            logger.error(f"Error ejecutando job de notificación clientes: {e}")
+    
+    async def _enviar_recordatorios_cliente(self):
+        """
+        Send reminders to clients about pending responses
+        Runs every hour to check for pending responses and send reminders
+        """
+        try:
+            from jobs.scheduled_jobs import enviar_recordatorios_cliente
+            result = await enviar_recordatorios_cliente(redis_client=self.redis_client)
+            
+            if result['success']:
+                if result['recordatorios_intermedios'] > 0 or result['recordatorios_finales'] > 0 or result['solicitudes_cerradas_timeout'] > 0:
+                    logger.info(
+                        f"Job recordatorios completado: "
+                        f"{result['recordatorios_intermedios']} intermedios, "
+                        f"{result['recordatorios_finales']} finales, "
+                        f"{result['solicitudes_cerradas_timeout']} cerradas por timeout"
+                    )
+            else:
+                logger.error(f"Job recordatorios falló: {result.get('error', 'Error desconocido')}")
+        
+        except Exception as e:
+            logger.error(f"Error ejecutando job de recordatorios: {e}")
             
         except Exception as e:
             logger.error(f"Error ejecutando job de escalamiento: {e}")
