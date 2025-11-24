@@ -147,6 +147,15 @@ class SchedulerService:
             replace_existing=True
         )
         
+        # Job 7: Process pending notifications every 5 minutes
+        self.scheduler.add_job(
+            func=self._procesar_notificaciones_pendientes,
+            trigger=IntervalTrigger(minutes=5),
+            id='procesar_notificaciones_pendientes',
+            name='Procesar notificaciones pendientes',
+            replace_existing=True
+        )
+        
         logger.info("Scheduled jobs configured")
     
     async def _procesar_expiracion_ofertas(self):
@@ -260,9 +269,6 @@ class SchedulerService:
         
         except Exception as e:
             logger.error(f"Error ejecutando job de recordatorios: {e}")
-            
-        except Exception as e:
-            logger.error(f"Error ejecutando job de escalamiento: {e}")
     
     def get_job_status(self) -> dict:
         """Get status of all scheduled jobs"""
@@ -337,6 +343,25 @@ class SchedulerService:
                 'error': str(e),
                 'executed_at': datetime.now().isoformat()
             }
+
+
+    async def _procesar_notificaciones_pendientes(self):
+        """
+        Process pending notifications from Redis queue
+        Runs every 5 minutes to retry failed notifications
+        """
+        try:
+            from jobs.scheduled_jobs import procesar_notificaciones_pendientes
+            result = await procesar_notificaciones_pendientes(redis_client=self.redis_client)
+            
+            if result['success']:
+                if result['notificaciones_procesadas'] > 0:
+                    logger.info(f"Job notificaciones pendientes completado: {result['notificaciones_procesadas']} procesadas")
+            else:
+                logger.error(f"Job notificaciones pendientes falló: {result.get('error', 'Error desconocido')}")
+            
+        except Exception as e:
+            logger.error(f"Error ejecutando job de notificaciones pendientes: {e}")
 
 
 # Global scheduler instance
