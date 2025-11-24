@@ -1054,7 +1054,13 @@ Mensaje: "para una Yamaha FZ 2.0 del 2018"
                     ciudad_invalida_key = f"ciudad_invalida:{telegram_message.chat_id}"
                     ciudad_anterior = await redis_manager.get(ciudad_invalida_key)
                     
-                    if ciudad_anterior and ciudad_anterior.decode('utf-8').upper() == ciudad_normalizada:
+                    # Convertir a string si es bytes
+                    if ciudad_anterior:
+                        if isinstance(ciudad_anterior, bytes):
+                            ciudad_anterior = ciudad_anterior.decode('utf-8')
+                        ciudad_anterior = ciudad_anterior.upper()
+                    
+                    if ciudad_anterior and ciudad_anterior == ciudad_normalizada:
                         # Segunda vez con la misma ciudad inválida - informar sin cobertura y borrar draft
                         await redis_manager.delete(draft_key)
                         await redis_manager.delete(ciudad_invalida_key)
@@ -1071,7 +1077,7 @@ Mensaje: "para una Yamaha FZ 2.0 del 2018"
                         return {"success": False, "error": "sin_cobertura"}
                     else:
                         # Primera vez - pedir verificación y MANTENER el draft
-                        await redis_manager.set(ciudad_invalida_key, ciudad_normalizada.encode('utf-8'), ttl=3600)
+                        await redis_manager.set(ciudad_invalida_key, ciudad_normalizada, ttl=3600)
                         
                         # Guardar draft con estado de ciudad_invalida para que el usuario pueda corregir
                         extracted_data["_status"] = "pending_confirmation"
