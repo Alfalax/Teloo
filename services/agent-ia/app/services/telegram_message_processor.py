@@ -1050,7 +1050,37 @@ Mensaje: "para una Yamaha FZ 2.0 del 2018"
                     municipio_id = municipio_data["id"]
                     departamento = municipio_data["departamento"]
                 else:
-                    raise Exception(f"Municipio {cliente['ciudad']} no encontrado")
+                    # Ciudad no encontrada - verificar si es primera o segunda vez
+                    ciudad_invalida_key = f"ciudad_invalida:{telegram_message.chat_id}"
+                    ciudad_anterior = await redis_manager.get(ciudad_invalida_key)
+                    
+                    if ciudad_anterior and ciudad_anterior.decode('utf-8').upper() == ciudad_normalizada:
+                        # Segunda vez con la misma ciudad inválida - informar sin cobertura
+                        await redis_manager.delete(draft_key)
+                        await redis_manager.delete(ciudad_invalida_key)
+                        
+                        await telegram_service.send_message(
+                            telegram_message.chat_id,
+                            f"😔 Lo siento, actualmente no tenemos cobertura en {cliente['ciudad']}.\n\n"
+                            f"📍 Solo operamos en ciudades registradas en nuestra base de datos.\n\n"
+                            f"Si necesitas repuestos en otra ciudad donde sí tengamos cobertura, "
+                            f"puedes iniciar una nueva solicitud. ¡Estoy aquí para ayudarte!"
+                        )
+                        
+                        return {"success": False, "error": "sin_cobertura"}
+                    else:
+                        # Primera vez - pedir verificación
+                        await redis_manager.set(ciudad_invalida_key, ciudad_normalizada.encode('utf-8'), ttl=3600)
+                        
+                        await telegram_service.send_message(
+                            telegram_message.chat_id,
+                            f"🤔 No encontré la ciudad '{cliente['ciudad']}' en nuestra base de datos.\n\n"
+                            f"¿Podrías verificar que el nombre de la ciudad esté correcto?\n\n"
+                            f"Si la ciudad es correcta y aún así no la encuentro, "
+                            f"es posible que no tengamos cobertura en esa zona."
+                        )
+                        
+                        return {"success": False, "error": "ciudad_no_encontrada"}
                 
                 solicitud_payload = {
                     "cliente": cliente_payload,
