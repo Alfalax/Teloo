@@ -569,9 +569,10 @@ INTENCIONES:
             "conforme", "excelente", "genial", "bien", "muy bien", "todo correcto", "todo ok"
   NO ES CONFIRMACIÓN: "serían las 2" (menciona cantidad), "sí, pero..." (tiene corrección)
 
-- "reject": Usuario rechaza TODO y quiere empezar de nuevo (SOLO rechazos totales)
-  Ejemplos: "no, todo mal", "empecemos de nuevo", "borra todo", "cancela", "nada está bien"
-  NO ES RECHAZO: "no, es la izquierda" (es corrección), "no viene el par?" (es pregunta)
+- "reject": Usuario rechaza TODO y quiere empezar de nuevo (SOLO rechazos totales y explícitos)
+  Ejemplos: "no, todo mal", "empecemos de nuevo", "borra todo", "cancela todo", "nada está bien", "quiero cancelar"
+  NO ES RECHAZO: "no" (solo), "no, es la izquierda" (es corrección), "no viene el par?" (es pregunta)
+  IMPORTANTE: Si el usuario solo dice "no" sin más contexto, usa "correct" para que el bot pregunte qué quiere corregir
 
 - "question": Usuario hace una pregunta o pide aclaración (NO quiere borrar nada)
   Ejemplos: "¿las pastillas vienen 1 o el par?", "¿cuánto demora?", "¿puedo agregar más?", 
@@ -706,6 +707,24 @@ Usuario: "agrega pastillas de freno traseras"
                             elif intent == "correct":
                                 logger.info(f"User wants to correct specific fields (natural language)")
                                 updated_data = intent_data.get("updated_data", {})
+                                
+                                # Detectar si el usuario solo dijo "no" sin especificar qué corregir
+                                message_lower = message_content.lower().strip()
+                                if message_lower in ["no", "nop", "nope", "nel", "no está bien", "no esta bien"]:
+                                    # Preguntar qué quiere corregir
+                                    await telegram_service.send_message(
+                                        telegram_message.chat_id,
+                                        "Entiendo. ¿Qué información quieres corregir?\n\n"
+                                        "Puedes decirme, por ejemplo:\n"
+                                        "• La ciudad es Amagá\n"
+                                        "• El teléfono es 3001234567\n"
+                                        "• Agrega pastillas traseras\n"
+                                        "• El año es 2019"
+                                    )
+                                    return {
+                                        "success": True,
+                                        "action": "correction_requested"
+                                    }
                                 
                                 # Aplicar correcciones completas del GPT-4
                                 if "cliente" in updated_data:
