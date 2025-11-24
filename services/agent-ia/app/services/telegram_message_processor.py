@@ -715,14 +715,44 @@ Usuario: "agrega pastillas de freno traseras"
                                 if "repuestos" in updated_data:
                                     existing_draft["repuestos"] = updated_data["repuestos"]
                                 
-                                # Mostrar resumen actualizado
+                                # Validar ciudad antes de mostrar resumen
+                                cliente = existing_draft.get("cliente", {})
+                                from app.services.solicitud_service import limpiar_ciudad
+                                ciudad_normalizada = limpiar_ciudad(cliente.get("ciudad", ""))
+                                
+                                # Buscar municipio en la base de datos
+                                async with httpx.AsyncClient(timeout=10.0) as geo_client:
+                                    geo_response = await geo_client.get(
+                                        f"{settings.core_api_url}/v1/solicitudes/services/municipio",
+                                        params={"ciudad": ciudad_normalizada},
+                                        headers={
+                                            "X-Service-Name": settings.service_name,
+                                            "X-Service-API-Key": settings.service_api_key
+                                        }
+                                    )
+                                
+                                if geo_response.status_code == 200:
+                                    # Ciudad válida - obtener departamento
+                                    municipio_data = geo_response.json()
+                                    departamento = municipio_data["departamento"]
+                                    ciudad_display = f"{ciudad_normalizada.title()} - {departamento}"
+                                    
+                                    # Guardar datos validados en el draft
+                                    existing_draft["cliente"]["ciudad_display"] = ciudad_display
+                                    existing_draft["_municipio_id"] = municipio_data["id"]
+                                    existing_draft["_departamento"] = departamento
+                                else:
+                                    # Ciudad no válida - usar ciudad original sin departamento
+                                    ciudad_display = cliente.get("ciudad", "")
+                                
+                                # Mostrar resumen actualizado con ciudad validada
                                 confirmation_msg = "✅ Perfecto, actualicé la información:\n\n"
                                 confirmation_msg += f"👤 Cliente: {existing_draft['cliente']['nombre']}\n"
                                 confirmation_msg += f"📞 Teléfono: {existing_draft['cliente']['telefono']}\n"
-                                confirmation_msg += f"📍 Ciudad: {existing_draft['cliente']['ciudad']}\n\n"
+                                confirmation_msg += f"📍 Ciudad: {ciudad_display}\n\n"
                                 vehiculo = existing_draft.get("vehiculo", {})
-                                confirmation_msg += f"� Vehíctulo: {vehiculo.get('marca', '')} {vehiculo.get('linea', '')} {vehiculo.get('anio', '')}\n\n"
-                                confirmation_msg += f"�  Repuestos:\n"
+                                confirmation_msg += f"🚗 Vehíctulo: {vehiculo.get('marca', '')} {vehiculo.get('linea', '')} {vehiculo.get('anio', '')}\n\n"
+                                confirmation_msg += f"🔧 Repuestos:\n"
                                 # Usar función helper para formatear repuestos
                                 confirmation_msg += format_repuestos_list(existing_draft["repuestos"])
                                 confirmation_msg = confirmation_msg.rstrip('\n')  # Remover salto de línea extra
