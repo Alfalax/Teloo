@@ -1030,14 +1030,9 @@ Mensaje: "para una Yamaha FZ 2.0 del 2018"
                     cliente_payload["email"] = cliente["email"]
                 
                 # Buscar municipio_id basado en la ciudad
-                ciudad_busqueda = cliente["ciudad"].strip()
-                
-                # Normalizar ciudad (quitar tildes y convertir a mayúsculas)
-                import unicodedata
-                ciudad_normalizada = ''.join(
-                    c for c in unicodedata.normalize('NFD', ciudad_busqueda)
-                    if unicodedata.category(c) != 'Mn'
-                ).upper()
+                # Limpiar ciudad: remover departamentos que las personas suelen agregar
+                from app.services.solicitud_service import limpiar_ciudad
+                ciudad_normalizada = limpiar_ciudad(cliente["ciudad"])
                 
                 # Buscar UUID del municipio por nombre usando endpoint seguro
                 async with httpx.AsyncClient(timeout=10.0) as geo_client:
