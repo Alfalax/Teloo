@@ -1055,32 +1055,38 @@ Mensaje: "para una Yamaha FZ 2.0 del 2018"
                     ciudad_anterior = await redis_manager.get(ciudad_invalida_key)
                     
                     if ciudad_anterior and ciudad_anterior.decode('utf-8').upper() == ciudad_normalizada:
-                        # Segunda vez con la misma ciudad inválida - informar sin cobertura
+                        # Segunda vez con la misma ciudad inválida - informar sin cobertura y borrar draft
                         await redis_manager.delete(draft_key)
                         await redis_manager.delete(ciudad_invalida_key)
                         
                         await telegram_service.send_message(
                             telegram_message.chat_id,
-                            f"😔 Lo siento, actualmente no tenemos cobertura en {cliente['ciudad']}.\n\n"
-                            f"📍 Solo operamos en ciudades registradas en nuestra base de datos.\n\n"
-                            f"Si necesitas repuestos en otra ciudad donde sí tengamos cobertura, "
-                            f"puedes iniciar una nueva solicitud. ¡Estoy aquí para ayudarte!"
+                            f"😔 Entiendo, gracias por verificar.\n\n"
+                            f"Lamentablemente, en este momento no tenemos cobertura en {cliente['ciudad']}.\n\n"
+                            f"📍 Operamos solo en ciudades donde tenemos asesores registrados.\n\n"
+                            f"Si en el futuro necesitas repuestos en otra ciudad donde sí tengamos servicio, "
+                            f"con gusto te ayudaré. ¡Estoy aquí cuando me necesites! 😊"
                         )
                         
                         return {"success": False, "error": "sin_cobertura"}
                     else:
-                        # Primera vez - pedir verificación
+                        # Primera vez - pedir verificación y MANTENER el draft
                         await redis_manager.set(ciudad_invalida_key, ciudad_normalizada.encode('utf-8'), ttl=3600)
+                        
+                        # Guardar draft con estado de ciudad_invalida para que el usuario pueda corregir
+                        extracted_data["_status"] = "pending_confirmation"
+                        extracted_data["_last_bot_message"] = f"Verificando ciudad '{cliente['ciudad']}'"
+                        await redis_manager.set_json(draft_key, extracted_data, ttl=3600)
+                        logger.info(f"Draft maintained for chat {telegram_message.chat_id} - waiting for city verification")
                         
                         await telegram_service.send_message(
                             telegram_message.chat_id,
                             f"🤔 No encontré la ciudad '{cliente['ciudad']}' en nuestra base de datos.\n\n"
-                            f"¿Podrías verificar que el nombre de la ciudad esté correcto?\n\n"
-                            f"Si la ciudad es correcta y aún así no la encuentro, "
-                            f"es posible que no tengamos cobertura en esa zona."
+                            f"¿Podrías verificar el nombre? A veces hay errores de escritura.\n\n"
+                            f"Si el nombre es correcto, es posible que aún no tengamos cobertura en esa zona."
                         )
                         
-                        return {"success": False, "error": "ciudad_no_encontrada"}
+                        return {"success": True, "action": "ciudad_validation_pending"}
                 
                 solicitud_payload = {
                     "cliente": cliente_payload,
