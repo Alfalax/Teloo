@@ -1055,7 +1055,7 @@ Mensaje: "para una Yamaha FZ 2.0 del 2018"
                 solicitud_payload = {
                     "cliente": cliente_payload,
                     "municipio_id": municipio_id,
-                    "ciudad_origen": cliente["ciudad"],
+                    "ciudad_origen": ciudad_normalizada,  # Usar ciudad limpia sin departamento
                     "departamento_origen": departamento,
                     "repuestos": repuestos_formatted
                 }
