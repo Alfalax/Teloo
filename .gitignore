@@ -1,8 +1,15 @@
 # Environment files
 .env
 .env.local
-.env.development
-.env.production
+.env.*.local
+
+# Docker secrets directory (CRITICAL - Never commit!)
+secrets/
+*.secret
+*.key.txt
+*_password.txt
+*_token.txt
+*_api_key.txt
 
 # Logs
 logs

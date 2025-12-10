@@ -960,7 +960,15 @@ Este plan de implementación convierte el diseño de TeLOO V3 en tareas específ
   - Implementar security scanning de imágenes Docker con Trivy
   - _Requirements: 11.1_
 
-- [ ] 13.3 Configurar variables de entorno y secrets
+- [x] 13.3 Configurar variables de entorno y secrets
+
+
+
+
+
+
+
+
   - Crear archivos .env por ambiente (dev/staging/prod)
   - Configurar Docker secrets para datos sensibles (JWT keys, DB passwords)
   - Documentar todas las variables requeridas por servicio

@@ -88,15 +88,18 @@ services:
   # Core Services
   core-api:
     image: ${REGISTRY}/${IMAGE_PREFIX}/core-api:${IMAGE_VERSION}
+    env_file:
+      - .env.production
     environment:
-      - DATABASE_URL=postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
-      - REDIS_URL=redis://:${REDIS_PASSWORD}@redis:6379
+      - SERVICE_NAME=core-api
+      - DATABASE_URL=postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD_PROD}@postgres:5432/${POSTGRES_DB}
+      - REDIS_URL=redis://:${REDIS_PASSWORD_PROD}@redis:6379
       - MINIO_ENDPOINT=minio:9000
-      - MINIO_ACCESS_KEY=${MINIO_ACCESS_KEY}
-      - MINIO_SECRET_KEY=${MINIO_SECRET_KEY}
-      - JWT_SECRET_KEY=${JWT_SECRET_KEY}
-      - AGENT_IA_API_KEY=${AGENT_IA_API_KEY}
-      - ANALYTICS_API_KEY=${ANALYTICS_API_KEY}
+      - MINIO_ACCESS_KEY=${MINIO_ACCESS_KEY_PROD}
+      - MINIO_SECRET_KEY=${MINIO_SECRET_KEY_PROD}
+      - JWT_SECRET_KEY=${JWT_SECRET_KEY_PROD}
+      - AGENT_IA_API_KEY=${AGENT_IA_API_KEY_PROD}
+      - ANALYTICS_API_KEY=${ANALYTICS_API_KEY_PROD}
       - ENVIRONMENT=production
       - LOG_LEVEL=WARNING
     networks:
@@ -130,12 +133,21 @@ services:
 
   agent-ia:
     image: ${REGISTRY}/${IMAGE_PREFIX}/agent-ia:${IMAGE_VERSION}
+    env_file:
+      - .env.production
     environment:
+      - SERVICE_NAME=agent-ia
       - CORE_API_URL=http://core-api:8000
-      - REDIS_URL=redis://:${REDIS_PASSWORD}@redis:6379
-      - OPENAI_API_KEY=${OPENAI_API_KEY}
-      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
-      - GEMINI_API_KEY=${GEMINI_API_KEY}
+      - REDIS_URL=redis://:${REDIS_PASSWORD_PROD}@redis:6379
+      - SERVICE_API_KEY=${AGENT_IA_API_KEY_PROD}
+      - WHATSAPP_ACCESS_TOKEN=${WHATSAPP_ACCESS_TOKEN_PROD}
+      - WHATSAPP_VERIFY_TOKEN=${WHATSAPP_WEBHOOK_VERIFY_TOKEN_PROD}
+      - WHATSAPP_WEBHOOK_SECRET=${WHATSAPP_WEBHOOK_SECRET_PROD}
+      - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN_PROD}
+      - OPENAI_API_KEY=${OPENAI_API_KEY_PROD}
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY_PROD}
+      - GEMINI_API_KEY=${GEMINI_API_KEY_PROD}
+      - DEEPSEEK_API_KEY=${DEEPSEEK_API_KEY_PROD}
       - ENVIRONMENT=production
       - LOG_LEVEL=WARNING
     networks:
@@ -157,9 +169,15 @@ services:
 
   analytics:
     image: ${REGISTRY}/${IMAGE_PREFIX}/analytics:${IMAGE_VERSION}
+    env_file:
+      - .env.production
     environment:
-      - DATABASE_URL=postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
-      - REDIS_URL=redis://:${REDIS_PASSWORD}@redis:6379
+      - SERVICE_NAME=analytics
+      - DATABASE_URL=postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD_PROD}@postgres:5432/${POSTGRES_DB}
+      - REDIS_URL=redis://:${REDIS_PASSWORD_PROD}@redis:6379
+      - SERVICE_API_KEY=${ANALYTICS_API_KEY_PROD}
+      - SMTP_PASSWORD=${SMTP_PASSWORD_PROD}
+      - SLACK_WEBHOOK_URL=${SLACK_WEBHOOK_URL_PROD}
       - ENVIRONMENT=production
       - LOG_LEVEL=WARNING
     networks:
@@ -178,9 +196,12 @@ services:
 
   realtime-gateway:
     image: ${REGISTRY}/${IMAGE_PREFIX}/realtime-gateway:${IMAGE_VERSION}
+    env_file:
+      - .env.production
     environment:
-      - REDIS_URL=redis://:${REDIS_PASSWORD}@redis:6379
-      - JWT_SECRET_KEY=${JWT_SECRET_KEY}
+      - SERVICE_NAME=realtime-gateway
+      - REDIS_URL=redis://:${REDIS_PASSWORD_PROD}@redis:6379
+      - JWT_SECRET_KEY=${JWT_SECRET_KEY_PROD}
       - ENVIRONMENT=production
       - LOG_LEVEL=WARNING
     networks:
@@ -199,11 +220,14 @@ services:
 
   files:
     image: ${REGISTRY}/${IMAGE_PREFIX}/files:${IMAGE_VERSION}
+    env_file:
+      - .env.production
     environment:
+      - SERVICE_NAME=files
       - MINIO_ENDPOINT=minio:9000
-      - MINIO_ACCESS_KEY=${MINIO_ACCESS_KEY}
-      - MINIO_SECRET_KEY=${MINIO_SECRET_KEY}
-      - REDIS_URL=redis://:${REDIS_PASSWORD}@redis:6379
+      - MINIO_ACCESS_KEY=${MINIO_ACCESS_KEY_PROD}
+      - MINIO_SECRET_KEY=${MINIO_SECRET_KEY_PROD}
+      - REDIS_URL=redis://:${REDIS_PASSWORD_PROD}@redis:6379
       - ENVIRONMENT=production
       - LOG_LEVEL=WARNING
     networks:
