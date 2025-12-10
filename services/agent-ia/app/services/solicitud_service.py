@@ -26,6 +26,7 @@ def limpiar_ciudad(ciudad: str) -> str:
         "Bello Antioquia" -> "BELLO"
         "Cali Valle" -> "CALI"
         "Medellín Antioquia" -> "MEDELLIN"
+        "Medellin - ANTIOQUIA" -> "MEDELLIN"
     
     Args:
         ciudad: Nombre de la ciudad posiblemente con departamento
@@ -54,16 +55,31 @@ def limpiar_ciudad(ciudad: str) -> str:
         if unicodedata.category(c) != 'Mn'
     ).upper()
     
+    # Remover separadores comunes (guión, coma, etc.) y reemplazar por espacios
+    # Esto maneja casos como "Medellin - ANTIOQUIA" o "Medellin-ANTIOQUIA"
+    ciudad_normalizada = ciudad_normalizada.replace(' - ', ' ')
+    ciudad_normalizada = ciudad_normalizada.replace('-', ' ')
+    ciudad_normalizada = ciudad_normalizada.replace(',', ' ')
+    ciudad_normalizada = ciudad_normalizada.replace('  ', ' ')
+    
+    # Limpiar espacios múltiples y trim
+    ciudad_normalizada = ' '.join(ciudad_normalizada.split()).strip()
+    
     # Remover departamento si está presente al final o al inicio
     for depto in departamentos_colombia:
+        # Buscar al final (caso más común: "MEDELLIN ANTIOQUIA")
         if ciudad_normalizada.endswith(f" {depto}"):
-            ciudad_normalizada = ciudad_normalizada.replace(f" {depto}", "").strip()
+            ciudad_normalizada = ciudad_normalizada[:-len(f" {depto}")].strip()
             logger.info(f"Ciudad limpiada: '{ciudad}' -> '{ciudad_normalizada}'")
             break
+        # Buscar al inicio (caso menos común: "ANTIOQUIA MEDELLIN")
         elif ciudad_normalizada.startswith(f"{depto} "):
-            ciudad_normalizada = ciudad_normalizada.replace(f"{depto} ", "").strip()
+            ciudad_normalizada = ciudad_normalizada[len(f"{depto} "):].strip()
             logger.info(f"Ciudad limpiada: '{ciudad}' -> '{ciudad_normalizada}'")
             break
+    
+    # Limpieza final: remover cualquier guión o espacio sobrante
+    ciudad_normalizada = ciudad_normalizada.strip(' -')
     
     return ciudad_normalizada
 

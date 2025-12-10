@@ -634,11 +634,9 @@ Usuario: "agrega pastillas de freno traseras"
                             intent_data = json.loads(intent_text)
                             intent = intent_data.get("intent")
                             
-                            # Usuario CONFIRMA - crear solicitud
+                            # Usuario CONFIRMA - crear solicitud INMEDIATAMENTE
                             if intent == "confirm":
-                                logger.info(f"User confirmed solicitud (natural language)")
-                                # Eliminar draft de Redis
-                                await redis_manager.delete(draft_key)
+                                logger.info(f"User confirmed solicitud (natural language) - creating immediately")
                                 
                                 # Preparar datos para creación (saltar validación porque ya fue validado antes)
                                 extracted_data = existing_draft
@@ -648,10 +646,118 @@ Usuario: "agrega pastillas de freno traseras"
                                 if "_last_bot_message" in extracted_data:
                                     del extracted_data["_last_bot_message"]
                                 
-                                # Marcar que el usuario confirmó para saltar el procesamiento de GPT-4
-                                user_confirmed = True
-                                existing_draft = None
-                                # El código continúa después del bloque if existing_draft
+                                # Eliminar draft de Redis
+                                await redis_manager.delete(draft_key)
+                                
+                                # SALTAR DIRECTAMENTE A LA CREACIÓN - no volver a validar
+                                # El código de creación está después de la línea 1087
+                                # Necesitamos extraer las variables necesarias
+                                vehiculo = extracted_data.get("vehiculo", {})
+                                cliente = extracted_data.get("cliente", {})
+                                
+                                # Preparar repuestos
+                                repuestos_formatted = []
+                                for rep in extracted_data["repuestos"]:
+                                    repuestos_formatted.append({
+                                        "nombre": rep["nombre"],
+                                        "cantidad": rep.get("cantidad", 1),
+                                        "marca_vehiculo": vehiculo.get("marca", "N/A"),
+                                        "linea_vehiculo": vehiculo.get("linea", "N/A") if vehiculo.get("linea") else "N/A",
+                                        "anio_vehiculo": int(vehiculo.get("anio", 2020)),
+                                        "observaciones": rep.get("observaciones", "")
+                                    })
+                                
+                                # Normalizar teléfono
+                                telefono_original = cliente["telefono"].strip()
+                                logger.info(f"📞 Teléfono original: '{telefono_original}'")
+                                telefono = telefono_original.replace(" ", "").replace("-", "").replace("(", "").replace(")", "")
+                                logger.info(f"📞 Teléfono limpio: '{telefono}' (longitud: {len(telefono)})")
+                                
+                                if not telefono.startswith("+57"):
+                                    if telefono.startswith("57"):
+                                        telefono = "+" + telefono
+                                    elif telefono.startswith("3"):
+                                        telefono = "+57" + telefono
+                                    else:
+                                        telefono = "+57" + telefono
+                                
+                                logger.info(f"📞 Teléfono normalizado: '{telefono}' (longitud: {len(telefono)})")
+                                
+                                # Preparar datos del cliente
+                                cliente_payload = {
+                                    "nombre": cliente["nombre"],
+                                    "telefono": telefono
+                                }
+                                if cliente.get("email"):
+                                    cliente_payload["email"] = cliente["email"]
+                                
+                                # Usar datos de ciudad ya validados del draft
+                                municipio_id = extracted_data.get("_municipio_id")
+                                departamento = extracted_data.get("_departamento")
+                                ciudad_display = extracted_data["cliente"].get("ciudad_display", cliente["ciudad"])
+                                
+                                # Limpiar ciudad para guardar en BD
+                                from app.services.solicitud_service import limpiar_ciudad
+                                ciudad_para_bd = cliente["ciudad"]
+                                if " - " in ciudad_para_bd:
+                                    ciudad_para_bd = ciudad_para_bd.split(" - ")[0].strip()
+                                ciudad_normalizada = limpiar_ciudad(ciudad_para_bd)
+                                
+                                solicitud_payload = {
+                                    "cliente": cliente_payload,
+                                    "municipio_id": municipio_id,
+                                    "ciudad_origen": ciudad_normalizada,
+                                    "departamento_origen": departamento,
+                                    "repuestos": repuestos_formatted
+                                }
+                                
+                                logger.info(f"📤 Payload a enviar: {json.dumps(solicitud_payload, indent=2, ensure_ascii=False)}")
+                                
+                                # Llamar al endpoint seguro del bot
+                                async with httpx.AsyncClient(timeout=30.0) as api_client:
+                                    api_response = await api_client.post(
+                                        f"{settings.core_api_url}/v1/solicitudes/services/bot",
+                                        json=solicitud_payload,
+                                        headers={
+                                            "X-Service-Name": settings.service_name,
+                                            "X-Service-API-Key": settings.service_api_key
+                                        }
+                                    )
+                                
+                                if api_response.status_code == 201:
+                                    solicitud_result = api_response.json()
+                                    solicitud_id = solicitud_result["id"]
+                                    
+                                    logger.info(f"✅ Solicitud created: {solicitud_id}")
+                                    
+                                    # Enviar confirmación
+                                    response_msg = f"✅ Solicitud creada exitosamente!\n\n"
+                                    response_msg += f"📋 Número: {solicitud_id[:8]}...\n\n"
+                                    response_msg += f"👤 Cliente: {cliente['nombre']}\n"
+                                    response_msg += f"📞 Teléfono: {telefono}\n"
+                                    response_msg += f"📍 Ciudad: {ciudad_display}\n\n"
+                                    response_msg += f"🚗 Vehículo: {vehiculo.get('marca', '')} {vehiculo.get('linea', '')} {vehiculo.get('anio', '')}\n\n"
+                                    response_msg += f"🔧 Repuestos:\n"
+                                    response_msg += format_repuestos_list(extracted_data["repuestos"])
+                                    response_msg += "\n\n🔍 Estamos buscando las mejores ofertas para ti. Te notificaremos cuando tengamos propuestas disponibles.\n\n"
+                                    response_msg += "¡Gracias por usar TeLOO! 🚗"
+                                    
+                                    await telegram_service.send_message(telegram_message.chat_id, response_msg)
+                                    
+                                    return {
+                                        "success": True,
+                                        "action": "solicitud_created",
+                                        "solicitud_id": solicitud_id
+                                    }
+                                else:
+                                    error_msg = f"❌ Error creando solicitud: {api_response.status_code}\n\n"
+                                    error_msg += "Por favor intenta de nuevo más tarde."
+                                    await telegram_service.send_message(telegram_message.chat_id, error_msg)
+                                    
+                                    return {
+                                        "success": False,
+                                        "error": f"API error: {api_response.status_code}"
+                                    }
                             
                             # Usuario RECHAZA TODO - cancelar completamente
                             elif intent == "reject":
@@ -726,13 +832,25 @@ Usuario: "agrega pastillas de freno traseras"
                                         "action": "correction_requested"
                                     }
                                 
-                                # Aplicar correcciones completas del GPT-4
+                                # Aplicar correcciones FUSIONANDO datos (no reemplazando)
                                 if "cliente" in updated_data:
-                                    existing_draft["cliente"] = updated_data["cliente"]
+                                    # Fusionar cliente: solo actualizar campos que vienen en updated_data
+                                    for key, value in updated_data["cliente"].items():
+                                        if value:  # Solo actualizar si el valor no está vacío
+                                            existing_draft["cliente"][key] = value
+                                
                                 if "vehiculo" in updated_data:
-                                    existing_draft["vehiculo"] = updated_data["vehiculo"]
+                                    # Fusionar vehículo: solo actualizar campos que vienen en updated_data
+                                    if "vehiculo" not in existing_draft:
+                                        existing_draft["vehiculo"] = {}
+                                    for key, value in updated_data["vehiculo"].items():
+                                        if value:  # Solo actualizar si el valor no está vacío
+                                            existing_draft["vehiculo"][key] = value
+                                
                                 if "repuestos" in updated_data:
-                                    existing_draft["repuestos"] = updated_data["repuestos"]
+                                    # Solo reemplazar repuestos si vienen datos nuevos
+                                    if updated_data["repuestos"]:
+                                        existing_draft["repuestos"] = updated_data["repuestos"]
                                 
                                 # Validar ciudad antes de mostrar resumen
                                 cliente = existing_draft.get("cliente", {})
@@ -768,13 +886,43 @@ Usuario: "agrega pastillas de freno traseras"
                                     # Ciudad no válida - usar ciudad original sin departamento
                                     ciudad_display = cliente.get("ciudad", "")
                                 
-                                # Mostrar resumen actualizado con ciudad validada
+                                # Validar teléfono ANTES de mostrar resumen
+                                telefono_original = existing_draft['cliente']['telefono']
+                                telefono_limpio = telefono_original.replace(" ", "").replace("-", "").replace("(", "").replace(")", "")
+                                
+                                # Remover +57 si existe para contar solo los dígitos
+                                telefono_validar = telefono_limpio
+                                if telefono_validar.startswith("+57"):
+                                    telefono_validar = telefono_validar[3:]
+                                elif telefono_validar.startswith("57"):
+                                    telefono_validar = telefono_validar[2:]
+                                
+                                # Validar que tenga exactamente 10 dígitos
+                                if len(telefono_validar) != 10 or not telefono_validar.isdigit():
+                                    # Teléfono inválido - pedir corrección
+                                    logger.info(f"Invalid phone '{telefono_original}' detected in correction")
+                                    
+                                    help_msg = f"⚠️ El teléfono '{telefono_original}' no es válido.\n\n"
+                                    help_msg += "📱 Por favor, envíame un teléfono colombiano completo con 10 dígitos.\n\n"
+                                    help_msg += "Ejemplo: 3001234567"
+                                    
+                                    await telegram_service.send_message(telegram_message.chat_id, help_msg)
+                                    
+                                    return {
+                                        "success": True,
+                                        "action": "invalid_phone_in_correction"
+                                    }
+                                
+                                # Teléfono válido - mostrar limpio
+                                telefono_display = telefono_limpio
+                                
+                                # Mostrar resumen actualizado con ciudad validada y teléfono limpio
                                 confirmation_msg = "✅ Perfecto, actualicé la información:\n\n"
                                 confirmation_msg += f"👤 Cliente: {existing_draft['cliente']['nombre']}\n"
-                                confirmation_msg += f"📞 Teléfono: {existing_draft['cliente']['telefono']}\n"
-                                confirmation_msg += f"📍 Ciudad: {ciudad_display}\n\n"
+                                confirmation_msg += f"📞 Teléfono: {telefono_display}\n"
+                                confirmation_msg += f"📍 Ciudad: {ciudad_normalizada.title()}\n\n"
                                 vehiculo = existing_draft.get("vehiculo", {})
-                                confirmation_msg += f"🚗 Vehíctulo: {vehiculo.get('marca', '')} {vehiculo.get('linea', '')} {vehiculo.get('anio', '')}\n\n"
+                                confirmation_msg += f"🚗 Vehículo: {vehiculo.get('marca', '')} {vehiculo.get('linea', '')} {vehiculo.get('anio', '')}\n\n"
                                 confirmation_msg += f"🔧 Repuestos:\n"
                                 # Usar función helper para formatear repuestos
                                 confirmation_msg += format_repuestos_list(existing_draft["repuestos"])
@@ -959,8 +1107,46 @@ Mensaje: "para una Yamaha FZ 2.0 del 2018"
                 cliente = extracted_data.get("cliente", {})
                 if not cliente.get("nombre"):
                     missing_fields.append("nombre del cliente")
+                
+                # Validar teléfono: debe existir y tener 10 dígitos
                 if not cliente.get("telefono"):
                     missing_fields.append("teléfono del cliente")
+                else:
+                    # Limpiar teléfono para validar longitud
+                    telefono_limpio = cliente["telefono"].replace(" ", "").replace("-", "").replace("(", "").replace(")", "")
+                    # Remover +57 si existe para contar solo los dígitos
+                    if telefono_limpio.startswith("+57"):
+                        telefono_limpio = telefono_limpio[3:]
+                    elif telefono_limpio.startswith("57"):
+                        telefono_limpio = telefono_limpio[2:]
+                    
+                    # Validar que tenga exactamente 10 dígitos
+                    if len(telefono_limpio) != 10 or not telefono_limpio.isdigit():
+                        # Teléfono inválido - guardar draft y pedir corrección
+                        extracted_data["_status"] = "invalid_phone"
+                        await redis_manager.set_json(draft_key, extracted_data, ttl=3600)
+                        logger.info(f"Invalid phone '{cliente['telefono']}' for chat {telegram_message.chat_id}")
+                        
+                        help_msg = f"⚠️ El teléfono '{cliente['telefono']}' no es válido.\n\n"
+                        help_msg += "📱 Por favor, envíame un teléfono colombiano completo con 10 dígitos.\n\n"
+                        help_msg += "Ejemplo: 3001234567\n\n"
+                        help_msg += "✅ Ya tengo guardado:\n"
+                        if cliente.get("nombre"):
+                            help_msg += f"• Nombre: {cliente['nombre']}\n"
+                        if extracted_data.get("repuestos"):
+                            help_msg += f"• {len(extracted_data['repuestos'])} repuesto(s)\n"
+                        if vehiculo.get("marca"):
+                            help_msg += f"• Vehículo: {vehiculo.get('marca', '')} {vehiculo.get('linea', '')}\n"
+                        if cliente.get("ciudad"):
+                            help_msg += f"• Ciudad: {cliente['ciudad']}\n"
+                        
+                        await telegram_service.send_message(telegram_message.chat_id, help_msg)
+                        
+                        return {
+                            "success": True,
+                            "action": "invalid_phone_detected"
+                        }
+                
                 if not cliente.get("ciudad"):
                     missing_fields.append("ciudad")
                 
@@ -1017,11 +1203,17 @@ Mensaje: "para una Yamaha FZ 2.0 del 2018"
                     extracted_data["_municipio_id"] = municipio_data["id"]
                     extracted_data["_departamento"] = departamento
                     
-                    # Mostrar resumen con ciudad validada
+                    # Limpiar teléfono para mostrar (quitar guiones, espacios, paréntesis)
+                    telefono_display = cliente['telefono'].replace(" ", "").replace("-", "").replace("(", "").replace(")", "")
+                    # Si tiene menos de 10 dígitos, mostrar el original
+                    if len(telefono_display) < 10:
+                        telefono_display = cliente['telefono']
+                    
+                    # Mostrar resumen con ciudad validada y teléfono limpio
                     confirmation_msg = "📋 Perfecto, aquí está el resumen:\n\n"
                     confirmation_msg += f"👤 Cliente: {cliente['nombre']}\n"
-                    confirmation_msg += f"📞 Teléfono: {cliente['telefono']}\n"
-                    confirmation_msg += f"📍 Ciudad: {ciudad_display}\n\n"
+                    confirmation_msg += f"📞 Teléfono: {telefono_display}\n"
+                    confirmation_msg += f"📍 Ciudad: {ciudad_normalizada.title()}\n\n"
                     confirmation_msg += f"🚗 Vehículo: {vehiculo.get('marca', '')} {vehiculo.get('linea', '')} {vehiculo.get('anio', '')}\n\n"
                     confirmation_msg += f"🔧 Repuestos:\n"
                     confirmation_msg += format_repuestos_list(extracted_data["repuestos"])
