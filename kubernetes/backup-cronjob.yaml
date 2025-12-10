@@ -1,0 +1,208 @@
+# Automated backup CronJobs for PostgreSQL, Redis, and MinIO
+# These jobs run on a schedule to backup critical data
+
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: postgres-backup
+  namespace: teloo-production
+  labels:
+    app: postgres-backup
+    tier: backup
+spec:
+  # Run daily at 2 AM
+  schedule: "0 2 * * *"
+  successfulJobsHistoryLimit: 7
+  failedJobsHistoryLimit: 3
+  concurrencyPolicy: Forbid
+  jobTemplate:
+    spec:
+      template:
+        metadata:
+          labels:
+            app: postgres-backup
+        spec:
+          restartPolicy: OnFailure
+          containers:
+          - name: postgres-backup
+            image: postgres:15-alpine
+            command:
+            - /bin/sh
+            - -c
+            - |
+              BACKUP_FILE="/backups/postgres-backup-$(date +%Y%m%d-%H%M%S).sql.gz"
+              echo "Starting PostgreSQL backup to $BACKUP_FILE"
+              pg_dump -h postgres -U $POSTGRES_USER -d $POSTGRES_DB | gzip > $BACKUP_FILE
+              echo "Backup completed: $BACKUP_FILE"
+              
+              # Keep only last 30 days of backups
+              find /backups -name "postgres-backup-*.sql.gz" -mtime +30 -delete
+              
+              # List current backups
+              ls -lh /backups/
+            env:
+            - name: POSTGRES_USER
+              valueFrom:
+                secretKeyRef:
+                  name: teloo-secrets
+                  key: postgres-user
+            - name: POSTGRES_DB
+              valueFrom:
+                configMapKeyRef:
+                  name: teloo-config
+                  key: POSTGRES_DB
+            - name: PGPASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: teloo-secrets
+                  key: postgres-password
+            volumeMounts:
+            - name: backup-storage
+              mountPath: /backups
+          volumes:
+          - name: backup-storage
+            persistentVolumeClaim:
+              claimName: backup-pvc
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: redis-backup
+  namespace: teloo-production
+  labels:
+    app: redis-backup
+    tier: backup
+spec:
+  # Run every 6 hours
+  schedule: "0 */6 * * *"
+  successfulJobsHistoryLimit: 7
+  failedJobsHistoryLimit: 3
+  concurrencyPolicy: Forbid
+  jobTemplate:
+    spec:
+      template:
+        metadata:
+          labels:
+            app: redis-backup
+        spec:
+          restartPolicy: OnFailure
+          containers:
+          - name: redis-backup
+            image: redis:7-alpine
+            command:
+            - /bin/sh
+            - -c
+            - |
+              BACKUP_FILE="/backups/redis-backup-$(date +%Y%m%d-%H%M%S).rdb"
+              echo "Starting Redis backup to $BACKUP_FILE"
+              
+              # Trigger BGSAVE
+              redis-cli -h redis -a $REDIS_PASSWORD BGSAVE
+              
+              # Wait for BGSAVE to complete
+              while [ $(redis-cli -h redis -a $REDIS_PASSWORD LASTSAVE) -eq $(redis-cli -h redis -a $REDIS_PASSWORD LASTSAVE) ]; do
+                sleep 1
+              done
+              
+              # Copy dump.rdb
+              redis-cli -h redis -a $REDIS_PASSWORD --rdb $BACKUP_FILE
+              
+              echo "Backup completed: $BACKUP_FILE"
+              
+              # Keep only last 7 days of backups
+              find /backups -name "redis-backup-*.rdb" -mtime +7 -delete
+              
+              ls -lh /backups/
+            env:
+            - name: REDIS_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: teloo-secrets
+                  key: redis-password
+            volumeMounts:
+            - name: backup-storage
+              mountPath: /backups
+          volumes:
+          - name: backup-storage
+            persistentVolumeClaim:
+              claimName: backup-pvc
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: minio-backup
+  namespace: teloo-production
+  labels:
+    app: minio-backup
+    tier: backup
+spec:
+  # Run daily at 3 AM
+  schedule: "0 3 * * *"
+  successfulJobsHistoryLimit: 7
+  failedJobsHistoryLimit: 3
+  concurrencyPolicy: Forbid
+  jobTemplate:
+    spec:
+      template:
+        metadata:
+          labels:
+            app: minio-backup
+        spec:
+          restartPolicy: OnFailure
+          containers:
+          - name: minio-backup
+            image: minio/mc:latest
+            command:
+            - /bin/sh
+            - -c
+            - |
+              BACKUP_DIR="/backups/minio-backup-$(date +%Y%m%d-%H%M%S)"
+              echo "Starting MinIO backup to $BACKUP_DIR"
+              
+              # Configure mc client
+              mc alias set source http://minio:9000 $MINIO_ACCESS_KEY $MINIO_SECRET_KEY
+              
+              # Mirror all buckets
+              mc mirror source/ $BACKUP_DIR/
+              
+              echo "Backup completed: $BACKUP_DIR"
+              
+              # Keep only last 14 days of backups
+              find /backups -name "minio-backup-*" -type d -mtime +14 -exec rm -rf {} +
+              
+              du -sh /backups/*
+            env:
+            - name: MINIO_ACCESS_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: teloo-secrets
+                  key: minio-access-key
+            - name: MINIO_SECRET_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: teloo-secrets
+                  key: minio-secret-key
+            volumeMounts:
+            - name: backup-storage
+              mountPath: /backups
+          volumes:
+          - name: backup-storage
+            persistentVolumeClaim:
+              claimName: backup-pvc
+---
+# Persistent Volume Claim for backups
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: backup-pvc
+  namespace: teloo-production
+  labels:
+    app: backup
+spec:
+  accessModes:
+  - ReadWriteOnce
+  storageClassName: "standard"
+  resources:
+    requests:
+      storage: 200Gi
