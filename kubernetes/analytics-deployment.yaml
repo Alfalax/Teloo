@@ -1,0 +1,61 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: analytics
+  namespace: teloo-production
+  labels:
+    app: analytics
+    tier: backend
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: analytics
+  template:
+    metadata:
+      labels:
+        app: analytics
+        tier: backend
+    spec:
+      containers:
+      - name: analytics
+        image: REGISTRY/analytics:IMAGE_TAG
+        imagePullPolicy: Always
+        ports:
+        - containerPort: 8002
+        env:
+        - name: DATABASE_URL
+          valueFrom:
+            secretKeyRef:
+              name: teloo-secrets
+              key: database-url
+        - name: REDIS_URL
+          valueFrom:
+            secretKeyRef:
+              name: teloo-secrets
+              key: redis-url
+        envFrom:
+        - configMapRef:
+            name: teloo-config
+        resources:
+          requests:
+            memory: "256Mi"
+            cpu: "250m"
+          limits:
+            memory: "512Mi"
+            cpu: "500m"
+      imagePullSecrets:
+      - name: ghcr-secret
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: analytics
+  namespace: teloo-production
+spec:
+  type: ClusterIP
+  ports:
+  - port: 8002
+    targetPort: 8002
+  selector:
+    app: analytics

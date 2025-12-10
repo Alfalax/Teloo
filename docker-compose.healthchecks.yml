@@ -1,0 +1,99 @@
+# Docker Compose configuration with health checks
+# This file demonstrates how to configure health checks for all TeLOO V3 services
+# Use with: docker-compose -f docker-compose.yml -f docker-compose.healthchecks.yml up
+
+version: '3.8'
+
+services:
+  # Core API Service
+  core-api:
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health/live"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  # Agent IA Service
+  agent-ia:
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8001/health/live"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    depends_on:
+      redis:
+        condition: service_healthy
+      core-api:
+        condition: service_healthy
+
+  # Analytics Service
+  analytics:
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8002/health/live"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  # Files Service
+  files:
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8003/health/live"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    depends_on:
+      minio:
+        condition: service_healthy
+
+  # Realtime Gateway Service
+  realtime-gateway:
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8004/health/live"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    depends_on:
+      redis:
+        condition: service_healthy
+
+  # PostgreSQL Database
+  postgres:
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U teloo_user -d teloo_v3"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  # Redis Cache
+  redis:
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 5s
+
+  # MinIO Object Storage
+  minio:
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s

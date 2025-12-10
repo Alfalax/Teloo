@@ -1,0 +1,353 @@
+name: CI - Build and Test
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main, develop ]
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_PREFIX: ${{ github.repository }}
+
+jobs:
+  # Job 1: Lint and Security Scan
+  lint-and-security:
+    name: Lint and Security Checks
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install Python linting tools
+        run: |
+          pip install flake8 black isort bandit safety
+
+      - name: Run Python linters
+        run: |
+          # Check code formatting
+          black --check services/
+          # Check import sorting
+          isort --check-only services/
+          # Run flake8
+          flake8 services/ --max-line-length=120 --extend-ignore=E203,W503
+          # Security checks
+          bandit -r services/ -ll
+          # Check for known vulnerabilities in dependencies
+          safety check --json || true
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+
+      - name: Install Node.js dependencies
+        run: |
+          cd frontend/admin && npm ci
+          cd ../advisor && npm ci
+
+      - name: Run ESLint
+        run: |
+          cd frontend/admin && npm run lint || true
+          cd ../advisor && npm run lint || true
+
+  # Job 2: Build Docker Images
+  build-images:
+    name: Build Docker Images
+    runs-on: ubuntu-latest
+    needs: lint-and-security
+    strategy:
+      matrix:
+        service:
+          - name: core-api
+            context: ./services/core-api
+          - name: agent-ia
+            context: ./services/agent-ia
+          - name: analytics
+            context: ./services/analytics
+          - name: realtime-gateway
+            context: ./services/realtime-gateway
+          - name: files
+            context: ./services/files
+          - name: admin-frontend
+            context: ./frontend/admin
+          - name: advisor-frontend
+            context: ./frontend/advisor
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}/${{ matrix.service.name }}
+          tags: |
+            type=ref,event=branch
+            type=ref,event=pr
+            type=sha,prefix={{branch}}-
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: ${{ matrix.service.context }}
+          push: ${{ github.event_name != 'pull_request' }}
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          build-args: |
+            BUILD_DATE=${{ github.event.head_commit.timestamp }}
+            VCS_REF=${{ github.sha }}
+            VERSION=${{ github.ref_name }}
+
+  # Job 3: Security Scan with Trivy
+  security-scan:
+    name: Security Scan Images
+    runs-on: ubuntu-latest
+    needs: build-images
+    if: github.event_name != 'pull_request'
+    strategy:
+      matrix:
+        service: [core-api, agent-ia, analytics, realtime-gateway, files, admin-frontend, advisor-frontend]
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Run Trivy vulnerability scanner
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}/${{ matrix.service }}:${{ github.ref_name }}-${{ github.sha }}
+          format: 'sarif'
+          output: 'trivy-results-${{ matrix.service }}.sarif'
+          severity: 'CRITICAL,HIGH'
+
+      - name: Upload Trivy results to GitHub Security
+        uses: github/codeql-action/upload-sarif@v3
+        if: always()
+        with:
+          sarif_file: 'trivy-results-${{ matrix.service }}.sarif'
+          category: 'trivy-${{ matrix.service }}'
+
+      - name: Run Trivy in table format
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}/${{ matrix.service }}:${{ github.ref_name }}-${{ github.sha }}
+          format: 'table'
+          exit-code: '0'
+          severity: 'CRITICAL,HIGH'
+
+  # Job 4: Run Tests in Containers
+  test-services:
+    name: Test Services
+    runs-on: ubuntu-latest
+    needs: build-images
+    
+    services:
+      postgres:
+        image: postgres:15-alpine
+        env:
+          POSTGRES_DB: teloo_v3_test
+          POSTGRES_USER: teloo_user
+          POSTGRES_PASSWORD: teloo_password
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+
+      redis:
+        image: redis:7-alpine
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 6379:6379
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install core-api dependencies
+        run: |
+          cd services/core-api
+          pip install -r requirements.txt
+          pip install pytest pytest-asyncio pytest-cov
+
+      - name: Run core-api tests
+        env:
+          DATABASE_URL: postgres://teloo_user:teloo_password@localhost:5432/teloo_v3_test
+          REDIS_URL: redis://localhost:6379
+          JWT_SECRET_KEY: test-secret-key
+          ENVIRONMENT: test
+        run: |
+          cd services/core-api
+          pytest tests/ -v --cov=. --cov-report=xml --cov-report=term
+
+      - name: Install agent-ia dependencies
+        run: |
+          cd services/agent-ia
+          pip install -r requirements.txt
+          pip install pytest pytest-asyncio pytest-cov
+
+      - name: Run agent-ia tests
+        env:
+          CORE_API_URL: http://localhost:8000
+          REDIS_URL: redis://localhost:6379
+          ENVIRONMENT: test
+        run: |
+          cd services/agent-ia
+          pytest tests/ -v --cov=. --cov-report=xml --cov-report=term
+
+      - name: Install analytics dependencies
+        run: |
+          cd services/analytics
+          pip install -r requirements.txt
+          pip install pytest pytest-asyncio pytest-cov
+
+      - name: Run analytics tests
+        env:
+          DATABASE_URL: postgres://teloo_user:teloo_password@localhost:5432/teloo_v3_test
+          REDIS_URL: redis://localhost:6379
+          ENVIRONMENT: test
+        run: |
+          cd services/analytics
+          pytest -v --cov=. --cov-report=xml --cov-report=term || true
+
+      - name: Upload coverage reports
+        uses: codecov/codecov-action@v4
+        if: always()
+        with:
+          files: ./services/core-api/coverage.xml,./services/agent-ia/coverage.xml,./services/analytics/coverage.xml
+          flags: unittests
+          name: codecov-umbrella
+
+  # Job 5: Test Frontends
+  test-frontends:
+    name: Test Frontends
+    runs-on: ubuntu-latest
+    needs: lint-and-security
+    strategy:
+      matrix:
+        frontend: [admin, advisor]
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache: 'npm'
+          cache-dependency-path: frontend/${{ matrix.frontend }}/package-lock.json
+
+      - name: Install dependencies
+        run: |
+          cd frontend/${{ matrix.frontend }}
+          npm ci
+
+      - name: Run tests
+        run: |
+          cd frontend/${{ matrix.frontend }}
+          npm run test -- --run --coverage || true
+
+      - name: Build frontend
+        run: |
+          cd frontend/${{ matrix.frontend }}
+          npm run build
+
+  # Job 6: Integration Tests
+  integration-tests:
+    name: Integration Tests
+    runs-on: ubuntu-latest
+    needs: build-images
+    if: github.event_name != 'pull_request'
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Create .env files
+        run: |
+          # Create minimal .env files for testing
+          echo "DATABASE_URL=postgres://teloo_user:teloo_password@postgres:5432/teloo_v3" > services/core-api/.env
+          echo "REDIS_URL=redis://redis:6379" >> services/core-api/.env
+          echo "JWT_SECRET_KEY=test-secret-key" >> services/core-api/.env
+          
+          echo "CORE_API_URL=http://core-api:8000" > services/agent-ia/.env
+          echo "REDIS_URL=redis://redis:6379" >> services/agent-ia/.env
+
+      - name: Start services with Docker Compose
+        run: |
+          docker-compose up -d postgres redis
+          sleep 10
+
+      - name: Wait for services to be healthy
+        run: |
+          timeout 60 bash -c 'until docker-compose ps | grep -q "healthy"; do sleep 2; done'
+
+      - name: Run integration tests
+        run: |
+          docker-compose up -d core-api
+          sleep 15
+          # Test health endpoints
+          curl -f http://localhost:8000/health || exit 1
+          curl -f http://localhost:8000/health/ready || exit 1
+
+      - name: Cleanup
+        if: always()
+        run: docker-compose down -v
+
+  # Job 7: Build Summary
+  build-summary:
+    name: Build Summary
+    runs-on: ubuntu-latest
+    needs: [lint-and-security, build-images, security-scan, test-services, test-frontends]
+    if: always()
+
+    steps:
+      - name: Check build status
+        run: |
+          echo "Build Summary:"
+          echo "- Lint and Security: ${{ needs.lint-and-security.result }}"
+          echo "- Build Images: ${{ needs.build-images.result }}"
+          echo "- Security Scan: ${{ needs.security-scan.result }}"
+          echo "- Test Services: ${{ needs.test-services.result }}"
+          echo "- Test Frontends: ${{ needs.test-frontends.result }}"

@@ -1,0 +1,133 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: admin-frontend
+  namespace: teloo-production
+  labels:
+    app: admin-frontend
+    tier: frontend
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: admin-frontend
+  template:
+    metadata:
+      labels:
+        app: admin-frontend
+        tier: frontend
+    spec:
+      containers:
+      - name: admin-frontend
+        image: REGISTRY/admin-frontend:IMAGE_TAG
+        imagePullPolicy: Always
+        ports:
+        - containerPort: 3000
+        env:
+        - name: VITE_API_URL
+          value: "https://api.teloo.com"
+        - name: VITE_REALTIME_URL
+          value: "https://ws.teloo.com"
+        - name: VITE_ENVIRONMENT
+          value: "production"
+        resources:
+          requests:
+            memory: "128Mi"
+            cpu: "100m"
+          limits:
+            memory: "256Mi"
+            cpu: "200m"
+        livenessProbe:
+          httpGet:
+            path: /
+            port: 3000
+          initialDelaySeconds: 30
+          periodSeconds: 10
+        readinessProbe:
+          httpGet:
+            path: /
+            port: 3000
+          initialDelaySeconds: 10
+          periodSeconds: 5
+      imagePullSecrets:
+      - name: ghcr-secret
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: admin-frontend
+  namespace: teloo-production
+spec:
+  type: ClusterIP
+  ports:
+  - port: 3000
+    targetPort: 3000
+  selector:
+    app: admin-frontend
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: advisor-frontend
+  namespace: teloo-production
+  labels:
+    app: advisor-frontend
+    tier: frontend
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: advisor-frontend
+  template:
+    metadata:
+      labels:
+        app: advisor-frontend
+        tier: frontend
+    spec:
+      containers:
+      - name: advisor-frontend
+        image: REGISTRY/advisor-frontend:IMAGE_TAG
+        imagePullPolicy: Always
+        ports:
+        - containerPort: 3001
+        env:
+        - name: VITE_API_URL
+          value: "https://api.teloo.com"
+        - name: VITE_REALTIME_URL
+          value: "https://ws.teloo.com"
+        - name: VITE_ENVIRONMENT
+          value: "production"
+        resources:
+          requests:
+            memory: "128Mi"
+            cpu: "100m"
+          limits:
+            memory: "256Mi"
+            cpu: "200m"
+        livenessProbe:
+          httpGet:
+            path: /
+            port: 3001
+          initialDelaySeconds: 30
+          periodSeconds: 10
+        readinessProbe:
+          httpGet:
+            path: /
+            port: 3001
+          initialDelaySeconds: 10
+          periodSeconds: 5
+      imagePullSecrets:
+      - name: ghcr-secret
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: advisor-frontend
+  namespace: teloo-production
+spec:
+  type: ClusterIP
+  ports:
+  - port: 3001
+    targetPort: 3001
+  selector:
+    app: advisor-frontend

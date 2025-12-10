@@ -1,0 +1,122 @@
+{
+  "dashboard": {
+    "title": "TeLOO V3 - Core API Metrics",
+    "tags": ["teloo", "core-api", "production"],
+    "timezone": "browser",
+    "panels": [
+      {
+        "id": 1,
+        "title": "Request Rate",
+        "type": "graph",
+        "targets": [
+          {
+            "expr": "rate(http_requests_total[5m])",
+            "legendFormat": "{{method}} {{endpoint}} - {{status}}"
+          }
+        ],
+        "gridPos": {"h": 8, "w": 12, "x": 0, "y": 0}
+      },
+      {
+        "id": 2,
+        "title": "Request Duration (p95)",
+        "type": "graph",
+        "targets": [
+          {
+            "expr": "histogram_quantile(0.95, rate(http_request_duration_seconds_bucket[5m]))",
+            "legendFormat": "{{method}} {{endpoint}}"
+          }
+        ],
+        "gridPos": {"h": 8, "w": 12, "x": 12, "y": 0}
+      },
+      {
+        "id": 3,
+        "title": "Solicitudes Activas",
+        "type": "graph",
+        "targets": [
+          {
+            "expr": "solicitudes_active",
+            "legendFormat": "{{estado}}"
+          }
+        ],
+        "gridPos": {"h": 8, "w": 12, "x": 0, "y": 8}
+      },
+      {
+        "id": 4,
+        "title": "Ofertas Activas",
+        "type": "graph",
+        "targets": [
+          {
+            "expr": "ofertas_active",
+            "legendFormat": "{{estado}}"
+          }
+        ],
+        "gridPos": {"h": 8, "w": 12, "x": 12, "y": 8}
+      },
+      {
+        "id": 5,
+        "title": "Escalamiento - Oleadas por Nivel",
+        "type": "graph",
+        "targets": [
+          {
+            "expr": "rate(escalamiento_oleadas_total[5m])",
+            "legendFormat": "Nivel {{nivel}} - {{canal}}"
+          }
+        ],
+        "gridPos": {"h": 8, "w": 12, "x": 0, "y": 16}
+      },
+      {
+        "id": 6,
+        "title": "Database Query Duration (p95)",
+        "type": "graph",
+        "targets": [
+          {
+            "expr": "histogram_quantile(0.95, rate(db_query_duration_seconds_bucket[5m]))",
+            "legendFormat": "{{operation}} - {{table}}"
+          }
+        ],
+        "gridPos": {"h": 8, "w": 12, "x": 12, "y": 16}
+      },
+      {
+        "id": 7,
+        "title": "External API Errors",
+        "type": "graph",
+        "targets": [
+          {
+            "expr": "rate(external_api_errors_total[5m])",
+            "legendFormat": "{{service}} - {{error_type}}"
+          }
+        ],
+        "gridPos": {"h": 8, "w": 12, "x": 0, "y": 24}
+      },
+      {
+        "id": 8,
+        "title": "Circuit Breaker State",
+        "type": "graph",
+        "targets": [
+          {
+            "expr": "circuit_breaker_state",
+            "legendFormat": "{{service}}"
+          }
+        ],
+        "gridPos": {"h": 8, "w": 12, "x": 12, "y": 24}
+      },
+      {
+        "id": 9,
+        "title": "System Errors",
+        "type": "graph",
+        "targets": [
+          {
+            "expr": "rate(system_errors_total[5m])",
+            "legendFormat": "{{error_type}} - {{component}}"
+          }
+        ],
+        "gridPos": {"h": 8, "w": 24, "x": 0, "y": 32}
+      }
+    ],
+    "refresh": "10s",
+    "time": {
+      "from": "now-1h",
+      "to": "now"
+    }
+  }
+}

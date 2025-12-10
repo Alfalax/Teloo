@@ -945,3 +945,63 @@ async def notificar_clientes_ofertas_ganadoras(
             'error': str(e),
             'timestamp': datetime.now().isoformat()
         }
+
+
+async def procesar_notificaciones_pendientes(
+    redis_client: Optional[redis.Redis] = None
+) -> Dict[str, Any]:
+    """
+    Procesa notificaciones pendientes en la cola de Redis
+    
+    Este job se ejecuta cada 5 minutos y procesa notificaciones que fallaron
+    en el primer intento (WebSocket no disponible, WhatsApp falló, etc.)
+    
+    Args:
+        redis_client: Cliente Redis para acceder a la cola
+        
+    Returns:
+        Dict con resultado del procesamiento
+    """
+    try:
+        logger.debug("🔍 Procesando notificaciones pendientes...")
+        
+        if not redis_client:
+            logger.warning("Redis client no disponible para procesar notificaciones")
+            return {
+                'success': False,
+                'error': 'Redis client not available',
+                'timestamp': datetime.now().isoformat()
+            }
+        
+        # Import notification service
+        from services.notification_service import notification_service
+        
+        # Initialize if not already done
+        if not notification_service.redis_client:
+            await notification_service.initialize(redis_client)
+        
+        # Process pending notifications
+        processed = await notification_service.process_pending_notifications()
+        
+        if processed > 0:
+            logger.info(f"✅ Procesadas {processed} notificaciones pendientes")
+        else:
+            logger.debug("No hay notificaciones pendientes para procesar")
+        
+        return {
+            'success': True,
+            'notificaciones_procesadas': processed,
+            'timestamp': datetime.now().isoformat(),
+            'message': f'Procesadas {processed} notificaciones pendientes'
+        }
+        
+    except Exception as e:
+        logger.error(f"Error procesando notificaciones pendientes: {e}")
+        import traceback
+        logger.error(traceback.format_exc())
+        return {
+            'success': False,
+            'error': str(e),
+            'timestamp': datetime.now().isoformat(),
+            'message': 'Error procesando notificaciones pendientes'
+        }

@@ -1,0 +1,294 @@
+version: '3.8'
+
+# Production Docker Compose configuration
+# This file is used for Docker Swarm deployments
+# Usage: docker stack deploy -c docker-compose.prod.yml teloo
+
+services:
+  # Database Services
+  postgres:
+    image: postgres:15-alpine
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-teloo_v3_production}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      TZ: America/Bogota
+      PGTZ: UTC
+    volumes:
+      - postgres_prod_data:/var/lib/postgresql/data
+    networks:
+      - teloo-prod-network
+    deploy:
+      replicas: 1
+      placement:
+        constraints:
+          - node.role == manager
+      restart_policy:
+        condition: on-failure
+        delay: 5s
+        max_attempts: 3
+      resources:
+        limits:
+          cpus: '2'
+          memory: 2G
+        reservations:
+          cpus: '1'
+          memory: 1G
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  redis:
+    image: redis:7-alpine
+    command: redis-server --appendonly yes --requirepass ${REDIS_PASSWORD}
+    volumes:
+      - redis_prod_data:/data
+    networks:
+      - teloo-prod-network
+    deploy:
+      replicas: 1
+      restart_policy:
+        condition: on-failure
+      resources:
+        limits:
+          cpus: '1'
+          memory: 512M
+    healthcheck:
+      test: ["CMD", "redis-cli", "--raw", "incr", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  minio:
+    image: minio/minio:latest
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ACCESS_KEY}
+      MINIO_ROOT_PASSWORD: ${MINIO_SECRET_KEY}
+    volumes:
+      - minio_prod_data:/data
+    networks:
+      - teloo-prod-network
+    command: server /data --console-address ":9001"
+    deploy:
+      replicas: 1
+      restart_policy:
+        condition: on-failure
+      resources:
+        limits:
+          cpus: '1'
+          memory: 1G
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Core Services
+  core-api:
+    image: ${REGISTRY}/${IMAGE_PREFIX}/core-api:${IMAGE_VERSION}
+    environment:
+      - DATABASE_URL=postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+      - REDIS_URL=redis://:${REDIS_PASSWORD}@redis:6379
+      - MINIO_ENDPOINT=minio:9000
+      - MINIO_ACCESS_KEY=${MINIO_ACCESS_KEY}
+      - MINIO_SECRET_KEY=${MINIO_SECRET_KEY}
+      - JWT_SECRET_KEY=${JWT_SECRET_KEY}
+      - AGENT_IA_API_KEY=${AGENT_IA_API_KEY}
+      - ANALYTICS_API_KEY=${ANALYTICS_API_KEY}
+      - ENVIRONMENT=production
+      - LOG_LEVEL=WARNING
+    networks:
+      - teloo-prod-network
+    deploy:
+      replicas: 3
+      update_config:
+        parallelism: 1
+        delay: 10s
+        order: start-first
+      rollback_config:
+        parallelism: 1
+        delay: 5s
+      restart_policy:
+        condition: on-failure
+        delay: 5s
+        max_attempts: 3
+      resources:
+        limits:
+          cpus: '1'
+          memory: 1G
+        reservations:
+          cpus: '0.5'
+          memory: 512M
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  agent-ia:
+    image: ${REGISTRY}/${IMAGE_PREFIX}/agent-ia:${IMAGE_VERSION}
+    environment:
+      - CORE_API_URL=http://core-api:8000
+      - REDIS_URL=redis://:${REDIS_PASSWORD}@redis:6379
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
+      - GEMINI_API_KEY=${GEMINI_API_KEY}
+      - ENVIRONMENT=production
+      - LOG_LEVEL=WARNING
+    networks:
+      - teloo-prod-network
+    deploy:
+      replicas: 2
+      update_config:
+        parallelism: 1
+        delay: 10s
+      restart_policy:
+        condition: on-failure
+      resources:
+        limits:
+          cpus: '1'
+          memory: 1G
+        reservations:
+          cpus: '0.5'
+          memory: 512M
+
+  analytics:
+    image: ${REGISTRY}/${IMAGE_PREFIX}/analytics:${IMAGE_VERSION}
+    environment:
+      - DATABASE_URL=postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+      - REDIS_URL=redis://:${REDIS_PASSWORD}@redis:6379
+      - ENVIRONMENT=production
+      - LOG_LEVEL=WARNING
+    networks:
+      - teloo-prod-network
+    deploy:
+      replicas: 2
+      update_config:
+        parallelism: 1
+        delay: 10s
+      restart_policy:
+        condition: on-failure
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 512M
+
+  realtime-gateway:
+    image: ${REGISTRY}/${IMAGE_PREFIX}/realtime-gateway:${IMAGE_VERSION}
+    environment:
+      - REDIS_URL=redis://:${REDIS_PASSWORD}@redis:6379
+      - JWT_SECRET_KEY=${JWT_SECRET_KEY}
+      - ENVIRONMENT=production
+      - LOG_LEVEL=WARNING
+    networks:
+      - teloo-prod-network
+    deploy:
+      replicas: 2
+      update_config:
+        parallelism: 1
+        delay: 10s
+      restart_policy:
+        condition: on-failure
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 512M
+
+  files:
+    image: ${REGISTRY}/${IMAGE_PREFIX}/files:${IMAGE_VERSION}
+    environment:
+      - MINIO_ENDPOINT=minio:9000
+      - MINIO_ACCESS_KEY=${MINIO_ACCESS_KEY}
+      - MINIO_SECRET_KEY=${MINIO_SECRET_KEY}
+      - REDIS_URL=redis://:${REDIS_PASSWORD}@redis:6379
+      - ENVIRONMENT=production
+      - LOG_LEVEL=WARNING
+    networks:
+      - teloo-prod-network
+    deploy:
+      replicas: 2
+      restart_policy:
+        condition: on-failure
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 512M
+
+  # Frontend Services
+  admin-frontend:
+    image: ${REGISTRY}/${IMAGE_PREFIX}/admin-frontend:${IMAGE_VERSION}
+    environment:
+      - VITE_API_URL=${VITE_API_URL}
+      - VITE_REALTIME_URL=${VITE_REALTIME_URL}
+      - VITE_ENVIRONMENT=production
+    networks:
+      - teloo-prod-network
+    deploy:
+      replicas: 2
+      restart_policy:
+        condition: on-failure
+      resources:
+        limits:
+          cpus: '0.25'
+          memory: 256M
+
+  advisor-frontend:
+    image: ${REGISTRY}/${IMAGE_PREFIX}/advisor-frontend:${IMAGE_VERSION}
+    environment:
+      - VITE_API_URL=${VITE_API_URL}
+      - VITE_REALTIME_URL=${VITE_REALTIME_URL}
+      - VITE_ENVIRONMENT=production
+    networks:
+      - teloo-prod-network
+    deploy:
+      replicas: 2
+      restart_policy:
+        condition: on-failure
+      resources:
+        limits:
+          cpus: '0.25'
+          memory: 256M
+
+  # Reverse Proxy
+  nginx:
+    image: nginx:alpine
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx.prod.conf:/etc/nginx/nginx.conf:ro
+      - ./ssl:/etc/nginx/ssl:ro
+    networks:
+      - teloo-prod-network
+    deploy:
+      replicas: 2
+      update_config:
+        parallelism: 1
+        delay: 10s
+      restart_policy:
+        condition: on-failure
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 256M
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+volumes:
+  postgres_prod_data:
+    driver: local
+  redis_prod_data:
+    driver: local
+  minio_prod_data:
+    driver: local
+
+networks:
+  teloo-prod-network:
+    driver: overlay
+    attachable: true

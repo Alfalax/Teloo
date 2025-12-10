@@ -45,6 +45,15 @@ async def lifespan(app: FastAPI):
         listener_task = asyncio.create_task(client_notification_listener.start_listening())
         logger.info("Client notification listener started")
         
+        # Start Telegram polling if enabled
+        telegram_task = None
+        if settings.telegram_enabled and settings.telegram_bot_token:
+            from app.services.telegram_polling import polling_service
+            telegram_task = asyncio.create_task(polling_service.start())
+            logger.info("Telegram polling service started")
+        else:
+            logger.info("Telegram polling disabled or token not configured")
+        
         logger.info("Agent IA Service started successfully")
         yield
         
@@ -62,6 +71,15 @@ async def lifespan(app: FastAPI):
                 await listener_task
             except asyncio.CancelledError:
                 pass
+        
+        # Cancel telegram task
+        if 'telegram_task' in locals() and telegram_task:
+            telegram_task.cancel()
+            try:
+                await telegram_task
+            except asyncio.CancelledError:
+                pass
+            logger.info("Telegram polling stopped")
         
         # Close connections
         await redis_manager.disconnect()
@@ -121,28 +139,137 @@ async def root():
 
 @app.get("/health")
 async def health_check():
-    """Health check endpoint"""
+    """
+    Health check endpoint with dependency checks
+    Returns 200 if all critical dependencies are healthy
+    Returns 503 if any critical dependency is unhealthy
+    """
+    from fastapi import status
+    from fastapi.responses import JSONResponse
+    from datetime import datetime
+    import httpx
+    
+    health_status = {
+        "status": "healthy",
+        "service": "agent-ia",
+        "version": settings.version,
+        "environment": settings.environment,
+        "timestamp": None,
+        "checks": {}
+    }
+    
+    all_healthy = True
+    
+    # Check Redis connection
     try:
-        # Check Redis connection
-        redis_status = "connected" if redis_manager.redis_client else "disconnected"
-        
-        return {
-            "status": "healthy",
-            "service": "agent-ia",
-            "version": settings.version,
-            "environment": settings.environment,
-            "dependencies": {
-                "redis": redis_status
+        if redis_manager.redis_client:
+            await redis_manager.redis_client.ping()
+            health_status["checks"]["redis"] = {
+                "status": "healthy",
+                "message": "Redis connection successful"
             }
+        else:
+            all_healthy = False
+            health_status["checks"]["redis"] = {
+                "status": "unhealthy",
+                "message": "Redis client not initialized"
+            }
+    except Exception as e:
+        all_healthy = False
+        health_status["checks"]["redis"] = {
+            "status": "unhealthy",
+            "message": f"Redis connection failed: {str(e)}"
+        }
+    
+    # Check Core API connection
+    try:
+        async with httpx.AsyncClient(timeout=5.0) as client:
+            response = await client.get(f"{settings.core_api_url}/health/live")
+            if response.status_code == 200:
+                health_status["checks"]["core_api"] = {
+                    "status": "healthy",
+                    "message": "Core API reachable"
+                }
+            else:
+                health_status["checks"]["core_api"] = {
+                    "status": "degraded",
+                    "message": f"Core API returned status {response.status_code}"
+                }
+    except Exception as e:
+        health_status["checks"]["core_api"] = {
+            "status": "degraded",
+            "message": f"Core API unreachable: {str(e)}"
+        }
+    
+    # Check WhatsApp service status
+    try:
+        whatsapp_configured = bool(settings.whatsapp_token and settings.whatsapp_phone_number_id)
+        health_status["checks"]["whatsapp"] = {
+            "status": "healthy" if whatsapp_configured else "not_configured",
+            "message": "WhatsApp credentials configured" if whatsapp_configured else "WhatsApp not configured"
         }
     except Exception as e:
-        logger.error(f"Health check failed: {e}")
-        return {
-            "status": "unhealthy",
-            "service": "agent-ia",
-            "version": settings.version,
-            "error": str(e)
+        health_status["checks"]["whatsapp"] = {
+            "status": "degraded",
+            "message": f"WhatsApp check failed: {str(e)}"
         }
+    
+    # Set overall status
+    health_status["timestamp"] = datetime.utcnow().isoformat()
+    health_status["status"] = "healthy" if all_healthy else "unhealthy"
+    
+    # Return appropriate status code
+    status_code = status.HTTP_200_OK if all_healthy else status.HTTP_503_SERVICE_UNAVAILABLE
+    return JSONResponse(content=health_status, status_code=status_code)
+
+@app.get("/health/ready")
+async def readiness_check():
+    """
+    Readiness probe - checks if service is ready to accept traffic
+    Used by Kubernetes/Docker to determine if container is ready
+    """
+    from fastapi import status
+    from fastapi.responses import JSONResponse
+    
+    try:
+        # Check Redis is accessible
+        if redis_manager.redis_client:
+            await redis_manager.redis_client.ping()
+        else:
+            raise Exception("Redis client not initialized")
+        
+        return JSONResponse(
+            content={
+                "status": "ready",
+                "service": "agent-ia",
+                "checks": {
+                    "redis": "ready"
+                }
+            },
+            status_code=status.HTTP_200_OK
+        )
+    except Exception as e:
+        return JSONResponse(
+            content={
+                "status": "not_ready",
+                "service": "agent-ia",
+                "error": str(e)
+            },
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE
+        )
+
+@app.get("/health/live")
+async def liveness_check():
+    """
+    Liveness probe - checks if service is alive
+    Used by Kubernetes/Docker to determine if container should be restarted
+    This is a lightweight check that only verifies the application is running
+    """
+    return {
+        "status": "alive",
+        "service": "agent-ia",
+        "version": settings.version
+    }
 
 
 if __name__ == "__main__":

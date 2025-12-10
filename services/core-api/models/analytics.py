@@ -412,6 +412,9 @@ class LogAuditoria(BaseModel):
     # Cambios realizados
     diff_json = fields.JSONField(default=dict)  # Diferencias antes/después
     
+    # Metadata adicional
+    metadata_json = fields.JSONField(default=dict)  # Información adicional sobre la acción
+    
     # Información adicional
     ip_address = fields.CharField(max_length=45, null=True)
     user_agent = fields.TextField(null=True)

@@ -737,7 +737,11 @@ Usuario: "agrega pastillas de freno traseras"
                                 # Validar ciudad antes de mostrar resumen
                                 cliente = existing_draft.get("cliente", {})
                                 from app.services.solicitud_service import limpiar_ciudad
-                                ciudad_normalizada = limpiar_ciudad(cliente.get("ciudad", ""))
+                                ciudad_para_validar = cliente.get("ciudad", "")
+                                # Si la ciudad tiene formato "CIUDAD - DEPARTAMENTO", extraer solo la ciudad
+                                if " - " in ciudad_para_validar:
+                                    ciudad_para_validar = ciudad_para_validar.split(" - ")[0].strip()
+                                ciudad_normalizada = limpiar_ciudad(ciudad_para_validar)
                                 
                                 # Buscar municipio en la base de datos
                                 async with httpx.AsyncClient(timeout=10.0) as geo_client:
@@ -1153,8 +1157,13 @@ Mensaje: "para una Yamaha FZ 2.0 del 2018"
                 ciudad_display = extracted_data["cliente"].get("ciudad_display", cliente["ciudad"])
                 
                 # Limpiar ciudad para guardar en BD
+                # IMPORTANTE: Si ciudad_display tiene formato "CIUDAD - DEPARTAMENTO", extraer solo la ciudad
                 from app.services.solicitud_service import limpiar_ciudad
-                ciudad_normalizada = limpiar_ciudad(cliente["ciudad"])
+                ciudad_para_bd = cliente["ciudad"]
+                if " - " in ciudad_para_bd:
+                    # Extraer solo la parte de la ciudad (antes del guión)
+                    ciudad_para_bd = ciudad_para_bd.split(" - ")[0].strip()
+                ciudad_normalizada = limpiar_ciudad(ciudad_para_bd)
                 
                 solicitud_payload = {
                     "cliente": cliente_payload,

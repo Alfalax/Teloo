@@ -1,0 +1,450 @@
+name: CD - Deploy to Production
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version to deploy (e.g., v1.0.0)'
+        required: true
+        type: string
+      deployment_type:
+        description: 'Deployment type'
+        required: true
+        type: choice
+        options:
+          - kubernetes
+          - docker-swarm
+        default: kubernetes
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_PREFIX: ${{ github.repository }}
+
+jobs:
+  pre-deployment-checks:
+    name: Pre-Deployment Checks
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.version }}
+
+      - name: Verify version tag exists
+        run: |
+          git fetch --tags
+          if ! git tag | grep -q "^${{ inputs.version }}$"; then
+            echo "Error: Version tag ${{ inputs.version }} does not exist"
+            exit 1
+          fi
+
+      - name: Check if images exist
+        run: |
+          docker manifest inspect ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}/core-api:${{ inputs.version }} || exit 1
+          docker manifest inspect ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}/agent-ia:${{ inputs.version }} || exit 1
+          docker manifest inspect ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}/analytics:${{ inputs.version }} || exit 1
+
+      - name: Run security scan on production images
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}/core-api:${{ inputs.version }}
+          format: 'table'
+          exit-code: '1'
+          severity: 'CRITICAL'
+
+  deploy-kubernetes:
+    name: Deploy to Kubernetes
+    runs-on: ubuntu-latest
+    needs: pre-deployment-checks
+    if: inputs.deployment_type == 'kubernetes'
+    environment:
+      name: production
+      url: https://teloo.com
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.version }}
+
+      - name: Setup kubectl
+        uses: azure/setup-kubectl@v3
+        with:
+          version: 'latest'
+
+      - name: Configure kubectl
+        run: |
+          mkdir -p $HOME/.kube
+          echo "${{ secrets.KUBE_CONFIG }}" | base64 -d > $HOME/.kube/config
+          chmod 600 $HOME/.kube/config
+
+      - name: Create namespace if not exists
+        run: |
+          kubectl create namespace teloo-production --dry-run=client -o yaml | kubectl apply -f -
+
+      - name: Create secrets
+        run: |
+          kubectl create secret generic teloo-secrets \
+            --from-literal=database-url="${{ secrets.PROD_DATABASE_URL }}" \
+            --from-literal=redis-url="${{ secrets.PROD_REDIS_URL }}" \
+            --from-literal=jwt-secret="${{ secrets.PROD_JWT_SECRET_KEY }}" \
+            --from-literal=minio-access-key="${{ secrets.PROD_MINIO_ACCESS_KEY }}" \
+            --from-literal=minio-secret-key="${{ secrets.PROD_MINIO_SECRET_KEY }}" \
+            --namespace teloo-production \
+            --dry-run=client -o yaml | kubectl apply -f -
+
+      - name: Update image tags in manifests
+        run: |
+          sed -i "s|IMAGE_TAG|${{ inputs.version }}|g" kubernetes/*.yaml
+          sed -i "s|REGISTRY|${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}|g" kubernetes/*.yaml
+
+      - name: Apply Kubernetes manifests
+        run: |
+          kubectl apply -f kubernetes/ --namespace teloo-production
+
+      - name: Wait for rollout to complete
+        run: |
+          kubectl rollout status deployment/core-api --namespace teloo-production --timeout=10m
+          kubectl rollout status deployment/agent-ia --namespace teloo-production --timeout=10m
+          kubectl rollout status deployment/analytics --namespace teloo-production --timeout=10m
+          kubectl rollout status deployment/realtime-gateway --namespace teloo-production --timeout=10m
+          kubectl rollout status deployment/files --namespace teloo-production --timeout=10m
+          kubectl rollout status deployment/admin-frontend --namespace teloo-production --timeout=10m
+          kubectl rollout status deployment/advisor-frontend --namespace teloo-production --timeout=10m
+
+      - name: Verify deployment
+        run: |
+          kubectl get pods --namespace teloo-production
+          kubectl get services --namespace teloo-production
+
+  deploy-docker-swarm:
+    name: Deploy to Docker Swarm
+    runs-on: ubuntu-latest
+    needs: pre-deployment-checks
+    if: inputs.deployment_type == 'docker-swarm'
+    environment:
+      name: production
+      url: https://teloo.com
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.version }}
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Create production environment file
+        run: |
+          cat > .env.production << EOF
+          # Database
+          DATABASE_URL=${{ secrets.PROD_DATABASE_URL }}
+          POSTGRES_DB=teloo_v3_production
+          POSTGRES_USER=${{ secrets.PROD_DB_USER }}
+          POSTGRES_PASSWORD=${{ secrets.PROD_DB_PASSWORD }}
+          
+          # Redis
+          REDIS_URL=${{ secrets.PROD_REDIS_URL }}
+          
+          # MinIO
+          MINIO_ENDPOINT=${{ secrets.PROD_MINIO_ENDPOINT }}
+          MINIO_ACCESS_KEY=${{ secrets.PROD_MINIO_ACCESS_KEY }}
+          MINIO_SECRET_KEY=${{ secrets.PROD_MINIO_SECRET_KEY }}
+          
+          # JWT
+          JWT_SECRET_KEY=${{ secrets.PROD_JWT_SECRET_KEY }}
+          
+          # Service Auth
+          AGENT_IA_API_KEY=${{ secrets.PROD_AGENT_IA_API_KEY }}
+          ANALYTICS_API_KEY=${{ secrets.PROD_ANALYTICS_API_KEY }}
+          
+          # Environment
+          ENVIRONMENT=production
+          LOG_LEVEL=WARNING
+          
+          # Frontend URLs
+          VITE_API_URL=${{ secrets.PROD_API_URL }}
+          VITE_REALTIME_URL=${{ secrets.PROD_REALTIME_URL }}
+          VITE_ENVIRONMENT=production
+          
+          # Image version
+          IMAGE_VERSION=${{ inputs.version }}
+          EOF
+
+      - name: Create docker-compose.production.yml
+        run: |
+          cat > docker-compose.production.yml << 'EOF'
+          version: '3.8'
+
+          services:
+            core-api:
+              image: ${REGISTRY}/${IMAGE_PREFIX}/core-api:${IMAGE_VERSION}
+              deploy:
+                replicas: 3
+                update_config:
+                  parallelism: 1
+                  delay: 10s
+                  order: start-first
+                restart_policy:
+                  condition: on-failure
+                  delay: 5s
+                  max_attempts: 3
+                resources:
+                  limits:
+                    cpus: '1'
+                    memory: 1G
+                  reservations:
+                    cpus: '0.5'
+                    memory: 512M
+              env_file: .env.production
+              networks:
+                - teloo-production-network
+              healthcheck:
+                test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+                interval: 30s
+                timeout: 10s
+                retries: 3
+
+            agent-ia:
+              image: ${REGISTRY}/${IMAGE_PREFIX}/agent-ia:${IMAGE_VERSION}
+              deploy:
+                replicas: 2
+                update_config:
+                  parallelism: 1
+                  delay: 10s
+                restart_policy:
+                  condition: on-failure
+                resources:
+                  limits:
+                    cpus: '1'
+                    memory: 1G
+              env_file: .env.production
+              networks:
+                - teloo-production-network
+
+            analytics:
+              image: ${REGISTRY}/${IMAGE_PREFIX}/analytics:${IMAGE_VERSION}
+              deploy:
+                replicas: 2
+                update_config:
+                  parallelism: 1
+                  delay: 10s
+                restart_policy:
+                  condition: on-failure
+                resources:
+                  limits:
+                    cpus: '0.5'
+                    memory: 512M
+              env_file: .env.production
+              networks:
+                - teloo-production-network
+
+            realtime-gateway:
+              image: ${REGISTRY}/${IMAGE_PREFIX}/realtime-gateway:${IMAGE_VERSION}
+              deploy:
+                replicas: 2
+                update_config:
+                  parallelism: 1
+                  delay: 10s
+                restart_policy:
+                  condition: on-failure
+              env_file: .env.production
+              networks:
+                - teloo-production-network
+
+            files:
+              image: ${REGISTRY}/${IMAGE_PREFIX}/files:${IMAGE_VERSION}
+              deploy:
+                replicas: 2
+                restart_policy:
+                  condition: on-failure
+              env_file: .env.production
+              networks:
+                - teloo-production-network
+
+            admin-frontend:
+              image: ${REGISTRY}/${IMAGE_PREFIX}/admin-frontend:${IMAGE_VERSION}
+              deploy:
+                replicas: 2
+                restart_policy:
+                  condition: on-failure
+              env_file: .env.production
+              networks:
+                - teloo-production-network
+
+            advisor-frontend:
+              image: ${REGISTRY}/${IMAGE_PREFIX}/advisor-frontend:${IMAGE_VERSION}
+              deploy:
+                replicas: 2
+                restart_policy:
+                  condition: on-failure
+              env_file: .env.production
+              networks:
+                - teloo-production-network
+
+          networks:
+            teloo-production-network:
+              driver: overlay
+              attachable: true
+          EOF
+
+      - name: Setup SSH
+        uses: webfactory/ssh-agent@v0.9.0
+        with:
+          ssh-private-key: ${{ secrets.PROD_SSH_PRIVATE_KEY }}
+
+      - name: Deploy to Docker Swarm
+        run: |
+          # Copy files to production server
+          scp -o StrictHostKeyChecking=no docker-compose.production.yml .env.production ${{ secrets.PROD_USER }}@${{ secrets.PROD_HOST }}:/opt/teloo/
+          
+          # Deploy to swarm
+          ssh -o StrictHostKeyChecking=no ${{ secrets.PROD_USER }}@${{ secrets.PROD_HOST }} << 'ENDSSH'
+            cd /opt/teloo
+            
+            # Export environment variables
+            export $(cat .env.production | xargs)
+            export REGISTRY=${{ env.REGISTRY }}
+            export IMAGE_PREFIX=${{ env.IMAGE_PREFIX }}
+            
+            # Deploy stack
+            docker stack deploy -c docker-compose.production.yml teloo --with-registry-auth
+            
+            # Wait for services to converge
+            sleep 60
+            
+            # Check service status
+            docker stack services teloo
+            docker stack ps teloo --no-trunc
+          ENDSSH
+
+      - name: Verify deployment
+        run: |
+          ssh -o StrictHostKeyChecking=no ${{ secrets.PROD_USER }}@${{ secrets.PROD_HOST }} << 'ENDSSH'
+            # Check if all services are running
+            RUNNING=$(docker stack services teloo --format "{{.Replicas}}" | grep -c "0/")
+            if [ "$RUNNING" -gt 0 ]; then
+              echo "Some services failed to start"
+              docker stack ps teloo --no-trunc
+              exit 1
+            fi
+          ENDSSH
+
+  smoke-tests:
+    name: Run Smoke Tests
+    runs-on: ubuntu-latest
+    needs: [deploy-kubernetes, deploy-docker-swarm]
+    if: always() && (needs.deploy-kubernetes.result == 'success' || needs.deploy-docker-swarm.result == 'success')
+
+    steps:
+      - name: Wait for services to stabilize
+        run: sleep 60
+
+      - name: Test API health endpoints
+        run: |
+          curl -f ${{ secrets.PROD_API_URL }}/health || exit 1
+          curl -f ${{ secrets.PROD_API_URL }}/health/ready || exit 1
+          curl -f ${{ secrets.PROD_API_URL }}/health/live || exit 1
+
+      - name: Test frontend accessibility
+        run: |
+          curl -f https://teloo.com || exit 1
+          curl -f https://teloo.com/admin || exit 1
+          curl -f https://teloo.com/advisor || exit 1
+
+      - name: Test API endpoints
+        run: |
+          # Test authentication endpoint
+          curl -f -X POST ${{ secrets.PROD_API_URL }}/v1/auth/login \
+            -H "Content-Type: application/json" \
+            -d '{"username":"test","password":"test"}' || true
+
+  notify-deployment:
+    name: Notify Deployment Status
+    runs-on: ubuntu-latest
+    needs: [deploy-kubernetes, deploy-docker-swarm, smoke-tests]
+    if: always()
+
+    steps:
+      - name: Notify Slack
+        uses: 8398a7/action-slack@v3
+        with:
+          status: ${{ job.status }}
+          text: |
+            🚀 Production Deployment ${{ job.status }}
+            Version: ${{ inputs.version }}
+            Deployment Type: ${{ inputs.deployment_type }}
+            Triggered by: ${{ github.actor }}
+          webhook_url: ${{ secrets.SLACK_WEBHOOK_URL }}
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+
+      - name: Create GitHub Release
+        if: success()
+        uses: actions/create-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: ${{ inputs.version }}
+          release_name: Release ${{ inputs.version }}
+          body: |
+            ## Deployment Information
+            - **Version**: ${{ inputs.version }}
+            - **Deployment Type**: ${{ inputs.deployment_type }}
+            - **Deployed by**: ${{ github.actor }}
+            - **Deployment Date**: ${{ github.event.head_commit.timestamp }}
+            
+            ## Services Deployed
+            - Core API
+            - Agent IA
+            - Analytics
+            - Realtime Gateway
+            - Files Service
+            - Admin Frontend
+            - Advisor Frontend
+          draft: false
+          prerelease: false
+
+  rollback:
+    name: Rollback Deployment
+    runs-on: ubuntu-latest
+    needs: [deploy-kubernetes, deploy-docker-swarm, smoke-tests]
+    if: failure()
+    environment:
+      name: production
+
+    steps:
+      - name: Rollback Kubernetes
+        if: inputs.deployment_type == 'kubernetes'
+        run: |
+          kubectl rollout undo deployment/core-api --namespace teloo-production
+          kubectl rollout undo deployment/agent-ia --namespace teloo-production
+          kubectl rollout undo deployment/analytics --namespace teloo-production
+
+      - name: Rollback Docker Swarm
+        if: inputs.deployment_type == 'docker-swarm'
+        run: |
+          ssh -o StrictHostKeyChecking=no ${{ secrets.PROD_USER }}@${{ secrets.PROD_HOST }} << 'ENDSSH'
+            # Rollback to previous version
+            docker service rollback teloo_core-api
+            docker service rollback teloo_agent-ia
+            docker service rollback teloo_analytics
+          ENDSSH
+
+      - name: Notify rollback
+        uses: 8398a7/action-slack@v3
+        with:
+          status: 'failure'
+          text: |
+            ⚠️ Production Deployment FAILED - Rollback Initiated
+            Version: ${{ inputs.version }}
+            Deployment Type: ${{ inputs.deployment_type }}
+          webhook_url: ${{ secrets.SLACK_WEBHOOK_URL }}
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
