@@ -1,0 +1,182 @@
+groups:
+  - name: teloo_slo_alerts
+    interval: 30s
+    rules:
+      # SLO: Disponibilidad >99.5%
+      - alert: HighErrorRate
+        expr: |
+          (
+            sum(rate(http_requests_total{status=~"5.."}[5m]))
+            /
+            sum(rate(http_requests_total[5m]))
+          ) > 0.005
+        for: 5m
+        labels:
+          severity: critical
+          slo: availability
+        annotations:
+          summary: "Alta tasa de errores HTTP 5xx"
+          description: "La tasa de errores 5xx es {{ $value | humanizePercentage }}, superando el umbral de 0.5% (SLO: >99.5% disponibilidad)"
+      
+      # SLO: Latencia p95 <300ms
+      - alert: HighLatencyP95
+        expr: |
+          histogram_quantile(0.95, 
+            rate(http_request_duration_seconds_bucket[5m])
+          ) > 0.3
+        for: 5m
+        labels:
+          severity: warning
+          slo: latency
+        annotations:
+          summary: "Latencia p95 alta"
+          description: "La latencia p95 es {{ $value }}s, superando el umbral de 300ms"
+      
+      # SLO: Latencia p95 <300ms (crítico si supera 500ms)
+      - alert: CriticalLatencyP95
+        expr: |
+          histogram_quantile(0.95, 
+            rate(http_request_duration_seconds_bucket[5m])
+          ) > 0.5
+        for: 2m
+        labels:
+          severity: critical
+          slo: latency
+        annotations:
+          summary: "Latencia p95 crítica"
+          description: "La latencia p95 es {{ $value }}s, muy por encima del SLO de 300ms"
+  
+  - name: teloo_business_alerts
+    interval: 1m
+    rules:
+      # Alertas de negocio - Solicitudes
+      - alert: SolicitudesStuck
+        expr: |
+          solicitudes_active{estado="ABIERTA"} > 100
+        for: 30m
+        labels:
+          severity: warning
+          component: solicitudes
+        annotations:
+          summary: "Muchas solicitudes abiertas sin procesar"
+          description: "Hay {{ $value }} solicitudes en estado ABIERTA por más de 30 minutos"
+      
+      - alert: NoSolicitudesCreated
+        expr: |
+          rate(solicitudes_created_total[10m]) == 0
+        for: 30m
+        labels:
+          severity: warning
+          component: solicitudes
+        annotations:
+          summary: "No se están creando solicitudes"
+          description: "No se han creado solicitudes en los últimos 30 minutos"
+      
+      # Alertas de negocio - Ofertas
+      - alert: LowOfferRate
+        expr: |
+          (
+            rate(ofertas_created_total[10m])
+            /
+            rate(solicitudes_created_total[10m])
+          ) < 0.5
+        for: 15m
+        labels:
+          severity: warning
+          component: ofertas
+        annotations:
+          summary: "Tasa de ofertas baja"
+          description: "La tasa de ofertas por solicitud es {{ $value | humanizePercentage }}, por debajo del 50%"
+      
+      - alert: SlowOfertaEvaluation
+        expr: |
+          histogram_quantile(0.95, 
+            rate(ofertas_evaluation_duration_seconds_bucket[5m])
+          ) > 5.0
+        for: 5m
+        labels:
+          severity: critical
+          component: evaluacion
+        annotations:
+          summary: "Evaluación de ofertas lenta"
+          description: "La evaluación p95 tarda {{ $value }}s, superando el timeout de 5s"
+      
+      # Alertas de negocio - Escalamiento
+      - alert: EscalamientoStuck
+        expr: |
+          rate(escalamiento_oleadas_total[10m]) == 0
+        for: 20m
+        labels:
+          severity: warning
+          component: escalamiento
+        annotations:
+          summary: "Sistema de escalamiento detenido"
+          description: "No se han ejecutado oleadas de escalamiento en 20 minutos"
+  
+  - name: teloo_infrastructure_alerts
+    interval: 30s
+    rules:
+      # Alertas de base de datos
+      - alert: SlowDatabaseQueries
+        expr: |
+          histogram_quantile(0.95, 
+            rate(db_query_duration_seconds_bucket[5m])
+          ) > 1.0
+        for: 5m
+        labels:
+          severity: warning
+          component: database
+        annotations:
+          summary: "Queries lentas a base de datos"
+          description: "Las queries p95 tardan {{ $value }}s"
+      
+      - alert: HighDatabaseErrors
+        expr: |
+          rate(db_errors_total[5m]) > 0.1
+        for: 2m
+        labels:
+          severity: critical
+          component: database
+        annotations:
+          summary: "Alta tasa de errores de base de datos"
+          description: "Tasa de errores: {{ $value }} errores/segundo"
+      
+      # Alertas de APIs externas
+      - alert: ExternalAPIDown
+        expr: |
+          (
+            sum(rate(external_api_errors_total[5m])) by (service)
+            /
+            sum(rate(external_api_requests_total[5m])) by (service)
+          ) > 0.5
+        for: 5m
+        labels:
+          severity: critical
+          component: external_api
+        annotations:
+          summary: "API externa {{ $labels.service }} con problemas"
+          description: "Tasa de errores: {{ $value | humanizePercentage }}"
+      
+      # Alertas de circuit breaker
+      - alert: CircuitBreakerOpen
+        expr: |
+          circuit_breaker_state == 1
+        for: 2m
+        labels:
+          severity: warning
+          component: circuit_breaker
+        annotations:
+          summary: "Circuit breaker abierto para {{ $labels.service }}"
+          description: "El circuit breaker está en estado OPEN, bloqueando requests"
+      
+      # Alertas de sistema
+      - alert: HighSystemErrors
+        expr: |
+          rate(system_errors_total[5m]) > 1.0
+        for: 5m
+        labels:
+          severity: critical
+          component: system
+        annotations:
+          summary: "Alta tasa de errores del sistema"
+          description: "Tasa de errores: {{ $value }} errores/segundo en {{ $labels.component }}"

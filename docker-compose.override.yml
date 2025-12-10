@@ -43,17 +43,9 @@ services:
     command: uvicorn main:app --host 0.0.0.0 --port 8004 --reload --log-level debug
 
   admin-frontend:
-    volumes:
-      - ./frontend/admin:/app
-      - /app/node_modules
     environment:
       - VITE_DEBUG=true
-    command: npm run dev -- --host 0.0.0.0
 
   advisor-frontend:
-    volumes:
-      - ./frontend/advisor:/app
-      - /app/node_modules
     environment:
       - VITE_DEBUG=true
-    command: npm run dev -- --host 0.0.0.0 --port 3001

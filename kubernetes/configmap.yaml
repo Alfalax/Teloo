@@ -1,0 +1,27 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: teloo-config
+  namespace: teloo-production
+data:
+  ENVIRONMENT: "production"
+  LOG_LEVEL: "WARNING"
+  TZ: "America/Bogota"
+  
+  # Service URLs (internal)
+  CORE_API_URL: "http://core-api:8000"
+  ANALYTICS_URL: "http://analytics:8002"
+  REALTIME_URL: "http://realtime-gateway:8003"
+  FILES_URL: "http://files:8004"
+  
+  # Database
+  POSTGRES_DB: "teloo_v3_production"
+  
+  # Redis
+  REDIS_HOST: "redis"
+  REDIS_PORT: "6379"
+  
+  # MinIO
+  MINIO_ENDPOINT: "minio:9000"
+  MINIO_BUCKET: "teloo-files"
+  MINIO_USE_SSL: "false"

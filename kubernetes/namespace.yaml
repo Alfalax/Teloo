@@ -1,0 +1,7 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: teloo-production
+  labels:
+    name: teloo-production
+    environment: production

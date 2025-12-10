@@ -1,0 +1,285 @@
+name: CD - Deploy to Staging
+
+on:
+  push:
+    branches: [ develop ]
+  workflow_dispatch:
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_PREFIX: ${{ github.repository }}
+
+jobs:
+  deploy-staging:
+    name: Deploy to Staging
+    runs-on: ubuntu-latest
+    environment:
+      name: staging
+      url: https://staging.teloo.com
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Pull latest images
+        run: |
+          docker pull ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}/core-api:develop-${{ github.sha }}
+          docker pull ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}/agent-ia:develop-${{ github.sha }}
+          docker pull ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}/analytics:develop-${{ github.sha }}
+          docker pull ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}/realtime-gateway:develop-${{ github.sha }}
+          docker pull ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}/files:develop-${{ github.sha }}
+          docker pull ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}/admin-frontend:develop-${{ github.sha }}
+          docker pull ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}/advisor-frontend:develop-${{ github.sha }}
+
+      - name: Create staging environment file
+        run: |
+          cat > .env.staging << EOF
+          # Database
+          DATABASE_URL=${{ secrets.STAGING_DATABASE_URL }}
+          POSTGRES_DB=teloo_v3_staging
+          POSTGRES_USER=${{ secrets.STAGING_DB_USER }}
+          POSTGRES_PASSWORD=${{ secrets.STAGING_DB_PASSWORD }}
+          
+          # Redis
+          REDIS_URL=${{ secrets.STAGING_REDIS_URL }}
+          
+          # MinIO
+          MINIO_ENDPOINT=${{ secrets.STAGING_MINIO_ENDPOINT }}
+          MINIO_ACCESS_KEY=${{ secrets.STAGING_MINIO_ACCESS_KEY }}
+          MINIO_SECRET_KEY=${{ secrets.STAGING_MINIO_SECRET_KEY }}
+          
+          # JWT
+          JWT_SECRET_KEY=${{ secrets.STAGING_JWT_SECRET_KEY }}
+          
+          # Service Auth
+          AGENT_IA_API_KEY=${{ secrets.STAGING_AGENT_IA_API_KEY }}
+          ANALYTICS_API_KEY=${{ secrets.STAGING_ANALYTICS_API_KEY }}
+          
+          # Environment
+          ENVIRONMENT=staging
+          LOG_LEVEL=INFO
+          
+          # Frontend URLs
+          VITE_API_URL=${{ secrets.STAGING_API_URL }}
+          VITE_REALTIME_URL=${{ secrets.STAGING_REALTIME_URL }}
+          VITE_ENVIRONMENT=staging
+          EOF
+
+      - name: Create docker-compose.staging.yml
+        run: |
+          cat > docker-compose.staging.yml << 'EOF'
+          version: '3.8'
+
+          services:
+            postgres:
+              image: postgres:15-alpine
+              container_name: teloo-postgres-staging
+              env_file: .env.staging
+              volumes:
+                - postgres_staging_data:/var/lib/postgresql/data
+              networks:
+                - teloo-staging-network
+              restart: unless-stopped
+
+            redis:
+              image: redis:7-alpine
+              container_name: teloo-redis-staging
+              volumes:
+                - redis_staging_data:/data
+              networks:
+                - teloo-staging-network
+              restart: unless-stopped
+
+            minio:
+              image: minio/minio:latest
+              container_name: teloo-minio-staging
+              env_file: .env.staging
+              volumes:
+                - minio_staging_data:/data
+              networks:
+                - teloo-staging-network
+              command: server /data --console-address ":9001"
+              restart: unless-stopped
+
+            core-api:
+              image: ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}/core-api:develop-${{ github.sha }}
+              container_name: teloo-core-api-staging
+              env_file: .env.staging
+              depends_on:
+                - postgres
+                - redis
+              networks:
+                - teloo-staging-network
+              restart: unless-stopped
+              healthcheck:
+                test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+                interval: 30s
+                timeout: 10s
+                retries: 3
+
+            agent-ia:
+              image: ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}/agent-ia:develop-${{ github.sha }}
+              container_name: teloo-agent-ia-staging
+              env_file: .env.staging
+              depends_on:
+                - core-api
+                - redis
+              networks:
+                - teloo-staging-network
+              restart: unless-stopped
+
+            analytics:
+              image: ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}/analytics:develop-${{ github.sha }}
+              container_name: teloo-analytics-staging
+              env_file: .env.staging
+              depends_on:
+                - postgres
+                - redis
+              networks:
+                - teloo-staging-network
+              restart: unless-stopped
+
+            realtime-gateway:
+              image: ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}/realtime-gateway:develop-${{ github.sha }}
+              container_name: teloo-realtime-gateway-staging
+              env_file: .env.staging
+              depends_on:
+                - redis
+              networks:
+                - teloo-staging-network
+              restart: unless-stopped
+
+            files:
+              image: ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}/files:develop-${{ github.sha }}
+              container_name: teloo-files-staging
+              env_file: .env.staging
+              depends_on:
+                - minio
+                - redis
+              networks:
+                - teloo-staging-network
+              restart: unless-stopped
+
+            admin-frontend:
+              image: ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}/admin-frontend:develop-${{ github.sha }}
+              container_name: teloo-admin-frontend-staging
+              env_file: .env.staging
+              depends_on:
+                - core-api
+              networks:
+                - teloo-staging-network
+              restart: unless-stopped
+
+            advisor-frontend:
+              image: ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}/advisor-frontend:develop-${{ github.sha }}
+              container_name: teloo-advisor-frontend-staging
+              env_file: .env.staging
+              depends_on:
+                - core-api
+              networks:
+                - teloo-staging-network
+              restart: unless-stopped
+
+            nginx:
+              image: nginx:alpine
+              container_name: teloo-nginx-staging
+              ports:
+                - "80:80"
+                - "443:443"
+              volumes:
+                - ./nginx.staging.conf:/etc/nginx/nginx.conf:ro
+                - ./ssl:/etc/nginx/ssl:ro
+              depends_on:
+                - core-api
+                - admin-frontend
+                - advisor-frontend
+              networks:
+                - teloo-staging-network
+              restart: unless-stopped
+
+          volumes:
+            postgres_staging_data:
+            redis_staging_data:
+            minio_staging_data:
+
+          networks:
+            teloo-staging-network:
+              driver: bridge
+          EOF
+
+      - name: Setup SSH
+        uses: webfactory/ssh-agent@v0.9.0
+        with:
+          ssh-private-key: ${{ secrets.STAGING_SSH_PRIVATE_KEY }}
+
+      - name: Deploy to staging server
+        run: |
+          # Copy files to staging server
+          scp -o StrictHostKeyChecking=no docker-compose.staging.yml .env.staging ${{ secrets.STAGING_USER }}@${{ secrets.STAGING_HOST }}:/opt/teloo/
+          
+          # SSH into staging server and deploy
+          ssh -o StrictHostKeyChecking=no ${{ secrets.STAGING_USER }}@${{ secrets.STAGING_HOST }} << 'ENDSSH'
+            cd /opt/teloo
+            
+            # Pull latest images
+            docker-compose -f docker-compose.staging.yml pull
+            
+            # Stop old containers
+            docker-compose -f docker-compose.staging.yml down
+            
+            # Start new containers
+            docker-compose -f docker-compose.staging.yml up -d
+            
+            # Wait for services to be healthy
+            sleep 30
+            
+            # Check health
+            docker-compose -f docker-compose.staging.yml ps
+            
+            # Cleanup old images
+            docker image prune -af --filter "until=72h"
+          ENDSSH
+
+      - name: Run smoke tests
+        run: |
+          # Wait for services to be fully up
+          sleep 30
+          
+          # Test health endpoints
+          curl -f ${{ secrets.STAGING_API_URL }}/health || exit 1
+          curl -f ${{ secrets.STAGING_API_URL }}/health/ready || exit 1
+          
+          # Test frontend accessibility
+          curl -f https://staging.teloo.com || exit 1
+
+      - name: Notify deployment status
+        if: always()
+        uses: 8398a7/action-slack@v3
+        with:
+          status: ${{ job.status }}
+          text: |
+            Staging Deployment ${{ job.status }}
+            Commit: ${{ github.sha }}
+            Author: ${{ github.actor }}
+            Branch: ${{ github.ref_name }}
+          webhook_url: ${{ secrets.SLACK_WEBHOOK_URL }}
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+
+      - name: Rollback on failure
+        if: failure()
+        run: |
+          ssh -o StrictHostKeyChecking=no ${{ secrets.STAGING_USER }}@${{ secrets.STAGING_HOST }} << 'ENDSSH'
+            cd /opt/teloo
+            
+            # Rollback to previous version
+            docker-compose -f docker-compose.staging.yml down
+            docker-compose -f docker-compose.staging.yml up -d --force-recreate
+          ENDSSH

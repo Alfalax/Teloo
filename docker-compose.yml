@@ -182,37 +182,49 @@ services:
     build:
       context: ./frontend/admin
       dockerfile: Dockerfile
+      target: development
     container_name: teloo-admin-frontend
     environment:
       - VITE_API_URL=http://localhost:8000
       - VITE_REALTIME_URL=http://localhost:8003
       - VITE_ENVIRONMENT=development
+      - NODE_ENV=development
     ports:
       - "3000:3000"
     networks:
       - teloo-network
-    volumes:
-      - ./frontend/admin:/app
-      - /app/node_modules
-    command: npm run dev -- --host 0.0.0.0
+    depends_on:
+      - core-api
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
 
   advisor-frontend:
     build:
       context: ./frontend/advisor
       dockerfile: Dockerfile
+      target: development
     container_name: teloo-advisor-frontend
     environment:
       - VITE_API_URL=http://localhost:8000
       - VITE_REALTIME_URL=http://localhost:8003
       - VITE_ENVIRONMENT=development
+      - NODE_ENV=development
     ports:
       - "3001:3001"
     networks:
       - teloo-network
-    volumes:
-      - ./frontend/advisor:/app
-      - /app/node_modules
-    command: npm run dev -- --host 0.0.0.0 --port 3001
+    depends_on:
+      - core-api
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3001"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
 
 volumes:
   postgres_data:

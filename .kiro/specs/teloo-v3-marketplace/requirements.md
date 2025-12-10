@@ -35,19 +35,35 @@ TeLOO V3 es un marketplace inteligente de repuestos automotrices que actúa como
 3. WHEN toda la información requerida está completa, THE Agente_IA SHALL crear una Solicitud estructurada en el Core_Platform
 4. THE Agente_IA SHALL validar que el teléfono tenga formato colombiano +57XXXXXXXXXX
 5. THE Agente_IA SHALL verificar que la ciudad exista en el catálogo del sistema
-6. THE Agente_IA SHALL seleccionar automáticamente el modelo LLM más apropiado (local, OpenAI, u otros proveedores) basado en la complejidad de los datos para optimizar costos y precisión
+6. THE Agente_IA SHALL implementar una estrategia de múltiples proveedores LLM con selección automática basada en complejidad: (Nivel 1) Deepseek/Ollama para texto simple, (Nivel 2) Gemini para texto complejo, (Nivel 3) OpenAI GPT-4 para documentos estructurados, (Nivel 4) Anthropic Claude para contenido multimedia
+7. THE Agente_IA SHALL implementar sistema de fallback en cascada: regex → Deepseek → Gemini → OpenAI → Anthropic → procesamiento básico
+8. THE Agente_IA SHALL implementar circuit breaker individual por proveedor LLM con failure_threshold=3 y timeout=300s
+9. THE Agente_IA SHALL mantener métricas de costo, latencia, precisión y disponibilidad por proveedor para optimización automática
 
-### Requirement 2
+### Requirement 1.6
 
-**User Story:** Como sistema automatizado, quiero determinar el conjunto de asesores elegibles para cada solicitud basado en criterios geográficos, para optimizar la cobertura y relevancia antes de calcular puntajes.
+**User Story:** Como cliente que necesita enviar información compleja de repuestos, quiero poder adjuntar archivos Excel, audios o imágenes a través de WhatsApp, para que el sistema extraiga automáticamente la información usando el proveedor LLM más adecuado según el tipo de contenido.
 
 #### Acceptance Criteria
 
-1. WHEN se crea una nueva Solicitud, THE Sistema_Escalamiento SHALL determinar el conjunto de asesores elegibles incluyendo: asesores de la misma ciudad de la solicitud, asesores de todas las áreas metropolitanas nacionales de Colombia, y asesores del hub logístico asignado a la ciudad de la solicitud
+1. WHEN el Cliente envía un archivo Excel o CSV, THE Agente_IA SHALL usar OpenAI GPT-4 para extraer información estructurada de repuestos, cantidades y especificaciones
+2. WHEN el Cliente envía un mensaje de audio, THE Agente_IA SHALL usar Anthropic Claude para transcribir y extraer información de repuestos desde el audio
+3. WHEN el Cliente envía una imagen (factura, catálogo, foto de repuesto), THE Agente_IA SHALL usar Anthropic Claude Vision para extraer texto, códigos de parte y especificaciones
+4. THE Agente_IA SHALL implementar validación cruzada entre proveedores para archivos críticos con alta incertidumbre
+5. THE Agente_IA SHALL mantener cache de respuestas por hash de entrada con TTL de 24 horas para optimizar costos
+6. THE Agente_IA SHALL implementar configuración dinámica de proveedores (habilitado/deshabilitado, límites de costo diario)
+
+### Requirement 2
+
+**User Story:** Como sistema automatizado, quiero determinar el conjunto de asesores elegibles para cada solicitud basado en tres características geográficas específicas, para optimizar la cobertura y relevancia antes de calcular puntajes.
+
+#### Acceptance Criteria
+
+1. WHEN se crea una nueva Solicitud, THE Sistema_Escalamiento SHALL determinar el conjunto de asesores elegibles basándose en exactamente tres características geográficas: (1) asesores ubicados en la misma ciudad de la solicitud, (2) asesores ubicados en ciudades que pertenecen a todas las áreas metropolitanas nacionales de Colombia, y (3) asesores ubicados en ciudades que pertenecen al hub logístico asignado a la ciudad de la solicitud
 2. THE TeLOO_System SHALL mantener actualizada la información de áreas metropolitanas y hubs logísticos desde archivos Excel proporcionados por el administrador
 3. THE Sistema_Escalamiento SHALL integrar automáticamente los datos de Areas_Metropolitanas_TeLOO y Asignacion_Hubs_200km a las bases de datos del sistema
-4. THE Sistema_Escalamiento SHALL excluir asesores que no pertenezcan a ninguna de estas categorías geográficas
-5. THE Sistema_Escalamiento SHALL registrar en auditoría el conjunto final de asesores elegibles por solicitud
+4. THE Sistema_Escalamiento SHALL excluir asesores que no cumplan con ninguna de las tres características geográficas especificadas
+5. THE Sistema_Escalamiento SHALL registrar en auditoría el conjunto final de asesores elegibles por solicitud, indicando cuál de las tres características geográficas cumplió cada asesor seleccionado
 
 ### Requirement 3
 

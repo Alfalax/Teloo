@@ -1,0 +1,350 @@
+# Kubernetes configuration with health checks for TeLOO V3 services
+# This file demonstrates how to configure readiness and liveness probes
+# Apply with: kubectl apply -f kubernetes-healthchecks.yaml
+
+---
+# Core API Deployment
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: core-api
+  labels:
+    app: teloo-v3
+    service: core-api
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: teloo-v3
+      service: core-api
+  template:
+    metadata:
+      labels:
+        app: teloo-v3
+        service: core-api
+    spec:
+      containers:
+      - name: core-api
+        image: teloo-v3/core-api:latest
+        ports:
+        - containerPort: 8000
+          name: http
+        env:
+        - name: DATABASE_URL
+          valueFrom:
+            secretKeyRef:
+              name: teloo-secrets
+              key: database-url
+        - name: REDIS_URL
+          valueFrom:
+            secretKeyRef:
+              name: teloo-secrets
+              key: redis-url
+        # Liveness probe - checks if container is alive
+        livenessProbe:
+          httpGet:
+            path: /health/live
+            port: 8000
+          initialDelaySeconds: 30
+          periodSeconds: 30
+          timeoutSeconds: 5
+          failureThreshold: 3
+        # Readiness probe - checks if container is ready to serve traffic
+        readinessProbe:
+          httpGet:
+            path: /health/ready
+            port: 8000
+          initialDelaySeconds: 20
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 3
+        # Startup probe - gives container time to start
+        startupProbe:
+          httpGet:
+            path: /health/live
+            port: 8000
+          initialDelaySeconds: 0
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 12  # 120 seconds total
+        resources:
+          requests:
+            memory: "512Mi"
+            cpu: "250m"
+          limits:
+            memory: "1Gi"
+            cpu: "500m"
+
+---
+# Agent IA Deployment
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: agent-ia
+  labels:
+    app: teloo-v3
+    service: agent-ia
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: teloo-v3
+      service: agent-ia
+  template:
+    metadata:
+      labels:
+        app: teloo-v3
+        service: agent-ia
+    spec:
+      containers:
+      - name: agent-ia
+        image: teloo-v3/agent-ia:latest
+        ports:
+        - containerPort: 8001
+          name: http
+        env:
+        - name: REDIS_URL
+          valueFrom:
+            secretKeyRef:
+              name: teloo-secrets
+              key: redis-url
+        - name: CORE_API_URL
+          value: "http://core-api:8000"
+        livenessProbe:
+          httpGet:
+            path: /health/live
+            port: 8001
+          initialDelaySeconds: 30
+          periodSeconds: 30
+          timeoutSeconds: 5
+          failureThreshold: 3
+        readinessProbe:
+          httpGet:
+            path: /health/ready
+            port: 8001
+          initialDelaySeconds: 20
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 3
+        startupProbe:
+          httpGet:
+            path: /health/live
+            port: 8001
+          initialDelaySeconds: 0
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 12
+        resources:
+          requests:
+            memory: "512Mi"
+            cpu: "250m"
+          limits:
+            memory: "1Gi"
+            cpu: "500m"
+
+---
+# Analytics Deployment
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: analytics
+  labels:
+    app: teloo-v3
+    service: analytics
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: teloo-v3
+      service: analytics
+  template:
+    metadata:
+      labels:
+        app: teloo-v3
+        service: analytics
+    spec:
+      containers:
+      - name: analytics
+        image: teloo-v3/analytics:latest
+        ports:
+        - containerPort: 8002
+          name: http
+        env:
+        - name: DATABASE_URL
+          valueFrom:
+            secretKeyRef:
+              name: teloo-secrets
+              key: database-url-replica  # Read replica
+        - name: REDIS_URL
+          valueFrom:
+            secretKeyRef:
+              name: teloo-secrets
+              key: redis-url
+        livenessProbe:
+          httpGet:
+            path: /health/live
+            port: 8002
+          initialDelaySeconds: 30
+          periodSeconds: 30
+          timeoutSeconds: 5
+          failureThreshold: 3
+        readinessProbe:
+          httpGet:
+            path: /health/ready
+            port: 8002
+          initialDelaySeconds: 20
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 3
+        startupProbe:
+          httpGet:
+            path: /health/live
+            port: 8002
+          initialDelaySeconds: 0
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 12
+        resources:
+          requests:
+            memory: "512Mi"
+            cpu: "250m"
+          limits:
+            memory: "1Gi"
+            cpu: "500m"
+
+---
+# Files Service Deployment
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: files
+  labels:
+    app: teloo-v3
+    service: files
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: teloo-v3
+      service: files
+  template:
+    metadata:
+      labels:
+        app: teloo-v3
+        service: files
+    spec:
+      containers:
+      - name: files
+        image: teloo-v3/files:latest
+        ports:
+        - containerPort: 8003
+          name: http
+        env:
+        - name: MINIO_ENDPOINT
+          value: "minio:9000"
+        - name: MINIO_ACCESS_KEY
+          valueFrom:
+            secretKeyRef:
+              name: teloo-secrets
+              key: minio-access-key
+        - name: MINIO_SECRET_KEY
+          valueFrom:
+            secretKeyRef:
+              name: teloo-secrets
+              key: minio-secret-key
+        livenessProbe:
+          httpGet:
+            path: /health/live
+            port: 8003
+          initialDelaySeconds: 30
+          periodSeconds: 30
+          timeoutSeconds: 5
+          failureThreshold: 3
+        readinessProbe:
+          httpGet:
+            path: /health/ready
+            port: 8003
+          initialDelaySeconds: 20
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 3
+        startupProbe:
+          httpGet:
+            path: /health/live
+            port: 8003
+          initialDelaySeconds: 0
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 12
+        resources:
+          requests:
+            memory: "256Mi"
+            cpu: "100m"
+          limits:
+            memory: "512Mi"
+            cpu: "250m"
+
+---
+# Realtime Gateway Deployment
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: realtime-gateway
+  labels:
+    app: teloo-v3
+    service: realtime-gateway
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: teloo-v3
+      service: realtime-gateway
+  template:
+    metadata:
+      labels:
+        app: teloo-v3
+        service: realtime-gateway
+    spec:
+      containers:
+      - name: realtime-gateway
+        image: teloo-v3/realtime-gateway:latest
+        ports:
+        - containerPort: 8004
+          name: http
+        env:
+        - name: REDIS_URL
+          valueFrom:
+            secretKeyRef:
+              name: teloo-secrets
+              key: redis-url
+        livenessProbe:
+          httpGet:
+            path: /health/live
+            port: 8004
+          initialDelaySeconds: 30
+          periodSeconds: 30
+          timeoutSeconds: 5
+          failureThreshold: 3
+        readinessProbe:
+          httpGet:
+            path: /health/ready
+            port: 8004
+          initialDelaySeconds: 20
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 3
+        startupProbe:
+          httpGet:
+            path: /health/live
+            port: 8004
+          initialDelaySeconds: 0
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 12
+        resources:
+          requests:
+            memory: "256Mi"
+            cpu: "100m"
+          limits:
+            memory: "512Mi"
+            cpu: "250m"

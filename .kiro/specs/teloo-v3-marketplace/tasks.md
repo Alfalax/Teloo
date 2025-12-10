@@ -847,22 +847,34 @@ Este plan de implementación convierte el diseño de TeLOO V3 en tareas específ
   - Tests E2E de flujo completo de oferta
   - _Requirements: 13.1, 13.2, 13.3, 13.4_
 
-- [ ] 11. Implementar servicios de soporte
-- [ ] 11.1 Implementar Realtime Gateway
+- [x] 11. Implementar servicios de soporte
+
+
+
+
+
+
+- [x] 11.1 Implementar Realtime Gateway
+
+
   - Configurar WebSocket server con Socket.IO
   - Implementar autenticación de WebSocket con JWT
   - Crear rooms por rol (admin, advisor) para broadcasting
   - Conectar con Redis adapter para escalabilidad
   - _Requirements: 10.1, 10.2_
 
-- [ ] 11.2 Implementar Files Service
+- [x] 11.2 Implementar Files Service
+
+
   - Crear servicio para gestión de archivos Excel
   - Implementar validación de archivos (formato, tamaño, antivirus)
   - Configurar almacenamiento en MinIO
   - Crear endpoints para upload/download de templates
   - _Requirements: 4.4_
 
-- [ ] 11.3 Implementar sistema de notificaciones
+- [x] 11.3 Implementar sistema de notificaciones
+
+
   - Crear servicio de notificaciones push internas
   - Implementar fallback a WhatsApp cuando WebSocket no disponible
   - Crear cola de notificaciones pendientes en Redis
@@ -874,8 +886,12 @@ Este plan de implementación convierte el diseño de TeLOO V3 en tareas específ
   - Tests de sistema de notificaciones
   - _Requirements: 10.1, 10.2, 4.4_
 
-- [ ] 12. Configurar observabilidad y monitoreo
-- [ ] 12.1 Implementar logging estructurado y auditoría
+- [-] 12. Configurar observabilidad y monitoreo
+
+
+- [x] 12.1 Implementar logging estructurado y auditoría
+
+
   - Configurar logging con formato JSON en todos los servicios
   - Implementar correlation IDs para trazabilidad
   - Configurar niveles de log por ambiente (dev/staging/prod)
@@ -884,16 +900,21 @@ Este plan de implementación convierte el diseño de TeLOO V3 en tareas específ
   - Crear función log_auditoria(actor, accion, entidad, entidad_id, diff)
   - _Requirements: 9.1, 9.2, 9.4, 9.5_
 
-- [ ] 12.2 Configurar métricas y alertas
+- [x] 12.2 Configurar métricas y alertas
+
+
   - Implementar métricas de Prometheus en todos los servicios
   - Configurar Grafana con dashboards de sistema
   - Crear alertas para SLOs: disponibilidad >99.5%, latencia p95 <300ms
   - _Requirements: 14.5_
 
-- [ ] 12.3 Implementar health checks
-  - Crear endpoints /health en todos los servicios
+- [x] 12.3 Implementar health checks
+  - Crear endpoints /health, /health/ready, /health/live en todos los servicios
   - Implementar checks de dependencias (DB, Redis, MinIO)
-  - Configurar readiness y liveness probes
+  - Configurar readiness y liveness probes para Kubernetes
+  - Implementar health checks en Docker Compose con intervalos optimizados
+  - Crear scripts de testing de health checks (bash y Python)
+  - Documentar configuración de health checks en HEALTH_CHECKS.md
   - _Requirements: 14.5_
 
 - [ ]* 12.4 Escribir tests de observabilidad
@@ -902,8 +923,8 @@ Este plan de implementación convierte el diseño de TeLOO V3 en tareas específ
   - Tests de logging estructurado
   - _Requirements: 9.4, 14.5_
 
-- [ ] 13. Configurar deployment y DevOps
-- [ ] 13.1 Crear configuración de Docker
+- [-] 13. Configurar deployment y DevOps
+- [x] 13.1 Crear configuración de Docker
   - Crear Dockerfiles optimizados para cada servicio (core-api, agent-ia, analytics, realtime-gateway, files)
   - Implementar multi-stage builds para optimizar tamaño de imágenes
   - Configurar Docker Compose para desarrollo local con PostgreSQL, Redis, MinIO
@@ -912,7 +933,24 @@ Este plan de implementación convierte el diseño de TeLOO V3 en tareas específ
   - Crear .dockerignore para optimizar build context
   - _Requirements: 11.1, 11.2_
 
-- [ ] 13.2 Configurar CI/CD pipeline con Docker
+- [x] 13.1.1 Dockerizar frontends con multi-stage builds
+  - Crear Dockerfiles multi-stage para admin-frontend y advisor-frontend
+  - Implementar 4 stages: deps, builder, development, production
+  - Configurar stage development con node:18-slim y hot reload
+  - Configurar stage production optimizado con archivos compilados
+  - Instalar @rollup/rollup-linux-x64-gnu para compatibilidad con Vite
+  - Configurar usuario no-root (nextjs:nodejs) para seguridad
+  - Implementar health checks con curl en ambos frontends
+  - Configurar volúmenes anónimos para node_modules en docker-compose
+  - Agregar frontends a docker-compose.yml con dependencias correctas
+  - Verificar funcionamiento: admin-frontend (3000), advisor-frontend (3001)
+  - _Requirements: 11.1, 11.2, 12.1, 13.1, 13.2_
+
+- [x] 13.2 Configurar CI/CD pipeline con Docker
+
+
+
+
   - Crear GitHub Actions para build, test y deploy con Docker
   - Implementar build de imágenes Docker en pipeline
   - Configurar Docker Registry (GitHub Container Registry o Docker Hub)
@@ -922,7 +960,15 @@ Este plan de implementación convierte el diseño de TeLOO V3 en tareas específ
   - Implementar security scanning de imágenes Docker con Trivy
   - _Requirements: 11.1_
 
-- [ ] 13.3 Configurar variables de entorno y secrets
+- [x] 13.3 Configurar variables de entorno y secrets
+
+
+
+
+
+
+
+
   - Crear archivos .env por ambiente (dev/staging/prod)
   - Configurar Docker secrets para datos sensibles (JWT keys, DB passwords)
   - Documentar todas las variables requeridas por servicio
@@ -930,7 +976,12 @@ Este plan de implementación convierte el diseño de TeLOO V3 en tareas específ
   - Crear docker-compose.prod.yml para producción con secrets
   - _Requirements: 11.2, 11.3_
 
-- [ ] 13.4 Configurar orquestación para producción
+- [x] 13.4 Configurar orquestación para producción
+
+
+
+
+
   - Crear configuración de Kubernetes (deployments, services, ingress)
   - Configurar Docker Swarm como alternativa más simple
   - Implementar load balancing entre instancias de servicios

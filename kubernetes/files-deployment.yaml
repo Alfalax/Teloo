@@ -1,0 +1,118 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: files
+  namespace: teloo-production
+  labels:
+    app: files
+    tier: backend
+spec:
+  replicas: 2
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  selector:
+    matchLabels:
+      app: files
+  template:
+    metadata:
+      labels:
+        app: files
+        tier: backend
+    spec:
+      containers:
+      - name: files
+        image: REGISTRY/files:IMAGE_TAG
+        imagePullPolicy: Always
+        ports:
+        - containerPort: 8004
+          name: http
+        env:
+        - name: REDIS_URL
+          valueFrom:
+            secretKeyRef:
+              name: teloo-secrets
+              key: redis-url
+        - name: MINIO_ACCESS_KEY
+          valueFrom:
+            secretKeyRef:
+              name: teloo-secrets
+              key: minio-access-key
+        - name: MINIO_SECRET_KEY
+          valueFrom:
+            secretKeyRef:
+              name: teloo-secrets
+              key: minio-secret-key
+        envFrom:
+        - configMapRef:
+            name: teloo-config
+        resources:
+          requests:
+            memory: "256Mi"
+            cpu: "250m"
+          limits:
+            memory: "512Mi"
+            cpu: "500m"
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 8004
+          initialDelaySeconds: 30
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 3
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: 8004
+          initialDelaySeconds: 10
+          periodSeconds: 5
+          timeoutSeconds: 3
+          failureThreshold: 3
+      imagePullSecrets:
+      - name: ghcr-secret
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: files
+  namespace: teloo-production
+  labels:
+    app: files
+spec:
+  type: ClusterIP
+  ports:
+  - port: 8004
+    targetPort: 8004
+    protocol: TCP
+    name: http
+  selector:
+    app: files
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: files-hpa
+  namespace: teloo-production
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: files
+  minReplicas: 2
+  maxReplicas: 5
+  metrics:
+  - type: Resource
+    resource:
+      name: cpu
+      target:
+        type: Utilization
+        averageUtilization: 70
+  - type: Resource
+    resource:
+      name: memory
+      target:
+        type: Utilization
+        averageUtilization: 80

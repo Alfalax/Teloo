@@ -1,0 +1,516 @@
+version: '3.8'
+
+# Docker Swarm Stack Configuration for TeLOO V3
+# Deploy with: docker stack deploy -c docker-swarm-stack.yml teloo
+# This is a simpler alternative to Kubernetes for smaller deployments
+
+services:
+  # ============================================================================
+  # DATABASE SERVICES
+  # ============================================================================
+  
+  postgres:
+    image: postgres:15-alpine
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-teloo_v3_production}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD_FILE: /run/secrets/postgres_password
+      TZ: America/Bogota
+      PGTZ: UTC
+    secrets:
+      - postgres_password
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - teloo-backend
+    deploy:
+      replicas: 1
+      placement:
+        constraints:
+          - node.role == manager
+      restart_policy:
+        condition: on-failure
+        delay: 5s
+        max_attempts: 3
+      resources:
+        limits:
+          cpus: '2'
+          memory: 2G
+        reservations:
+          cpus: '1'
+          memory: 1G
+      update_config:
+        parallelism: 1
+        delay: 10s
+        failure_action: rollback
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  redis:
+    image: redis:7-alpine
+    command: sh -c 'redis-server --appendonly yes --requirepass "$$(cat /run/secrets/redis_password)"'
+    secrets:
+      - redis_password
+    volumes:
+      - redis_data:/data
+    networks:
+      - teloo-backend
+    deploy:
+      replicas: 1
+      restart_policy:
+        condition: on-failure
+        delay: 5s
+        max_attempts: 3
+      resources:
+        limits:
+          cpus: '1'
+          memory: 512M
+        reservations:
+          cpus: '0.5'
+          memory: 256M
+      update_config:
+        parallelism: 1
+        delay: 10s
+    healthcheck:
+      test: ["CMD", "redis-cli", "--raw", "incr", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  minio:
+    image: minio/minio:latest
+    environment:
+      MINIO_ROOT_USER_FILE: /run/secrets/minio_access_key
+      MINIO_ROOT_PASSWORD_FILE: /run/secrets/minio_secret_key
+    secrets:
+      - minio_access_key
+      - minio_secret_key
+    volumes:
+      - minio_data:/data
+    networks:
+      - teloo-backend
+    command: server /data --console-address ":9001"
+    deploy:
+      replicas: 1
+      restart_policy:
+        condition: on-failure
+      resources:
+        limits:
+          cpus: '1'
+          memory: 1G
+        reservations:
+          cpus: '0.5'
+          memory: 512M
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # ============================================================================
+  # CORE SERVICES
+  # ============================================================================
+
+  core-api:
+    image: ${REGISTRY}/${IMAGE_PREFIX}/core-api:${IMAGE_VERSION:-latest}
+    environment:
+      - SERVICE_NAME=core-api
+      - DATABASE_URL=postgres://${POSTGRES_USER}:$$(cat /run/secrets/postgres_password)@postgres:5432/${POSTGRES_DB}
+      - REDIS_URL=redis://:$$(cat /run/secrets/redis_password)@redis:6379
+      - MINIO_ENDPOINT=minio:9000
+      - JWT_SECRET_KEY_FILE=/run/secrets/jwt_secret
+      - AGENT_IA_API_KEY_FILE=/run/secrets/agent_ia_api_key
+      - ANALYTICS_API_KEY_FILE=/run/secrets/analytics_api_key
+      - ENVIRONMENT=production
+      - LOG_LEVEL=WARNING
+      - TZ=America/Bogota
+    secrets:
+      - postgres_password
+      - redis_password
+      - minio_access_key
+      - minio_secret_key
+      - jwt_secret
+      - agent_ia_api_key
+      - analytics_api_key
+    networks:
+      - teloo-backend
+      - teloo-frontend
+    deploy:
+      replicas: 3
+      update_config:
+        parallelism: 1
+        delay: 10s
+        order: start-first
+        failure_action: rollback
+      rollback_config:
+        parallelism: 1
+        delay: 5s
+      restart_policy:
+        condition: on-failure
+        delay: 5s
+        max_attempts: 3
+      resources:
+        limits:
+          cpus: '1'
+          memory: 1G
+        reservations:
+          cpus: '0.5'
+          memory: 512M
+      labels:
+        - "traefik.enable=true"
+        - "traefik.http.routers.core-api.rule=Host(`api.teloo.com`)"
+        - "traefik.http.routers.core-api.entrypoints=websecure"
+        - "traefik.http.routers.core-api.tls.certresolver=letsencrypt"
+        - "traefik.http.services.core-api.loadbalancer.server.port=8000"
+        - "traefik.http.services.core-api.loadbalancer.healthcheck.path=/health"
+        - "traefik.http.services.core-api.loadbalancer.healthcheck.interval=30s"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  agent-ia:
+    image: ${REGISTRY}/${IMAGE_PREFIX}/agent-ia:${IMAGE_VERSION:-latest}
+    environment:
+      - SERVICE_NAME=agent-ia
+      - CORE_API_URL=http://core-api:8000
+      - REDIS_URL=redis://:$$(cat /run/secrets/redis_password)@redis:6379
+      - SERVICE_API_KEY_FILE=/run/secrets/agent_ia_api_key
+      - ENVIRONMENT=production
+      - LOG_LEVEL=WARNING
+      - TZ=America/Bogota
+    secrets:
+      - redis_password
+      - agent_ia_api_key
+      - whatsapp_access_token
+      - whatsapp_verify_token
+      - telegram_bot_token
+      - openai_api_key
+      - anthropic_api_key
+      - gemini_api_key
+      - deepseek_api_key
+    networks:
+      - teloo-backend
+      - teloo-frontend
+    deploy:
+      replicas: 2
+      update_config:
+        parallelism: 1
+        delay: 10s
+        failure_action: rollback
+      restart_policy:
+        condition: on-failure
+        delay: 5s
+        max_attempts: 3
+      resources:
+        limits:
+          cpus: '1'
+          memory: 1G
+        reservations:
+          cpus: '0.5'
+          memory: 512M
+      labels:
+        - "traefik.enable=true"
+        - "traefik.http.routers.agent-ia.rule=Host(`agent.teloo.com`)"
+        - "traefik.http.routers.agent-ia.entrypoints=websecure"
+        - "traefik.http.routers.agent-ia.tls.certresolver=letsencrypt"
+        - "traefik.http.services.agent-ia.loadbalancer.server.port=8001"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8001/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  analytics:
+    image: ${REGISTRY}/${IMAGE_PREFIX}/analytics:${IMAGE_VERSION:-latest}
+    environment:
+      - SERVICE_NAME=analytics
+      - DATABASE_URL=postgres://${POSTGRES_USER}:$$(cat /run/secrets/postgres_password)@postgres:5432/${POSTGRES_DB}
+      - REDIS_URL=redis://:$$(cat /run/secrets/redis_password)@redis:6379
+      - SERVICE_API_KEY_FILE=/run/secrets/analytics_api_key
+      - ENVIRONMENT=production
+      - LOG_LEVEL=WARNING
+      - TZ=America/Bogota
+    secrets:
+      - postgres_password
+      - redis_password
+      - analytics_api_key
+      - smtp_password
+      - slack_webhook_url
+    networks:
+      - teloo-backend
+    deploy:
+      replicas: 2
+      update_config:
+        parallelism: 1
+        delay: 10s
+      restart_policy:
+        condition: on-failure
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 512M
+        reservations:
+          cpus: '0.25'
+          memory: 256M
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8002/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  realtime-gateway:
+    image: ${REGISTRY}/${IMAGE_PREFIX}/realtime-gateway:${IMAGE_VERSION:-latest}
+    environment:
+      - SERVICE_NAME=realtime-gateway
+      - REDIS_URL=redis://:$$(cat /run/secrets/redis_password)@redis:6379
+      - JWT_SECRET_KEY_FILE=/run/secrets/jwt_secret
+      - ENVIRONMENT=production
+      - LOG_LEVEL=WARNING
+      - TZ=America/Bogota
+    secrets:
+      - redis_password
+      - jwt_secret
+    networks:
+      - teloo-backend
+      - teloo-frontend
+    deploy:
+      replicas: 2
+      update_config:
+        parallelism: 1
+        delay: 10s
+      restart_policy:
+        condition: on-failure
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 512M
+        reservations:
+          cpus: '0.25'
+          memory: 256M
+      labels:
+        - "traefik.enable=true"
+        - "traefik.http.routers.realtime.rule=Host(`ws.teloo.com`)"
+        - "traefik.http.routers.realtime.entrypoints=websecure"
+        - "traefik.http.routers.realtime.tls.certresolver=letsencrypt"
+        - "traefik.http.services.realtime.loadbalancer.server.port=8003"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8003/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  files:
+    image: ${REGISTRY}/${IMAGE_PREFIX}/files:${IMAGE_VERSION:-latest}
+    environment:
+      - SERVICE_NAME=files
+      - MINIO_ENDPOINT=minio:9000
+      - REDIS_URL=redis://:$$(cat /run/secrets/redis_password)@redis:6379
+      - ENVIRONMENT=production
+      - LOG_LEVEL=WARNING
+      - TZ=America/Bogota
+    secrets:
+      - redis_password
+      - minio_access_key
+      - minio_secret_key
+    networks:
+      - teloo-backend
+    deploy:
+      replicas: 2
+      restart_policy:
+        condition: on-failure
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 512M
+        reservations:
+          cpus: '0.25'
+          memory: 256M
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8004/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # ============================================================================
+  # FRONTEND SERVICES
+  # ============================================================================
+
+  admin-frontend:
+    image: ${REGISTRY}/${IMAGE_PREFIX}/admin-frontend:${IMAGE_VERSION:-latest}
+    environment:
+      - VITE_API_URL=https://api.teloo.com
+      - VITE_REALTIME_URL=https://ws.teloo.com
+      - VITE_ENVIRONMENT=production
+    networks:
+      - teloo-frontend
+    deploy:
+      replicas: 2
+      restart_policy:
+        condition: on-failure
+      resources:
+        limits:
+          cpus: '0.25'
+          memory: 256M
+        reservations:
+          cpus: '0.1'
+          memory: 128M
+      labels:
+        - "traefik.enable=true"
+        - "traefik.http.routers.admin.rule=Host(`admin.teloo.com`)"
+        - "traefik.http.routers.admin.entrypoints=websecure"
+        - "traefik.http.routers.admin.tls.certresolver=letsencrypt"
+        - "traefik.http.services.admin.loadbalancer.server.port=3000"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  advisor-frontend:
+    image: ${REGISTRY}/${IMAGE_PREFIX}/advisor-frontend:${IMAGE_VERSION:-latest}
+    environment:
+      - VITE_API_URL=https://api.teloo.com
+      - VITE_REALTIME_URL=https://ws.teloo.com
+      - VITE_ENVIRONMENT=production
+    networks:
+      - teloo-frontend
+    deploy:
+      replicas: 2
+      restart_policy:
+        condition: on-failure
+      resources:
+        limits:
+          cpus: '0.25'
+          memory: 256M
+        reservations:
+          cpus: '0.1'
+          memory: 128M
+      labels:
+        - "traefik.enable=true"
+        - "traefik.http.routers.advisor.rule=Host(`advisor.teloo.com`)"
+        - "traefik.http.routers.advisor.entrypoints=websecure"
+        - "traefik.http.routers.advisor.tls.certresolver=letsencrypt"
+        - "traefik.http.services.advisor.loadbalancer.server.port=3001"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3001"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # ============================================================================
+  # REVERSE PROXY & LOAD BALANCER
+  # ============================================================================
+
+  traefik:
+    image: traefik:v2.10
+    command:
+      - "--api.dashboard=true"
+      - "--providers.docker=true"
+      - "--providers.docker.swarmMode=true"
+      - "--providers.docker.exposedbydefault=false"
+      - "--entrypoints.web.address=:80"
+      - "--entrypoints.websecure.address=:443"
+      - "--certificatesresolvers.letsencrypt.acme.email=${ACME_EMAIL}"
+      - "--certificatesresolvers.letsencrypt.acme.storage=/letsencrypt/acme.json"
+      - "--certificatesresolvers.letsencrypt.acme.httpchallenge.entrypoint=web"
+      - "--metrics.prometheus=true"
+      - "--accesslog=true"
+      - "--log.level=INFO"
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - traefik_certs:/letsencrypt
+    networks:
+      - teloo-frontend
+    deploy:
+      replicas: 2
+      placement:
+        constraints:
+          - node.role == manager
+      restart_policy:
+        condition: on-failure
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 256M
+      labels:
+        - "traefik.enable=true"
+        - "traefik.http.routers.dashboard.rule=Host(`traefik.teloo.com`)"
+        - "traefik.http.routers.dashboard.service=api@internal"
+        - "traefik.http.routers.dashboard.entrypoints=websecure"
+        - "traefik.http.routers.dashboard.tls.certresolver=letsencrypt"
+        - "traefik.http.routers.dashboard.middlewares=auth"
+        - "traefik.http.middlewares.auth.basicauth.users=${TRAEFIK_DASHBOARD_AUTH}"
+
+# ============================================================================
+# NETWORKS
+# ============================================================================
+
+networks:
+  teloo-backend:
+    driver: overlay
+    attachable: true
+  teloo-frontend:
+    driver: overlay
+    attachable: true
+
+# ============================================================================
+# VOLUMES
+# ============================================================================
+
+volumes:
+  postgres_data:
+    driver: local
+  redis_data:
+    driver: local
+  minio_data:
+    driver: local
+  traefik_certs:
+    driver: local
+
+# ============================================================================
+# SECRETS
+# ============================================================================
+
+secrets:
+  postgres_password:
+    external: true
+  redis_password:
+    external: true
+  minio_access_key:
+    external: true
+  minio_secret_key:
+    external: true
+  jwt_secret:
+    external: true
+  agent_ia_api_key:
+    external: true
+  analytics_api_key:
+    external: true
+  whatsapp_access_token:
+    external: true
+  whatsapp_verify_token:
+    external: true
+  telegram_bot_token:
+    external: true
+  openai_api_key:
+    external: true
+  anthropic_api_key:
+    external: true
+  gemini_api_key:
+    external: true
+  deepseek_api_key:
+    external: true
+  smtp_password:
+    external: true
+  slack_webhook_url:
+    external: true
