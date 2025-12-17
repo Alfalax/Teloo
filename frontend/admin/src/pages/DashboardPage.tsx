@@ -150,11 +150,10 @@ export function DashboardPage() {
 
   return (
     <div className="space-y-6">
-      {/* Page Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between rounded-xl bg-gradient-to-r from-accent to-secondary p-4 text-white shadow-sm">
         <div>
           <h1 className="text-3xl font-bold tracking-tight">Dashboard Principal</h1>
-          <p className="text-muted-foreground">
+          <p className="text-white/80">
             Resumen general del marketplace TeLOO - {format(new Date(periodo.inicio), 'MMMM yyyy', { locale: es })}
           </p>
         </div>
@@ -162,13 +161,13 @@ export function DashboardPage() {
           <Button
             onClick={() => refetchDashboard()}
             disabled={isLoading}
-            variant="outline"
-            className="flex items-center gap-2"
+            variant="ghost"
+            className="flex items-center gap-2 border border-white/30 text-white hover:bg-white/10"
           >
             <RefreshCw className={`h-4 w-4 ${isLoading ? 'animate-spin' : ''}`} />
             Actualizar
           </Button>
-          <Button onClick={handleExportDashboard} variant="outline" className="flex items-center gap-2">
+          <Button onClick={handleExportDashboard} variant="ghost" className="flex items-center gap-2 border border-white/30 text-white hover:bg-white/10">
             <Download className="h-4 w-4" />
             Exportar
           </Button>

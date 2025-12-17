@@ -1,27 +1,9 @@
-import axios from 'axios';
+import { apiClient } from '@/lib/axios';
 import { CreateOfertaRequest, Oferta } from '@/types/solicitud';
-
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000';
-
-const ofertasApi = axios.create({
-  baseURL: API_BASE_URL,
-  headers: {
-    'Content-Type': 'application/json',
-  },
-});
-
-// Request interceptor to add auth token
-ofertasApi.interceptors.request.use((config) => {
-  const token = localStorage.getItem('access_token');
-  if (token) {
-    config.headers.Authorization = `Bearer ${token}`;
-  }
-  return config;
-});
 
 export const ofertasService = {
   async createOferta(data: CreateOfertaRequest): Promise<Oferta> {
-    const response = await ofertasApi.post<Oferta>('/ofertas', data);
+    const response = await apiClient.post<Oferta>('/v1/ofertas', data);
     return response.data;
   },
 
@@ -30,7 +12,7 @@ export const ofertasService = {
     formData.append('file', file);
     formData.append('solicitud_id', solicitudId);
 
-    const response = await ofertasApi.post<Oferta>('/ofertas/upload', formData, {
+    const response = await apiClient.post<Oferta>('/v1/ofertas/upload', formData, {
       headers: {
         'Content-Type': 'multipart/form-data',
       },
@@ -39,7 +21,7 @@ export const ofertasService = {
   },
 
   async getOfertasBySolicitud(solicitudId: string): Promise<Oferta[]> {
-    const response = await ofertasApi.get<Oferta[]>('/ofertas', {
+    const response = await apiClient.get<Oferta[]>('/v1/ofertas', {
       params: { solicitud_id: solicitudId },
     });
     return response.data;

@@ -4,6 +4,7 @@ import { Package, LayoutGrid, Table as TableIcon, Filter } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import {
   Table,
   TableBody,
@@ -234,27 +235,19 @@ export default function SolicitudesUnificadas({ onHacerOferta, onVerOferta }: Pr
           </div>
           <div className="flex flex-wrap items-center gap-2 pt-4">
             <Filter className="h-4 w-4 text-muted-foreground" />
-            <Button
-              variant={filtroActivo === 'todas' ? 'default' : 'outline'}
-              size="sm"
-              onClick={() => setFiltroActivo('todas')}
-            >
-              Todas <Badge variant="secondary" className="ml-1">{contadores.todas}</Badge>
-            </Button>
-            <Button
-              variant={filtroActivo === 'activas' ? 'default' : 'outline'}
-              size="sm"
-              onClick={() => setFiltroActivo('activas')}
-            >
-              Activas <Badge variant="secondary" className="ml-1">{contadores.activas}</Badge>
-            </Button>
-            <Button
-              variant={filtroActivo === 'finalizadas' ? 'default' : 'outline'}
-              size="sm"
-              onClick={() => setFiltroActivo('finalizadas')}
-            >
-              Finalizadas <Badge variant="secondary" className="ml-1">{contadores.finalizadas}</Badge>
-            </Button>
+            <Tabs value={filtroActivo} onValueChange={(v) => setFiltroActivo(v as FiltroTipo)}>
+              <TabsList className="h-9">
+                <TabsTrigger value="todas" className="px-3">
+                  Todas <Badge variant="secondary" className="ml-2">{contadores.todas}</Badge>
+                </TabsTrigger>
+                <TabsTrigger value="activas" className="px-3">
+                  Activas <Badge variant="secondary" className="ml-2">{contadores.activas}</Badge>
+                </TabsTrigger>
+                <TabsTrigger value="finalizadas" className="px-3">
+                  Finalizadas <Badge variant="secondary" className="ml-2">{contadores.finalizadas}</Badge>
+                </TabsTrigger>
+              </TabsList>
+            </Tabs>
           </div>
         </CardHeader>
       </Card>

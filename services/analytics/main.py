@@ -10,6 +10,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 import os
 from dotenv import load_dotenv
+import json
 
 # Load environment variables
 load_dotenv()
@@ -94,19 +95,30 @@ app = FastAPI(
 )
 
 # Configure CORS
-origins = [
-    "http://localhost:3000",
-    "http://localhost:3001",
-    "http://127.0.0.1:3000",
-    "http://127.0.0.1:3001",
-]
+environment = os.getenv("ENVIRONMENT", "development")
+cors_origins_env = os.getenv("BACKEND_CORS_ORIGINS")
+if cors_origins_env:
+    try:
+        origins = json.loads(cors_origins_env)
+    except Exception:
+        origins = [o.strip() for o in cors_origins_env.split(",") if o.strip()]
+else:
+    origins = [
+        "http://localhost:3000",
+        "http://localhost:3001",
+        "http://127.0.0.1:3000",
+        "http://127.0.0.1:3001",
+    ]
+
+allow_methods = ["GET", "POST", "PUT", "DELETE", "OPTIONS"] if environment == "production" else ["*"]
+allow_headers = ["Authorization", "Content-Type", "X-Requested-With"] if environment == "production" else ["*"]
 
 app.add_middleware(
     CORSMiddleware,
     allow_origins=origins,
     allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_methods=allow_methods,
+    allow_headers=allow_headers,
 )
 
 # Include routers

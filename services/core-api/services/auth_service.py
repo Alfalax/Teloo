@@ -13,47 +13,29 @@ from passlib.context import CryptContext
 from fastapi import HTTPException, status
 from models.user import Usuario
 from models.enums import RolUsuario, EstadoUsuario
+from utils.secrets import get_jwt_config
 
-# Password hashing context - robust configuration for Docker
 try:
     pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto", bcrypt__rounds=12)
-    # Test bcrypt functionality
     pwd_context.hash("test")
 except Exception:
-    # Fallback to pbkdf2_sha256 if bcrypt fails
     pwd_context = CryptContext(schemes=["pbkdf2_sha256"], deprecated="auto")
 
-# JWT Configuration
-SECRET_KEY = os.getenv("JWT_SECRET_KEY", "your-secret-key-change-in-production")
-ALGORITHM = "RS256"
-ACCESS_TOKEN_EXPIRE_MINUTES = 15
-REFRESH_TOKEN_EXPIRE_DAYS = 7
+JWT_CONFIG = get_jwt_config()
+SECRET_KEY = JWT_CONFIG.get("secret_key")
+ALGORITHM = JWT_CONFIG.get("algorithm", "HS256")
+ACCESS_TOKEN_EXPIRE_MINUTES = int(JWT_CONFIG.get("access_token_expire_minutes", 15))
+REFRESH_TOKEN_EXPIRE_DAYS = int(JWT_CONFIG.get("refresh_token_expire_days", 7))
 
-# RSA Keys for JWT (in production, load from secure storage)
-PRIVATE_KEY = """-----BEGIN RSA PRIVATE KEY-----
-MIIEpAIBAAKCAQEA4f5wg5l2hKsTeNem/V41fGnJm6gOdrj8ym3rFkEjWT2btphM
-OSeWGu1TgkQqKDOlLWAKTgNIjdQoaq1biht8DdDVplpghBz7VYE0jOH8KQanfnalZ
-xodd/YCHzCCNvbtMoXDWMhz9XjSfRZGQHStTQnld0oxxCD/qtqjlMBVn1lmWHDV
-QiI5sHMTg7CwK1VEFgAcQqhMFgOH8SrqiL8FA4NNASIQ5Y/v5vr4WnOyBXJvQtxy
-K1puHpaMUtUGV83leXpjzg5KMzAoGOOmFXxvck6ZfXzEsp4fcrRAqbEhb3vqzd4
-Ed8XM2w2U8qJMsYz6UZRjcQRWH8WpEkVhvQDaQIDAQABAoIBAEYhObhC/FinioC
-xoUxK+IuAnPZBzXxFg0PqMTvqkxMQmBxK3HADTss9n0gBz7aST4q9k5RurSk7b
-45OpOKapEiF4EznzuAMKg5/M1Mg5v+6OyDXkEGv/7OjaNyvFI5PQFKz+5lTJl
-tK02aoGSpjIwhhiY5/VBeg9/dVCxtMw/h5MZ8sJMrUu088hkuNuKlAqeehifeYW
-FBjxAzuOLSrbsD5CWXJBtcn5RlKXlfuukmNfwS6xJRBW+9+a3UBdAqc1RuM9P
-ZB2lSM2+Hq1fqjgybcaQdQ/EXyy0uLBjFLgAOyZdpjmmlOfmpu9iksimdnAI
-YBBfXf6wp0CgYkAhR2As9RmnO13jkaAhR2As9RmnO13jkaAhR2As9RmnO13jka
------END RSA PRIVATE KEY-----"""
-
-PUBLIC_KEY = """-----BEGIN PUBLIC KEY-----
-MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA4f5wg5l2hKsTeNem/V41
-fGnJm6gOdrj8ym3rFkEjWT2btphMOSeWGu1TgkQqKDOlLWAKTgNIjdQoaq1biht8
-DdDVplpghBz7VYE0jOH8KQanfnalZxodd/YCHzCCNvbtMoXDWMhz9XjSfRZGQHSt
-TQnld0oxxCD/qtqjlMBVn1lmWHDVQiI5sHMTg7CwK1VEFgAcQqhMFgOH8SrqiL8F
-A4NNASIQ5Y/v5vr4WnOyBXJvQtxyK1puHpaMUtUGV83leXpjzg5KMzAoGOOmFXxv
-ck6ZfXzEsp4fcrRAqbEhb3vqzd4Ed8XM2w2U8qJMsYz6UZRjcQRWH8WpEkVhvQDa
-QIDAQAB
------END PUBLIC KEY-----"""
+def _jwt_algorithm() -> str:
+    try:
+        if ALGORITHM.startswith("RS"):
+            if isinstance(SECRET_KEY, str) and "BEGIN" in SECRET_KEY:
+                return ALGORITHM
+            return "HS256"
+        return ALGORITHM
+    except Exception:
+        return "HS256"
 
 
 class AuthService:
@@ -82,9 +64,7 @@ class AuthService:
             expire_timestamp = time.time() + (ACCESS_TOKEN_EXPIRE_MINUTES * 60)
         
         to_encode.update({"exp": int(expire_timestamp), "type": "access"})
-        
-        # For now, use HS256 since we need to set up proper RSA keys
-        encoded_jwt = jwt.encode(to_encode, SECRET_KEY, algorithm="HS256")
+        encoded_jwt = jwt.encode(to_encode, SECRET_KEY, algorithm=_jwt_algorithm())
         return encoded_jwt
     
     @staticmethod
@@ -93,9 +73,7 @@ class AuthService:
         to_encode = data.copy()
         expire_timestamp = time.time() + (REFRESH_TOKEN_EXPIRE_DAYS * 24 * 60 * 60)
         to_encode.update({"exp": int(expire_timestamp), "type": "refresh"})
-        
-        # For now, use HS256 since we need to set up proper RSA keys
-        encoded_jwt = jwt.encode(to_encode, SECRET_KEY, algorithm="HS256")
+        encoded_jwt = jwt.encode(to_encode, SECRET_KEY, algorithm=_jwt_algorithm())
         return encoded_jwt
     
     @staticmethod
@@ -103,7 +81,7 @@ class AuthService:
         """Verify and decode JWT token"""
         try:
             # PyJWT automatically validates expiration when using consistent time sources
-            payload = jwt.decode(token, SECRET_KEY, algorithms=["HS256"])
+            payload = jwt.decode(token, SECRET_KEY, algorithms=[_jwt_algorithm()])
             
             # Verify token type
             if payload.get("type") != token_type:

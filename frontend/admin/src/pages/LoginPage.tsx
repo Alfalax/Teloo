@@ -58,11 +58,11 @@ export function LoginPage() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-muted/50 px-4">
+    <div className="min-h-screen flex items-center justify-center bg-gradient-to-r from-accent to-secondary px-4">
       <Card className="w-full max-w-md">
         <CardHeader className="text-center">
-          <div className="mx-auto mb-4 h-12 w-12 rounded-full bg-primary/10 flex items-center justify-center">
-            <div className="h-6 w-6 rounded-full bg-primary"></div>
+          <div className="mx-auto mb-4 h-12 w-12 rounded-xl bg-primary flex items-center justify-center shadow-sm">
+            <span className="text-lg font-bold text-primary-foreground">T</span>
           </div>
           <CardTitle className="text-2xl font-bold">TeLOO Admin</CardTitle>
           <CardDescription>

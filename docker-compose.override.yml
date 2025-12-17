@@ -45,7 +45,16 @@ services:
   admin-frontend:
     environment:
       - VITE_DEBUG=true
+      - VITE_API_BASE_URL=http://localhost:8000
+      - CHOKIDAR_USEPOLLING=true
+    volumes:
+      - ./frontend/admin:/app
+      - /app/node_modules
 
   advisor-frontend:
     environment:
       - VITE_DEBUG=true
+      - VITE_API_BASE_URL=http://localhost:8000
+      - CHOKIDAR_USEPOLLING=true
+    volumes:
+      - ./frontend/advisor:/app

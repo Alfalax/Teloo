@@ -14,36 +14,29 @@ export default function KPIDashboard({ kpis, isLoading }: KPIDashboardProps) {
       title: 'Repuestos Asignados',
       value: kpis.repuestos_adjudicados,
       icon: Package,
-      color: 'text-blue-600',
-      bgColor: 'bg-blue-50',
+      bg: 'bg-secondary',
+      fg: 'text-secondary-foreground',
     },
     {
       title: 'Monto Total Ganado',
       value: formatCurrency(kpis.monto_total_ganado),
       icon: DollarSign,
-      color: 'text-green-600',
-      bgColor: 'bg-green-50',
+      bg: 'bg-primary',
+      fg: 'text-primary-foreground',
     },
     {
       title: 'Pendientes por Oferta',
       value: kpis.pendientes_por_oferta,
       icon: TrendingUp,
-      color: 'text-amber-600',
-      bgColor: 'bg-amber-50',
+      bg: 'bg-accent',
+      fg: 'text-accent-foreground',
     },
     {
       title: 'Tasa de Conversión',
       value: `${kpis.tasa_conversion.toFixed(1)}%`,
       icon: Target,
-      color: 'text-purple-600',
-      bgColor: 'bg-purple-50',
-    },
-    {
-      title: 'Tasa de Oferta',
-      value: `${kpis.tasa_oferta.toFixed(1)}%`,
-      icon: Target,
-      color: 'text-indigo-600',
-      bgColor: 'bg-indigo-50',
+      bg: 'bg-secondary',
+      fg: 'text-secondary-foreground',
     },
   ];
 
@@ -65,21 +58,19 @@ export default function KPIDashboard({ kpis, isLoading }: KPIDashboardProps) {
   }
 
   return (
-    <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-5">
+    <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
       {kpiCards.map((kpi) => {
         const Icon = kpi.icon;
         return (
-          <Card key={kpi.title}>
+          <Card key={kpi.title} className="shadow-sm">
             <CardContent className="p-6">
               <div className="flex items-center justify-between">
                 <div className="space-y-1">
-                  <p className="text-sm font-medium text-muted-foreground">
-                    {kpi.title}
-                  </p>
-                  <p className="text-2xl font-bold">{kpi.value}</p>
+                  <p className="text-sm font-medium text-muted-foreground">{kpi.title}</p>
+                  <p className="text-3xl font-bold">{kpi.value}</p>
                 </div>
-                <div className={`${kpi.bgColor} p-3 rounded-full`}>
-                  <Icon className={`h-6 w-6 ${kpi.color}`} />
+                <div className={`p-3 rounded-xl ${kpi.bg}`}>
+                  <Icon className={`h-6 w-6 ${kpi.fg}`} />
                 </div>
               </div>
             </CardContent>
