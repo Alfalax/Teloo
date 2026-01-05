@@ -1,6 +1,9 @@
 # Core API Service Dockerfile
 FROM python:3.11-slim
 
+# Cache buster - change this to force rebuild
+ARG CACHE_BUST=2026-01-05-v1
+
 # Set working directory
 WORKDIR /app
 
