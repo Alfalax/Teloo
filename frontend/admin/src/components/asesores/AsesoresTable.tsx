@@ -17,7 +17,7 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { MoreHorizontal, Edit, UserX, UserCheck, Trash2 } from 'lucide-react';
 import { Asesor } from '@/types/asesores';
-import { cn } from '@/lib/utils';
+import { cn } from '@/lib/utils.ts';
 
 interface AsesoresTableProps {
   asesores: Asesor[];
