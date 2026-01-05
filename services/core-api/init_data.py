@@ -135,10 +135,24 @@ async def create_sample_data():
         
         # Crear algunos clientes de ejemplo
         from models.user import Cliente
+        
+        # Obtener municipios para los clientes de ejemplo
+        municipio_bogota = await Municipio.get_or_none(nombre__icontains="bogotá")
+        municipio_medellin = await Municipio.get_or_none(nombre__icontains="medellín")
+        municipio_cali = await Municipio.get_or_none(nombre__icontains="cali")
+        
+        # Si no existen municipios, crear algunos básicos
+        if not municipio_bogota:
+            municipio_bogota = await Municipio.create(codigo="11001", nombre="Bogotá D.C.", departamento_codigo="11")
+        if not municipio_medellin:
+            municipio_medellin = await Municipio.create(codigo="05001", nombre="Medellín", departamento_codigo="05")
+        if not municipio_cali:
+            municipio_cali = await Municipio.create(codigo="76001", nombre="Cali", departamento_codigo="76")
+        
         clientes_sample = [
-            {"email": "cliente1@example.com", "nombre": "Juan", "apellido": "Pérez", "telefono": "+573001234567", "ciudad": "Bogotá", "departamento": "Cundinamarca"},
-            {"email": "cliente2@example.com", "nombre": "María", "apellido": "García", "telefono": "+573007654321", "ciudad": "Medellín", "departamento": "Antioquia"},
-            {"email": "cliente3@example.com", "nombre": "Carlos", "apellido": "López", "telefono": "+573009876543", "ciudad": "Cali", "departamento": "Valle del Cauca"},
+            {"email": "cliente1@example.com", "nombre": "Juan", "apellido": "Pérez", "telefono": "+573001234567", "ciudad": "Bogotá", "departamento": "Cundinamarca", "municipio": municipio_bogota},
+            {"email": "cliente2@example.com", "nombre": "María", "apellido": "García", "telefono": "+573007654321", "ciudad": "Medellín", "departamento": "Antioquia", "municipio": municipio_medellin},
+            {"email": "cliente3@example.com", "nombre": "Carlos", "apellido": "López", "telefono": "+573009876543", "ciudad": "Cali", "departamento": "Valle del Cauca", "municipio": municipio_cali},
         ]
         
         for cliente_data in clientes_sample:
@@ -155,11 +169,12 @@ async def create_sample_data():
                     estado=EstadoUsuario.ACTIVO
                 )
                 
-                # Crear cliente
+                # Crear cliente con municipio_id
                 await Cliente.create(
                     usuario=user,
                     ciudad=cliente_data["ciudad"],
-                    departamento=cliente_data["departamento"]
+                    departamento=cliente_data["departamento"],
+                    municipio=cliente_data["municipio"]
                 )
         
         # Crear algunos asesores de ejemplo
