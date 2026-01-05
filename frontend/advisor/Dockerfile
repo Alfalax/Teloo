@@ -25,8 +25,8 @@ WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 
-# Build the application (commented out for dev, uncomment for production)
-# RUN npm run build
+# Build the application for production
+RUN npm run build
 
 # Stage 3: Development
 FROM node:18-slim AS development
