@@ -26,6 +26,8 @@ COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 
 # Build the application for production (skip TypeScript check for faster builds)
+# Set NODE_OPTIONS to limit memory usage in constrained environments
+ENV NODE_OPTIONS="--max-old-space-size=2048"
 RUN npm run build:prod
 
 # Stage 3: Development
