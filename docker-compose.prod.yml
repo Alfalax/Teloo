@@ -1,39 +1,23 @@
 version: '3.8'
 
-# Production Docker Compose configuration
-# This file is used for Docker Swarm deployments
-# Usage: docker stack deploy -c docker-compose.prod.yml teloo
+# Coolify Docker Compose configuration
+# Optimized for single-server deployment with Coolify
 
 services:
   # Database Services
   postgres:
     image: postgres:15-alpine
     environment:
-      POSTGRES_DB: ${POSTGRES_DB:-teloo_v3_production}
+      POSTGRES_DB: ${POSTGRES_DB:-teloo_production}
       POSTGRES_USER: ${POSTGRES_USER}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
       TZ: America/Bogota
       PGTZ: UTC
     volumes:
-      - postgres_prod_data:/var/lib/postgresql/data
+      - postgres_data:/var/lib/postgresql/data
     networks:
-      - teloo-prod-network
-    deploy:
-      replicas: 1
-      placement:
-        constraints:
-          - node.role == manager
-      restart_policy:
-        condition: on-failure
-        delay: 5s
-        max_attempts: 3
-      resources:
-        limits:
-          cpus: '2'
-          memory: 2G
-        reservations:
-          cpus: '1'
-          memory: 1G
+      - teloo-network
+    restart: unless-stopped
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
       interval: 30s
@@ -42,21 +26,14 @@ services:
 
   redis:
     image: redis:7-alpine
-    command: redis-server --appendonly yes --requirepass ${REDIS_PASSWORD}
+    command: redis-server --appendonly yes
     volumes:
-      - redis_prod_data:/data
+      - redis_data:/data
     networks:
-      - teloo-prod-network
-    deploy:
-      replicas: 1
-      restart_policy:
-        condition: on-failure
-      resources:
-        limits:
-          cpus: '1'
-          memory: 512M
+      - teloo-network
+    restart: unless-stopped
     healthcheck:
-      test: ["CMD", "redis-cli", "--raw", "incr", "ping"]
+      test: ["CMD", "redis-cli", "ping"]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -66,21 +43,14 @@ services:
     ports:
       - "7007:9001"
     environment:
-      MINIO_ROOT_USER: ${MINIO_ACCESS_KEY}
-      MINIO_ROOT_PASSWORD: ${MINIO_SECRET_KEY}
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
     volumes:
-      - minio_prod_data:/data
+      - minio_data:/data
     networks:
-      - teloo-prod-network
+      - teloo-network
     command: server /data --console-address ":9001"
-    deploy:
-      replicas: 1
-      restart_policy:
-        condition: on-failure
-      resources:
-        limits:
-          cpus: '1'
-          memory: 1G
+    restart: unless-stopped
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
       interval: 30s
@@ -89,45 +59,30 @@ services:
 
   # Core Services
   core-api:
-    image: ${REGISTRY}/${IMAGE_PREFIX}/core-api:${IMAGE_VERSION}
+    build:
+      context: ./services/core-api
+      dockerfile: Dockerfile
     ports:
       - "7002:8000"
-    env_file:
-      - .env.production
     environment:
       - SERVICE_NAME=core-api
-      - DATABASE_URL=postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD_PROD}@postgres:5432/${POSTGRES_DB}
-      - REDIS_URL=redis://:${REDIS_PASSWORD_PROD}@redis:6379
+      - DATABASE_URL=${DATABASE_URL}
+      - REDIS_URL=${REDIS_URL}
       - MINIO_ENDPOINT=minio:9000
-      - MINIO_ACCESS_KEY=${MINIO_ACCESS_KEY_PROD}
-      - MINIO_SECRET_KEY=${MINIO_SECRET_KEY_PROD}
-      - JWT_SECRET_KEY=${JWT_SECRET_KEY_PROD}
-      - AGENT_IA_API_KEY=${AGENT_IA_API_KEY_PROD}
-      - ANALYTICS_API_KEY=${ANALYTICS_API_KEY_PROD}
-      - ENVIRONMENT=production
-      - LOG_LEVEL=WARNING
+      - MINIO_ACCESS_KEY=${MINIO_ACCESS_KEY}
+      - MINIO_SECRET_KEY=${MINIO_SECRET_KEY}
+      - JWT_SECRET_KEY=${JWT_SECRET_KEY}
+      - JWT_ALGORITHM=${JWT_ALGORITHM}
+      - ENVIRONMENT=${ENVIRONMENT:-production}
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+      - CORS_ORIGINS=${CORS_ORIGINS}
     networks:
-      - teloo-prod-network
-    deploy:
-      replicas: 3
-      update_config:
-        parallelism: 1
-        delay: 10s
-        order: start-first
-      rollback_config:
-        parallelism: 1
-        delay: 5s
-      restart_policy:
-        condition: on-failure
-        delay: 5s
-        max_attempts: 3
-      resources:
-        limits:
-          cpus: '1'
-          memory: 1G
-        reservations:
-          cpus: '0.5'
-          memory: 512M
+      - teloo-network
+    depends_on:
+      - postgres
+      - redis
+      - minio
+    restart: unless-stopped
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
       interval: 30s
@@ -136,199 +91,120 @@ services:
       start_period: 40s
 
   agent-ia:
-    image: ${REGISTRY}/${IMAGE_PREFIX}/agent-ia:${IMAGE_VERSION}
+    build:
+      context: ./services/agent-ia
+      dockerfile: Dockerfile
     ports:
       - "7003:8000"
-    env_file:
-      - .env.production
     environment:
       - SERVICE_NAME=agent-ia
       - CORE_API_URL=http://core-api:8000
-      - REDIS_URL=redis://:${REDIS_PASSWORD_PROD}@redis:6379
-      - SERVICE_API_KEY=${AGENT_IA_API_KEY_PROD}
-      - WHATSAPP_ACCESS_TOKEN=${WHATSAPP_ACCESS_TOKEN_PROD}
-      - WHATSAPP_VERIFY_TOKEN=${WHATSAPP_WEBHOOK_VERIFY_TOKEN_PROD}
-      - WHATSAPP_WEBHOOK_SECRET=${WHATSAPP_WEBHOOK_SECRET_PROD}
-      - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN_PROD}
-      - OPENAI_API_KEY=${OPENAI_API_KEY_PROD}
-      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY_PROD}
-      - GEMINI_API_KEY=${GEMINI_API_KEY_PROD}
-      - DEEPSEEK_API_KEY=${DEEPSEEK_API_KEY_PROD}
-      - ENVIRONMENT=production
-      - LOG_LEVEL=WARNING
+      - REDIS_URL=${REDIS_URL}
+      - ENVIRONMENT=${ENVIRONMENT:-production}
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
     networks:
-      - teloo-prod-network
-    deploy:
-      replicas: 2
-      update_config:
-        parallelism: 1
-        delay: 10s
-      restart_policy:
-        condition: on-failure
-      resources:
-        limits:
-          cpus: '1'
-          memory: 1G
-        reservations:
-          cpus: '0.5'
-          memory: 512M
+      - teloo-network
+    depends_on:
+      - core-api
+      - redis
+    restart: unless-stopped
 
   analytics:
-    image: ${REGISTRY}/${IMAGE_PREFIX}/analytics:${IMAGE_VERSION}
+    build:
+      context: ./services/analytics
+      dockerfile: Dockerfile
     ports:
       - "7004:8000"
-    env_file:
-      - .env.production
     environment:
       - SERVICE_NAME=analytics
-      - DATABASE_URL=postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD_PROD}@postgres:5432/${POSTGRES_DB}
-      - REDIS_URL=redis://:${REDIS_PASSWORD_PROD}@redis:6379
-      - SERVICE_API_KEY=${ANALYTICS_API_KEY_PROD}
-      - SMTP_PASSWORD=${SMTP_PASSWORD_PROD}
-      - SLACK_WEBHOOK_URL=${SLACK_WEBHOOK_URL_PROD}
-      - ENVIRONMENT=production
-      - LOG_LEVEL=WARNING
+      - DATABASE_URL=${DATABASE_URL}
+      - REDIS_URL=${REDIS_URL}
+      - ENVIRONMENT=${ENVIRONMENT:-production}
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
     networks:
-      - teloo-prod-network
-    deploy:
-      replicas: 2
-      update_config:
-        parallelism: 1
-        delay: 10s
-      restart_policy:
-        condition: on-failure
-      resources:
-        limits:
-          cpus: '0.5'
-          memory: 512M
+      - teloo-network
+    depends_on:
+      - postgres
+      - redis
+    restart: unless-stopped
 
   realtime-gateway:
-    image: ${REGISTRY}/${IMAGE_PREFIX}/realtime-gateway:${IMAGE_VERSION}
+    build:
+      context: ./services/realtime-gateway
+      dockerfile: Dockerfile
     ports:
       - "7005:8000"
-    env_file:
-      - .env.production
     environment:
       - SERVICE_NAME=realtime-gateway
-      - REDIS_URL=redis://:${REDIS_PASSWORD_PROD}@redis:6379
-      - JWT_SECRET_KEY=${JWT_SECRET_KEY_PROD}
-      - ENVIRONMENT=production
-      - LOG_LEVEL=WARNING
+      - REDIS_URL=${REDIS_URL}
+      - JWT_SECRET_KEY=${JWT_SECRET_KEY}
+      - ENVIRONMENT=${ENVIRONMENT:-production}
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
     networks:
-      - teloo-prod-network
-    deploy:
-      replicas: 2
-      update_config:
-        parallelism: 1
-        delay: 10s
-      restart_policy:
-        condition: on-failure
-      resources:
-        limits:
-          cpus: '0.5'
-          memory: 512M
+      - teloo-network
+    depends_on:
+      - redis
+    restart: unless-stopped
 
   files:
-    image: ${REGISTRY}/${IMAGE_PREFIX}/files:${IMAGE_VERSION}
+    build:
+      context: ./services/files
+      dockerfile: Dockerfile
     ports:
       - "7006:8000"
-    env_file:
-      - .env.production
     environment:
       - SERVICE_NAME=files
       - MINIO_ENDPOINT=minio:9000
-      - MINIO_ACCESS_KEY=${MINIO_ACCESS_KEY_PROD}
-      - MINIO_SECRET_KEY=${MINIO_SECRET_KEY_PROD}
-      - REDIS_URL=redis://:${REDIS_PASSWORD_PROD}@redis:6379
-      - ENVIRONMENT=production
-      - LOG_LEVEL=WARNING
+      - MINIO_ACCESS_KEY=${MINIO_ACCESS_KEY}
+      - MINIO_SECRET_KEY=${MINIO_SECRET_KEY}
+      - REDIS_URL=${REDIS_URL}
+      - ENVIRONMENT=${ENVIRONMENT:-production}
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
     networks:
-      - teloo-prod-network
-    deploy:
-      replicas: 2
-      restart_policy:
-        condition: on-failure
-      resources:
-        limits:
-          cpus: '0.5'
-          memory: 512M
+      - teloo-network
+    depends_on:
+      - minio
+      - redis
+    restart: unless-stopped
 
   # Frontend Services
   admin-frontend:
-    image: ${REGISTRY}/${IMAGE_PREFIX}/admin-frontend:${IMAGE_VERSION}
+    build:
+      context: ./frontend/admin
+      dockerfile: Dockerfile
+      target: production
     ports:
       - "7000:3000"
     environment:
-      - VITE_API_URL=${VITE_API_URL}
-      - VITE_REALTIME_URL=${VITE_REALTIME_URL}
+      - VITE_API_URL=${API_URL}
       - VITE_ENVIRONMENT=production
     networks:
-      - teloo-prod-network
-    deploy:
-      replicas: 2
-      restart_policy:
-        condition: on-failure
-      resources:
-        limits:
-          cpus: '0.25'
-          memory: 256M
+      - teloo-network
+    depends_on:
+      - core-api
+    restart: unless-stopped
 
   advisor-frontend:
-    image: ${REGISTRY}/${IMAGE_PREFIX}/advisor-frontend:${IMAGE_VERSION}
+    build:
+      context: ./frontend/advisor
+      dockerfile: Dockerfile
+      target: production
     ports:
       - "7001:3000"
     environment:
-      - VITE_API_URL=${VITE_API_URL}
-      - VITE_REALTIME_URL=${VITE_REALTIME_URL}
+      - VITE_API_URL=${API_URL}
       - VITE_ENVIRONMENT=production
     networks:
-      - teloo-prod-network
-    deploy:
-      replicas: 2
-      restart_policy:
-        condition: on-failure
-      resources:
-        limits:
-          cpus: '0.25'
-          memory: 256M
-
-  # Reverse Proxy
-  nginx:
-    image: nginx:alpine
-    ports:
-      - "80:80"
-      - "443:443"
-    volumes:
-      - ./nginx.prod.conf:/etc/nginx/nginx.conf:ro
-      - ./ssl:/etc/nginx/ssl:ro
-    networks:
-      - teloo-prod-network
-    deploy:
-      replicas: 2
-      update_config:
-        parallelism: 1
-        delay: 10s
-      restart_policy:
-        condition: on-failure
-      resources:
-        limits:
-          cpus: '0.5'
-          memory: 256M
-    healthcheck:
-      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost/health"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
+      - teloo-network
+    depends_on:
+      - core-api
+    restart: unless-stopped
 
 volumes:
-  postgres_prod_data:
-    driver: local
-  redis_prod_data:
-    driver: local
-  minio_prod_data:
-    driver: local
+  postgres_data:
+  redis_data:
+  minio_data:
 
 networks:
-  teloo-prod-network:
-    driver: overlay
-    attachable: true
+  teloo-network:
+    driver: bridge
