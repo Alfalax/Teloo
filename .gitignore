@@ -204,7 +204,8 @@ minio_data/
 
 # Uploads
 uploads/
-files/
+/files/
+services/*/uploads/
 
 # Certificates and keys
 *.pem
