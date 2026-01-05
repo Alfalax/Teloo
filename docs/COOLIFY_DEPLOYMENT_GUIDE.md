@@ -71,17 +71,13 @@ FRONTEND_ADMIN_URL=http://YOUR_IP:7000
 FRONTEND_ADVISOR_URL=http://YOUR_IP:7001
 API_URL=http://YOUR_IP:7002
 
-# APIs Externas (Opcional)
-WHATSAPP_TOKEN=your_token
-TELEGRAM_BOT_TOKEN=your_token
-OPENAI_API_KEY=your_key
-GEMINI_API_KEY=your_key
-
 # Configuración
 ENVIRONMENT=production
 LOG_LEVEL=INFO
 WORKERS=4
 ```
+
+**IMPORTANTE:** Usar archivo `docker-compose.coolify.yml` en lugar de `docker-compose.prod.yml`
 
 ### 6. Configurar Puertos en Coolify
 
