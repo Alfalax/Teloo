@@ -185,8 +185,8 @@ cython_debug/
 ehthumbs.db
 Thumbs.db
 
-# Docker
-.dockerignore
+# Docker (only root .dockerignore, allow in subdirectories)
+/.dockerignore
 
 # Temporary files
 tmp/

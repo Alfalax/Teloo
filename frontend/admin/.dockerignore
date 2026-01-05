@@ -1,0 +1,16 @@
+# Minimal .dockerignore for frontend/admin
+# Only exclude what's absolutely necessary
+
+# Node modules (will be installed during build)
+node_modules
+
+# Build output (will be generated)
+dist
+build
+
+# Git
+.git
+
+# Environment files (injected at build time)
+.env.local
+.env.*.local
