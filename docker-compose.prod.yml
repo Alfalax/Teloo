@@ -180,53 +180,6 @@ services:
       - redis
     restart: unless-stopped
 
-  # Frontend Services
-  admin-frontend:
-    build:
-      context: ./frontend/admin
-      dockerfile: Dockerfile
-      target: production
-      args:
-        - VITE_API_URL=${VITE_API_URL:-http://localhost:7002}
-        - VITE_REALTIME_URL=${VITE_REALTIME_URL:-http://localhost:7005}
-        - VITE_ENVIRONMENT=production
-    container_name: teloo-admin-frontend
-    ports:
-      - "7000:80"
-    networks:
-      - teloo-network
-    depends_on:
-      - core-api
-    restart: unless-stopped
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:80"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-
-  advisor-frontend:
-    build:
-      context: ./frontend/advisor
-      dockerfile: Dockerfile
-      target: production
-      args:
-        - VITE_API_URL=${VITE_API_URL:-http://localhost:7002}
-        - VITE_REALTIME_URL=${VITE_REALTIME_URL:-http://localhost:7005}
-        - VITE_ENVIRONMENT=production
-    container_name: teloo-advisor-frontend
-    ports:
-      - "7001:80"
-    networks:
-      - teloo-network
-    depends_on:
-      - core-api
-    restart: unless-stopped
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:80"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-
 volumes:
   postgres_data:
   redis_data:
