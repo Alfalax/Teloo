@@ -1,12 +1,13 @@
 version: '3.8'
 
-# Coolify Docker Compose configuration
-# Optimized for single-server deployment with Coolify
+# Backend-only Docker Compose for Coolify
+# Excludes frontends to avoid build issues
 
 services:
   # Database Services
   postgres:
     image: postgres:15-alpine
+    container_name: teloo-postgres
     environment:
       POSTGRES_DB: ${POSTGRES_DB:-teloo_production}
       POSTGRES_USER: ${POSTGRES_USER}
@@ -23,9 +24,12 @@ services:
       interval: 30s
       timeout: 10s
       retries: 3
+    ports:
+      - "7010:5432"
 
   redis:
     image: redis:7-alpine
+    container_name: teloo-redis
     command: redis-server --appendonly yes
     volumes:
       - redis_data:/data
@@ -37,11 +41,15 @@ services:
       interval: 30s
       timeout: 10s
       retries: 3
+    ports:
+      - "7011:6379"
 
   minio:
     image: minio/minio:latest
+    container_name: teloo-minio
     ports:
-      - "7007:9001"
+      - "7007:9000"
+      - "7008:9001"
     environment:
       MINIO_ROOT_USER: ${MINIO_ROOT_USER}
       MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
@@ -62,6 +70,7 @@ services:
     build:
       context: ./services/core-api
       dockerfile: Dockerfile
+    container_name: teloo-core-api
     ports:
       - "7002:8000"
     environment:
@@ -94,6 +103,7 @@ services:
     build:
       context: ./services/agent-ia
       dockerfile: Dockerfile
+    container_name: teloo-agent-ia
     ports:
       - "7003:8000"
     environment:
@@ -113,6 +123,7 @@ services:
     build:
       context: ./services/analytics
       dockerfile: Dockerfile
+    container_name: teloo-analytics
     ports:
       - "7004:8000"
     environment:
@@ -132,6 +143,7 @@ services:
     build:
       context: ./services/realtime-gateway
       dockerfile: Dockerfile
+    container_name: teloo-realtime
     ports:
       - "7005:8000"
     environment:
@@ -150,6 +162,7 @@ services:
     build:
       context: ./services/files
       dockerfile: Dockerfile
+    container_name: teloo-files
     ports:
       - "7006:8000"
     environment:
@@ -165,39 +178,6 @@ services:
     depends_on:
       - minio
       - redis
-    restart: unless-stopped
-
-  # Frontend Services
-  admin-frontend:
-    build:
-      context: ./frontend/admin
-      dockerfile: Dockerfile
-      target: production
-    ports:
-      - "7000:3000"
-    environment:
-      - VITE_API_URL=${API_URL}
-      - VITE_ENVIRONMENT=production
-    networks:
-      - teloo-network
-    depends_on:
-      - core-api
-    restart: unless-stopped
-
-  advisor-frontend:
-    build:
-      context: ./frontend/advisor
-      dockerfile: Dockerfile
-      target: production
-    ports:
-      - "7001:3000"
-    environment:
-      - VITE_API_URL=${API_URL}
-      - VITE_ENVIRONMENT=production
-    networks:
-      - teloo-network
-    depends_on:
-      - core-api
     restart: unless-stopped
 
 volumes:
