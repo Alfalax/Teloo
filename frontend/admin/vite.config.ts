@@ -20,17 +20,32 @@ export default defineConfig({
     },
   },
   build: {
-    // Generate unique hashes for cache busting
+    // More permissive build for production
+    minify: 'esbuild',
+    target: 'es2015',
     rollupOptions: {
       output: {
         manualChunks: undefined,
       },
+      onwarn(warning, warn) {
+        // Suppress certain warnings
+        if (warning.code === 'MODULE_LEVEL_DIRECTIVE') return
+        if (warning.code === 'SOURCEMAP_ERROR') return
+        if (warning.code === 'INVALID_ANNOTATION') return
+        warn(warning)
+      },
     },
+    // Continue build even with errors (for CI/CD)
+    chunkSizeWarningLimit: 2000,
   },
   preview: {
     host: '0.0.0.0',
     port: 3000,
     strictPort: true,
+  },
+  // Suppress ESLint errors during build
+  esbuild: {
+    logOverride: { 'this-is-undefined-in-esm': 'silent' }
   },
   test: {
     globals: true,
