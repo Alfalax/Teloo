@@ -183,12 +183,14 @@ async def create_sample_data():
             {
                 "email": "asesor1@teloo.com", "password_hash": AuthService.get_password_hash("asesor123"),
                 "nombre": "Pedro", "apellido": "Martínez", "telefono": "+573101234567",
-                "rol": RolUsuario.ADVISOR, "estado": EstadoUsuario.ACTIVO
+                "rol": RolUsuario.ADVISOR, "estado": EstadoUsuario.ACTIVO,
+                "municipio": municipio_bogota
             },
             {
                 "email": "asesor2@teloo.com", "password_hash": AuthService.get_password_hash("asesor123"),
                 "nombre": "Ana", "apellido": "Rodríguez", "telefono": "+573107654321",
-                "rol": RolUsuario.ADVISOR, "estado": EstadoUsuario.ACTIVO
+                "rol": RolUsuario.ADVISOR, "estado": EstadoUsuario.ACTIVO,
+                "municipio": municipio_bogota
             },
         ]
         
@@ -196,15 +198,16 @@ async def create_sample_data():
             existing_user = await Usuario.get_or_none(email=asesor_data["email"])
             if not existing_user:
                 # Crear usuario
-                user_data = {k: v for k, v in asesor_data.items() if k not in ["ciudad", "departamento", "punto_venta"]}
+                user_data = {k: v for k, v in asesor_data.items() if k not in ["ciudad", "departamento", "punto_venta", "municipio"]}
                 user = await Usuario.create(**user_data)
                 
-                # Crear asesor
+                # Crear asesor con municipio_id
                 await Asesor.create(
                     usuario=user,
                     ciudad="Bogotá",
                     departamento="Cundinamarca",
-                    punto_venta=f"Repuestos {asesor_data['nombre']}"
+                    punto_venta=f"Repuestos {asesor_data['nombre']}",
+                    municipio=asesor_data["municipio"]
                 )
         
         # Crear algunas PQRs de ejemplo
