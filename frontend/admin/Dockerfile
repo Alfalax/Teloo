@@ -54,6 +54,9 @@ RUN npm install --no-save @rollup/rollup-linux-x64-gnu
 # Copy source code
 COPY . .
 
+# Debug: List files to verify copy
+RUN ls -la src/lib/ || echo "src/lib directory not found"
+
 # Create non-root user
 RUN groupadd -g 1001 nodejs && \
     useradd -r -u 1001 -g nodejs nextjs && \
