@@ -1,0 +1,47 @@
+version: '3.8'
+
+# Frontend-only Docker Compose for Coolify deployment
+# This file is used to deploy only the frontend applications
+
+services:
+  # Admin Frontend
+  admin:
+    build:
+      context: ./frontend/admin
+      dockerfile: Dockerfile
+      target: production  # Use production stage from multi-stage Dockerfile
+    container_name: teloo-admin-frontend
+    ports:
+      - "3000:80"
+    environment:
+      - NODE_ENV=production
+      - VITE_API_URL=${VITE_API_URL}
+      - VITE_REALTIME_URL=${VITE_REALTIME_URL}
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:80"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
+  # Advisor Frontend
+  advisor:
+    build:
+      context: ./frontend/advisor
+      dockerfile: Dockerfile
+      target: production  # Use production stage from multi-stage Dockerfile
+    container_name: teloo-advisor-frontend
+    ports:
+      - "3001:80"
+    environment:
+      - NODE_ENV=production
+      - VITE_API_URL=${VITE_API_URL}
+      - VITE_REALTIME_URL=${VITE_REALTIME_URL}
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:80"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s

@@ -1,0 +1,61 @@
+# Standalone Dockerfile for Admin Frontend
+# This can be used directly by Coolify without docker-compose
+
+# Stage 1: Dependencies
+FROM node:18-slim AS deps
+WORKDIR /app
+
+# Install system dependencies
+RUN apt-get update && apt-get install -y \
+    python3 \
+    make \
+    g++ \
+    && rm -rf /var/lib/apt/lists/*
+
+# Copy package files
+COPY frontend/admin/package.json frontend/admin/package-lock.json* ./
+
+# Install dependencies
+RUN npm ci
+
+# Stage 2: Builder
+FROM node:18-slim AS builder
+WORKDIR /app
+
+# Copy dependencies from deps stage
+COPY --from=deps /app/node_modules ./node_modules
+COPY frontend/admin/ ./
+
+# Build the application for production
+ENV NODE_OPTIONS="--max-old-space-size=2048"
+RUN npm run build:prod
+
+# Stage 3: Production (Serve with Nginx)
+FROM nginx:alpine AS production
+
+# Install curl for healthcheck
+RUN apk add --no-cache curl
+
+# Copy built assets from builder
+COPY --from=builder /app/dist /usr/share/nginx/html
+
+# Copy custom nginx config to handle SPA routing
+RUN echo 'server { \
+    listen 80; \
+    server_name localhost; \
+    root /usr/share/nginx/html; \
+    index index.html; \
+    location / { \
+        try_files $uri $uri/ /index.html; \
+    } \
+}' > /etc/nginx/conf.d/default.conf
+
+# Expose port 80
+EXPOSE 80
+
+# Healthcheck for Nginx
+HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
+    CMD curl -f http://localhost:80 || exit 1
+
+# Start Nginx
+CMD ["nginx", "-g", "daemon off;"]
