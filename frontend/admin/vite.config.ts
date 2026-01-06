@@ -43,7 +43,11 @@ export default defineConfig({
     host: '0.0.0.0',
     port: 3000,
     strictPort: true,
-    allowedHosts: true,
+    allowedHosts: [
+      'rcsg4sg84kkso80gcko0gw4o.72.62.130.152.sslip.io',
+      'localhost',
+      '127.0.0.1'
+    ],
   },
   // Suppress ESLint errors during build
   esbuild: {
