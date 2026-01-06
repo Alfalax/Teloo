@@ -19,6 +19,7 @@ export default defineConfig({
     hmr: {
       overlay: true,
     },
+    allowedHosts: true,
   },
   build: {
     // More permissive build for production
@@ -43,11 +44,7 @@ export default defineConfig({
     host: '0.0.0.0',
     port: 3000,
     strictPort: true,
-    allowedHosts: [
-      'rcsg4sg84kkso80gcko0gw4o.72.62.130.152.sslip.io',
-      'localhost',
-      '127.0.0.1'
-    ],
+    allowedHosts: true,
   },
   // Suppress ESLint errors during build
   esbuild: {
