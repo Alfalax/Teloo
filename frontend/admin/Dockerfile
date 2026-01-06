@@ -95,8 +95,9 @@ USER nextjs
 EXPOSE 3000
 
 # Strict Healthcheck restored
-HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
-    CMD curl --fail http://localhost:3000 || exit 1
+# HEALTHCHECK disabled temporarily to diagnose ingress
+# HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
+#     CMD curl --fail http://localhost:3000 || exit 1
 
 # Production command (serve built files)
 CMD ["npm", "run", "preview", "--", "--host", "0.0.0.0"]
