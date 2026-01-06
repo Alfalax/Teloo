@@ -72,32 +72,29 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
 CMD ["npm", "run", "dev", "--", "--host", "0.0.0.0"]
 
 # Stage 4: Production (for future use)
-FROM node:18-slim AS production
-WORKDIR /app
-
-ENV NODE_ENV=production
-
-# Install only curl for health checks
-RUN apt-get update && apt-get install -y curl && rm -rf /var/lib/apt/lists/*
+# Stage 4: Production (Serve with Nginx)
+FROM nginx:alpine AS production
 
 # Copy built assets from builder
-COPY --from=builder /app/dist ./dist
-COPY --from=deps /app/node_modules ./node_modules
-COPY package.json ./
+COPY --from=builder /app/dist /usr/share/nginx/html
 
-# Create non-root user
-RUN groupadd -g 1001 nodejs && \
-    useradd -r -u 1001 -g nodejs nextjs && \
-    chown -R nextjs:nodejs /app
+# Copy custom nginx config to handle SPA routing (Client-side routing fallback)
+RUN echo 'server { \
+    listen 80; \
+    server_name localhost; \
+    root /usr/share/nginx/html; \
+    index index.html; \
+    location / { \
+        try_files $uri $uri/ /index.html; \
+    } \
+}' > /etc/nginx/conf.d/default.conf
 
-USER nextjs
+# Expose port 80 (Standard web port)
+EXPOSE 80
 
-EXPOSE 3000
+# Healthcheck for Nginx
+HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
+    CMD curl -f http://localhost:80 || exit 1
 
-# Strict Healthcheck restored
-# Strict Healthcheck restored
-HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
-    CMD curl --fail http://localhost:3000 || exit 1
-
-# Production command (serve built files)
-CMD ["npm", "run", "preview", "--", "--host", "0.0.0.0", "--port", "3000"]
+# Start Nginx
+CMD ["nginx", "-g", "daemon off;"]
