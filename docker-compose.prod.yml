@@ -7,6 +7,9 @@ services:
       context: ./nginx
       dockerfile: Dockerfile
     container_name: teloo-nginx-gateway
+    labels:
+      - "coolify.managed=true"
+      - "coolify.type=application"
     expose:
       - "80"
     depends_on:
