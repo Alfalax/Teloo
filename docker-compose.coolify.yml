@@ -1,0 +1,123 @@
+version: '3.8'
+
+services:
+  # Nginx Gateway - Single entry point for Coolify
+  nginx:
+    image: nginx:alpine
+    container_name: teloo-nginx-gateway
+    ports:
+      - "80:80"
+    volumes:
+      - ./nginx.coolify.conf:/etc/nginx/nginx.conf:ro
+    depends_on:
+      - core-api
+      - analytics
+    networks:
+      - teloo-network
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:80/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+  # Database Services
+  postgres:
+    image: postgres:15-alpine
+    container_name: teloo-postgres
+    environment:
+      POSTGRES_DB: teloo_production
+      POSTGRES_USER: teloo_admin
+      POSTGRES_PASSWORD: Teloo2025.
+      TZ: America/Bogota
+      PGTZ: UTC
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - teloo-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U teloo_admin -d teloo_production"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  redis:
+    image: redis:7-alpine
+    container_name: teloo-redis
+    environment:
+      TZ: America/Bogota
+    command: redis-server --requirepass Ptd7Xop0KXfaBNFGbpiVaUA1mzzJOWBOPV9dX4SSkE4Q4UQqS4Z1yIEPXEAxJogN
+    volumes:
+      - redis_data:/data
+    networks:
+      - teloo-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "--pass", "Ptd7Xop0KXfaBNFGbpiVaUA1mzzJOWBOPV9dX4SSkE4Q4UQqS4Z1yIEPXEAxJogN", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Core API Service
+  core-api:
+    build:
+      context: ./services/core-api
+      dockerfile: Dockerfile
+    container_name: teloo-core-api
+    environment:
+      - DATABASE_URL=postgres://teloo_admin:Teloo2025.@postgres:5432/teloo_production
+      - REDIS_URL=redis://:Ptd7Xop0KXfaBNFGbpiVaUA1mzzJOWBOPV9dX4SSkE4Q4UQqS4Z1yIEPXEAxJogN@redis:6379
+      - JWT_SECRET_KEY=${JWT_SECRET_KEY}
+      - ENVIRONMENT=production
+      - BACKEND_CORS_ORIGINS=${BACKEND_CORS_ORIGINS}
+      - AGENT_IA_API_KEY=${AGENT_IA_API_KEY}
+      - ANALYTICS_API_KEY=${ANALYTICS_API_KEY}
+    expose:
+      - "8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - teloo-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  # Analytics Service
+  analytics:
+    build:
+      context: ./services/analytics
+      dockerfile: Dockerfile
+    container_name: teloo-analytics
+    environment:
+      - DATABASE_URL=postgres://teloo_admin:Teloo2025.@postgres:5432/teloo_production
+      - REDIS_URL=redis://:Ptd7Xop0KXfaBNFGbpiVaUA1mzzJOWBOPV9dX4SSkE4Q4UQqS4Z1yIEPXEAxJogN@redis:6379
+      - ENVIRONMENT=production
+      - BACKEND_CORS_ORIGINS=${BACKEND_CORS_ORIGINS}
+    expose:
+      - "8002"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - teloo-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8002/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+volumes:
+  postgres_data:
+  redis_data:
+
+networks:
+  teloo-network:
+    driver: bridge
