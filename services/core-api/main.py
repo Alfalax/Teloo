@@ -84,6 +84,20 @@ app.add_middleware(
     allow_headers=allow_headers,
 )
 
+# Add middleware to handle OPTIONS requests (CORS preflight)
+@app.middleware("http")
+async def options_middleware(request, call_next):
+    """Allow OPTIONS requests without authentication for CORS preflight"""
+    if request.method == "OPTIONS":
+        from fastapi.responses import Response
+        return Response(status_code=200, headers={
+            "Access-Control-Allow-Origin": request.headers.get("origin", "*"),
+            "Access-Control-Allow-Methods": ", ".join(allow_methods),
+            "Access-Control-Allow-Headers": ", ".join(allow_headers),
+            "Access-Control-Allow-Credentials": "true",
+        })
+    return await call_next(request)
+
 # Initialize database
 init_db(app)
 
