@@ -3,12 +3,12 @@ version: '3.8'
 services:
   # Nginx Gateway - Single entry point for Coolify
   nginx:
-    image: nginx:alpine
+    build:
+      context: ./nginx
+      dockerfile: Dockerfile
     container_name: teloo-nginx-gateway
     ports:
       - "80:80"
-    volumes:
-      - ./nginx.coolify.conf:/etc/nginx/nginx.conf:ro
     depends_on:
       - core-api
       - analytics
