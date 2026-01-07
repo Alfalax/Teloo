@@ -1,0 +1,27 @@
+version: '3.8'
+
+# Este docker-compose SOLO despliega nginx como gateway
+# Los demás servicios (core-api, analytics, etc.) deben estar corriendo
+# en la misma red de Docker para que nginx pueda acceder a ellos
+
+services:
+  nginx:
+    build:
+      context: ./nginx
+      dockerfile: Dockerfile
+    container_name: teloo-nginx-gateway
+    expose:
+      - "80"
+    networks:
+      - teloo-network
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:80/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    restart: unless-stopped
+
+networks:
+  teloo-network:
+    driver: bridge
