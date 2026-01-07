@@ -7,12 +7,8 @@ services:
       context: ./nginx
       dockerfile: Dockerfile
     container_name: teloo-nginx-gateway
-    labels:
-      - "coolify.managed=true"
-      - "coolify.type=application"
-      - "coolify.main=true"
     ports:
-      - "80"
+      - "80:80"
     depends_on:
       - core-api
       - analytics
@@ -90,9 +86,6 @@ services:
       context: ./services/core-api
       dockerfile: Dockerfile
     container_name: teloo-core-api
-    labels:
-      - "coolify.managed=true"
-      - "coolify.type=service"
     environment:
       - SERVICE_NAME=core-api
       - DATABASE_URL=postgres://teloo_admin:Teloo2025.@postgres:5432/teloo_production
@@ -129,9 +122,6 @@ services:
       context: ./services/analytics
       dockerfile: Dockerfile
     container_name: teloo-analytics
-    labels:
-      - "coolify.managed=true"
-      - "coolify.type=service"
     environment:
       - SERVICE_NAME=analytics
       - DATABASE_URL=postgres://teloo_admin:Teloo2025.@postgres:5432/teloo_production
@@ -162,9 +152,6 @@ services:
       context: ./services/agent-ia
       dockerfile: Dockerfile
     container_name: teloo-agent-ia
-    labels:
-      - "coolify.managed=true"
-      - "coolify.type=service"
     environment:
       - SERVICE_NAME=agent-ia
       - CORE_API_URL=http://core-api:8000
@@ -186,9 +173,6 @@ services:
       context: ./services/realtime-gateway
       dockerfile: Dockerfile
     container_name: teloo-realtime
-    labels:
-      - "coolify.managed=true"
-      - "coolify.type=service"
     environment:
       - SERVICE_NAME=realtime-gateway
       - REDIS_URL=redis://redis:6379
@@ -210,9 +194,6 @@ services:
       context: ./services/files
       dockerfile: Dockerfile
     container_name: teloo-files
-    labels:
-      - "coolify.managed=true"
-      - "coolify.type=service"
     environment:
       - SERVICE_NAME=files
       - MINIO_ENDPOINT=minio:9000
