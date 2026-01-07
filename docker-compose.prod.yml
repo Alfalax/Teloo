@@ -12,6 +12,9 @@ services:
     depends_on:
       - core-api
       - analytics
+      - files
+      - agent-ia
+      - realtime-gateway
     networks:
       - teloo-network
     healthcheck:
@@ -44,6 +47,7 @@ services:
   redis:
     image: redis:7-alpine
     container_name: teloo-redis
+    command: redis-server --appendonly yes
     environment:
       TZ: America/Bogota
     volumes:
@@ -56,6 +60,26 @@ services:
       timeout: 10s
       retries: 3
 
+  minio:
+    image: minio/minio:latest
+    container_name: teloo-minio
+    expose:
+      - "9000"
+      - "9001"
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
+    volumes:
+      - minio_data:/data
+    networks:
+      - teloo-network
+    command: server /data --console-address ":9001"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
   # Core API Service
   core-api:
     build:
@@ -63,8 +87,12 @@ services:
       dockerfile: Dockerfile
     container_name: teloo-core-api
     environment:
+      - SERVICE_NAME=core-api
       - DATABASE_URL=postgres://teloo_admin:Teloo2025.@postgres:5432/teloo_production
       - REDIS_URL=redis://redis:6379
+      - MINIO_ENDPOINT=minio:9000
+      - MINIO_ACCESS_KEY=${MINIO_ROOT_USER}
+      - MINIO_SECRET_KEY=${MINIO_ROOT_PASSWORD}
       - JWT_SECRET_KEY=${JWT_SECRET_KEY}
       - ENVIRONMENT=production
       - BACKEND_CORS_ORIGINS=${BACKEND_CORS_ORIGINS}
@@ -76,6 +104,8 @@ services:
       postgres:
         condition: service_healthy
       redis:
+        condition: service_healthy
+      minio:
         condition: service_healthy
     networks:
       - teloo-network
@@ -93,29 +123,100 @@ services:
       dockerfile: Dockerfile
     container_name: teloo-analytics
     environment:
+      - SERVICE_NAME=analytics
       - DATABASE_URL=postgres://teloo_admin:Teloo2025.@postgres:5432/teloo_production
       - REDIS_URL=redis://redis:6379
       - ENVIRONMENT=production
       - BACKEND_CORS_ORIGINS=${BACKEND_CORS_ORIGINS}
     expose:
-      - "8002"
+      - "8000"
     depends_on:
       postgres:
         condition: service_healthy
       redis:
         condition: service_healthy
+      core-api:
+        condition: service_healthy
     networks:
       - teloo-network
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8002/health"]
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
       interval: 30s
       timeout: 10s
       retries: 3
       start_period: 40s
 
+  # Agent IA Service
+  agent-ia:
+    build:
+      context: ./services/agent-ia
+      dockerfile: Dockerfile
+    container_name: teloo-agent-ia
+    environment:
+      - SERVICE_NAME=agent-ia
+      - CORE_API_URL=http://core-api:8000
+      - REDIS_URL=redis://redis:6379
+      - ENVIRONMENT=production
+    expose:
+      - "8000"
+    depends_on:
+      core-api:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - teloo-network
+
+  # Realtime Gateway Service
+  realtime-gateway:
+    build:
+      context: ./services/realtime-gateway
+      dockerfile: Dockerfile
+    container_name: teloo-realtime
+    environment:
+      - SERVICE_NAME=realtime-gateway
+      - REDIS_URL=redis://redis:6379
+      - JWT_SECRET_KEY=${JWT_SECRET_KEY}
+      - ENVIRONMENT=production
+    expose:
+      - "8000"
+    depends_on:
+      redis:
+        condition: service_healthy
+      core-api:
+        condition: service_healthy
+    networks:
+      - teloo-network
+
+  # Files Service
+  files:
+    build:
+      context: ./services/files
+      dockerfile: Dockerfile
+    container_name: teloo-files
+    environment:
+      - SERVICE_NAME=files
+      - MINIO_ENDPOINT=minio:9000
+      - MINIO_ACCESS_KEY=${MINIO_ROOT_USER}
+      - MINIO_SECRET_KEY=${MINIO_ROOT_PASSWORD}
+      - REDIS_URL=redis://redis:6379
+      - ENVIRONMENT=production
+    expose:
+      - "8000"
+    depends_on:
+      minio:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      core-api:
+        condition: service_healthy
+    networks:
+      - teloo-network
+
 volumes:
   postgres_data:
   redis_data:
+  minio_data:
 
 networks:
   teloo-network:
