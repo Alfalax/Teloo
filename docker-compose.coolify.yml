@@ -46,13 +46,12 @@ services:
     container_name: teloo-redis
     environment:
       TZ: America/Bogota
-    command: redis-server --requirepass Ptd7Xop0KXfaBNFGbpiVaUA1mzzJOWBOPV9dX4SSkE4Q4UQqS4Z1yIEPXEAxJogN
     volumes:
       - redis_data:/data
     networks:
       - teloo-network
     healthcheck:
-      test: ["CMD", "redis-cli", "--pass", "Ptd7Xop0KXfaBNFGbpiVaUA1mzzJOWBOPV9dX4SSkE4Q4UQqS4Z1yIEPXEAxJogN", "ping"]
+      test: ["CMD", "redis-cli", "ping"]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -65,7 +64,7 @@ services:
     container_name: teloo-core-api
     environment:
       - DATABASE_URL=postgres://teloo_admin:Teloo2025.@postgres:5432/teloo_production
-      - REDIS_URL=redis://:Ptd7Xop0KXfaBNFGbpiVaUA1mzzJOWBOPV9dX4SSkE4Q4UQqS4Z1yIEPXEAxJogN@redis:6379
+      - REDIS_URL=redis://redis:6379
       - JWT_SECRET_KEY=${JWT_SECRET_KEY}
       - ENVIRONMENT=production
       - BACKEND_CORS_ORIGINS=${BACKEND_CORS_ORIGINS}
@@ -95,7 +94,7 @@ services:
     container_name: teloo-analytics
     environment:
       - DATABASE_URL=postgres://teloo_admin:Teloo2025.@postgres:5432/teloo_production
-      - REDIS_URL=redis://:Ptd7Xop0KXfaBNFGbpiVaUA1mzzJOWBOPV9dX4SSkE4Q4UQqS4Z1yIEPXEAxJogN@redis:6379
+      - REDIS_URL=redis://redis:6379
       - ENVIRONMENT=production
       - BACKEND_CORS_ORIGINS=${BACKEND_CORS_ORIGINS}
     expose:
