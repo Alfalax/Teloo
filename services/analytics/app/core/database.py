@@ -10,7 +10,7 @@ async def init_db():
     
     # Configuración de base de datos
     # IMPORTANTE: Analytics usa las tablas existentes creadas por Core API
-    # NO crea sus propias tablas, solo se conecta para hacer queries
+    # Y también define sus propios modelos para métricas y eventos
     DATABASE_CONFIG = {
         "connections": {
             "default": database_url,
@@ -18,8 +18,8 @@ async def init_db():
         "apps": {
             "models": {
                 "models": [
-                    # Analytics usa las tablas existentes de Core API
-                    # No define modelos propios para evitar conflictos de esquema
+                    "app.models.events",
+                    "app.models.metrics",
                 ],
                 "default_connection": "default",
             }
