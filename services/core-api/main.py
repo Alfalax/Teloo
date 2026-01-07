@@ -58,8 +58,10 @@ cors_origins_env = os.getenv("BACKEND_CORS_ORIGINS")
 if cors_origins_env:
     try:
         origins = json.loads(cors_origins_env)
-    except Exception:
+        logger.info(f"CORS origins loaded from JSON: {origins}")
+    except Exception as e:
         origins = [o.strip() for o in cors_origins_env.split(",") if o.strip()]
+        logger.info(f"CORS origins loaded from comma-separated list: {origins}")
 else:
     origins = [
         "http://localhost:3000",
@@ -67,9 +69,12 @@ else:
         "http://127.0.0.1:3000",
         "http://127.0.0.1:3001",
     ]
+    logger.info(f"CORS origins using defaults: {origins}")
 
 allow_methods = ["GET", "POST", "PUT", "DELETE", "OPTIONS"] if environment == "production" else ["*"]
 allow_headers = ["Authorization", "Content-Type", "X-Requested-With"] if environment == "production" else ["*"]
+
+logger.info(f"Configuring CORS middleware - Origins: {origins}, Methods: {allow_methods}, Headers: {allow_headers}")
 
 app.add_middleware(
     CORSMiddleware,
