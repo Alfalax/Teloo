@@ -71,7 +71,6 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
 # Development command
 CMD ["npm", "run", "dev", "--", "--host", "0.0.0.0"]
 
-# Stage 4: Production (for future use)
 # Stage 4: Production (Serve with Nginx)
 FROM nginx:alpine AS production
 
