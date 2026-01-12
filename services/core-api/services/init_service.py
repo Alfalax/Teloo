@@ -28,18 +28,25 @@ class InitService:
             await InitService._create_config_parameters()
             
             # Create sample data ONLY for development
-            import os
-            environment = os.getenv("ENVIRONMENT", "development")
-            if environment != "production":
-                await InitService._create_sample_data()
-            else:
-                logger.info("🏭 Production environment detected: Skipping sample data creation")
+            # Try/Except block added to ensure service starts even if sample data fails
+            # (e.g. missing municipalities in DB)
+            try:
+                import os
+                environment = os.getenv("ENVIRONMENT", "development")
+                if environment != "production":
+                    await InitService._create_sample_data()
+                else:
+                    logger.info("🏭 Production environment detected: Skipping sample data creation")
+            except Exception as e:
+                logger.warning(f"⚠️ Could not create sample data (Non-critical): {e}")
             
             logger.info("✅ Database initialization completed successfully")
             
         except Exception as e:
             logger.error(f"❌ Error during database initialization: {e}")
-            raise
+            # We treat init errors as non-fatal to allow service to start and be fixed later
+            # This is critical for initial deployment where data might be missing
+            logger.warning("⚠️ Service starting despite initialization errors")
     
     @staticmethod
     async def _create_admin_user():
