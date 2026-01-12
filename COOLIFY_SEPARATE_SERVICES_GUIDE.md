@@ -30,44 +30,44 @@ Para cada servicio, usa el repositorio de Git. En "Configuration" -> "General":
 ### A. Core API (`core-api`)
 *   **Base Directory**: `/services/core-api`
 *   **Dockerfile Location**: `/services/core-api/Dockerfile`
-*   **Port Exposes**: `8000`
+*   **Port Exposes**: `9002`
 *   **Environment Variables**:
     *   `DATABASE_URL`: `postgres://user:pass@host:5432/db_name` (Usa los datos de tu Postgres)
-    *   `REDIS_URL`: `redis://host:6379` (Nombre del servicio Redis en Coolify)
-    *   `MINIO_ENDPOINT`: `minio:9000` (Nombre del servicio Minio)
-    *   `MINIO_ACCESS_KEY`: (Igual a MINIO_ROOT_USER)
-    *   `MINIO_SECRET_KEY`: (Igual a MINIO_ROOT_PASSWORD)
-    *   `JWT_SECRET_KEY`: (Genera una clave segura)
+    *   `REDIS_URL`: `redis://:password@host:6379`
+    *   `MINIO_ENDPOINT`: `minio:9000`
+    *   `MINIO_ACCESS_KEY`: ...
+    *   `MINIO_SECRET_KEY`: ...
+    *   `JWT_SECRET_KEY`: ...
     *   `ENVIRONMENT`: `production`
 
 ### B. Agent IA (`agent-ia`)
 *   **Base Directory**: `/services/agent-ia`
 *   **Dockerfile Location**: `/services/agent-ia/Dockerfile`
-*   **Port Exposes**: `8001`
+*   **Port Exposes**: `9003`
 *   **Environment Variables**:
-    *   `CORE_API_URL`: `http://core-api:8000` (Usa el nombre/host del Core API)
-    *   `REDIS_URL`: `redis://redis:6379`
+    *   `CORE_API_URL`: `http://core-api:9002` (Atención al puerto 9002)
+    *   `REDIS_URL`: `redis://:password@host:6379`
 
 ### C. Analytics (`analytics`)
 *   **Base Directory**: `/services/analytics`
 *   **Dockerfile Location**: `/services/analytics/Dockerfile`
-*   **Port Exposes**: `8002`
+*   **Port Exposes**: `9004`
 *   **Environment Variables**:
-    *   `DATABASE_URL`: (Mismo que Core API)
-    *   `REDIS_URL`: `redis://redis:6379`
+    *   `DATABASE_URL`: ...
+    *   `REDIS_URL`: ...
 
 ### D. Realtime Gateway (`realtime-gateway`)
 *   **Base Directory**: `/services/realtime-gateway`
 *   **Dockerfile Location**: `/services/realtime-gateway/Dockerfile`
-*   **Port Exposes**: `8003`
+*   **Port Exposes**: `9005`
 *   **Environment Variables**:
-    *   `REDIS_URL`: `redis://redis:6379`
-    *   `JWT_SECRET_KEY`: (Misma que Core API)
+    *   `REDIS_URL`: ...
+    *   `JWT_SECRET_KEY`: ...
 
 ### E. Files Service (`files`)
 *   **Base Directory**: `/services/files`
 *   **Dockerfile Location**: `/services/files/Dockerfile`
-*   **Port Exposes**: `8004`
+*   **Port Exposes**: `9006`
 *   **Environment Variables**:
     *   `MINIO_ENDPOINT`: `minio:9000`
     *   `MINIO_ACCESS_KEY`: ...
