@@ -27,8 +27,13 @@ class InitService:
             # Initialize configuration parameters
             await InitService._create_config_parameters()
             
-            # Create sample data for development
-            await InitService._create_sample_data()
+            # Create sample data ONLY for development
+            import os
+            environment = os.getenv("ENVIRONMENT", "development")
+            if environment != "production":
+                await InitService._create_sample_data()
+            else:
+                logger.info("🏭 Production environment detected: Skipping sample data creation")
             
             logger.info("✅ Database initialization completed successfully")
             
