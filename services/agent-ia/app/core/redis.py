@@ -21,46 +21,23 @@ class RedisManager:
         """Connect to Redis"""
         try:
             # Log connection attempt (masking password)
+            # Log connection attempt (masking password)
             import urllib.parse
-            
-            # Use settings.redis_url (already cleaned by pydantic validator)
             final_url = settings.redis_url
-            
-            # Parse URL for logging and sanity check
             try:
                 parsed = urllib.parse.urlparse(final_url)
-                # Mask password for logging
                 if parsed.password:
                     masked_netloc = parsed.netloc.replace(parsed.password, "****")
-                    logger.info(f"Connecting to Redis at: {parsed.scheme}://{masked_netloc}{parsed.path}")
-                    logger.info(f"Redis Password Length: {len(parsed.password)} chars")
+                    logger.info(f"Attempting to connect to Redis at: {parsed.scheme}://{masked_netloc}{parsed.path}")
                 else:
-                    logger.info(f"Connecting to Redis at: {parsed.scheme}://{parsed.hostname}:{parsed.port}{parsed.path} (No password)")
-                
-                # Check for 'default' user compatibility again (robustness)
-                if parsed.username == 'default':
-                     logger.info("Detected 'default' username. Stripping it for legacy compatibility.")
-                     # Reconstruct without username
-                     # netloc struct: user:pass@host:port
-                     new_netloc = f":{parsed.password}@{parsed.hostname}:{parsed.port}"
-                     final_url = urllib.parse.urlunparse((
-                         parsed.scheme,
-                         new_netloc,
-                         parsed.path,
-                         parsed.params,
-                         parsed.query,
-                         parsed.fragment
-                     ))
-            except Exception as e:
-                 logger.warning(f"Failed to parse/mask Redis URL for logging: {e}")
-                 # Fallback to simple logging
-                 logger.info(f"Attempting using raw URL (masked partial): {final_url[:15]}...")
+                    logger.info(f"Attempting to connect to Redis at: {parsed.scheme}://{parsed.hostname}:{parsed.port}{parsed.path}")
+            except Exception:
+                logger.info("Attempting to connect to Redis (URL masking failed)")
 
+            # Use simple connection params matching core-api
             self.redis_client = redis.from_url(
-                final_url,
-                encoding="utf-8",
-                decode_responses=True,
-                max_connections=settings.redis_pool_size
+                settings.redis_url,
+                decode_responses=True
             )
             # Test connection
             await self.redis_client.ping()
