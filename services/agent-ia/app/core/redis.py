@@ -21,25 +21,40 @@ class RedisManager:
         """Connect to Redis"""
         try:
             # Log connection attempt (masking password)
-            masked_url = settings.redis_url
-            if ":" in masked_url and "@" in masked_url:
-                try:
-                    # simplistic masking
-                    prefix = masked_url.split("@")[0]
-                    suffix = masked_url.split("@")[1]
-                    if ":" in prefix:
-                        scheme_user = prefix.split(":")[0] + ":" + prefix.split(":")[1]
-                        masked_url = f"{scheme_user}:****@{suffix}"
-                except:
-                    pass
-            logger.info(f"Attempting to connect to Redis at: {masked_url}")
-
-            # Smart URL handling: Strip 'default' user if present to avoid Auth errors
-            # Some Redis configurations reject 'default' user but accept implicit auth
+            import urllib.parse
+            
+            # Use settings.redis_url (already cleaned by pydantic validator)
             final_url = settings.redis_url
-            if "redis://default:" in final_url:
-                logger.info("Detected 'default' user in URL. Stripping it for compatibility...")
-                final_url = final_url.replace("redis://default:", "redis://:")
+            
+            # Parse URL for logging and sanity check
+            try:
+                parsed = urllib.parse.urlparse(final_url)
+                # Mask password for logging
+                if parsed.password:
+                    masked_netloc = parsed.netloc.replace(parsed.password, "****")
+                    logger.info(f"Connecting to Redis at: {parsed.scheme}://{masked_netloc}{parsed.path}")
+                    logger.info(f"Redis Password Length: {len(parsed.password)} chars")
+                else:
+                    logger.info(f"Connecting to Redis at: {parsed.scheme}://{parsed.hostname}:{parsed.port}{parsed.path} (No password)")
+                
+                # Check for 'default' user compatibility again (robustness)
+                if parsed.username == 'default':
+                     logger.info("Detected 'default' username. Stripping it for legacy compatibility.")
+                     # Reconstruct without username
+                     # netloc struct: user:pass@host:port
+                     new_netloc = f":{parsed.password}@{parsed.hostname}:{parsed.port}"
+                     final_url = urllib.parse.urlunparse((
+                         parsed.scheme,
+                         new_netloc,
+                         parsed.path,
+                         parsed.params,
+                         parsed.query,
+                         parsed.fragment
+                     ))
+            except Exception as e:
+                 logger.warning(f"Failed to parse/mask Redis URL for logging: {e}")
+                 # Fallback to simple logging
+                 logger.info(f"Attempting using raw URL (masked partial): {final_url[:15]}...")
 
             self.redis_client = redis.from_url(
                 final_url,

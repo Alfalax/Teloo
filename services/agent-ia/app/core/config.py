@@ -3,6 +3,7 @@ Configuration settings for Agent IA Service
 """
 
 from pydantic_settings import BaseSettings
+from pydantic import field_validator
 from typing import List, Optional
 import os
 
@@ -93,8 +94,16 @@ class Settings(BaseSettings):
     # Webhook Security
     webhook_signature_verification: bool = True
     
+    
     # Cache Configuration
     cache_ttl_hours: int = 24
+    
+    @field_validator("redis_url")
+    @classmethod
+    def clean_redis_url(cls, v: str) -> str:
+        if v:
+            return v.strip()
+        return v
     
     class Config:
         env_file = ".env"
