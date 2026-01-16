@@ -20,6 +20,20 @@ class RedisManager:
     async def connect(self):
         """Connect to Redis"""
         try:
+            # Log connection attempt (masking password)
+            masked_url = settings.redis_url
+            if ":" in masked_url and "@" in masked_url:
+                try:
+                    # simplistic masking
+                    prefix = masked_url.split("@")[0]
+                    suffix = masked_url.split("@")[1]
+                    if ":" in prefix:
+                        scheme_user = prefix.split(":")[0] + ":" + prefix.split(":")[1]
+                        masked_url = f"{scheme_user}:****@{suffix}"
+                except:
+                    pass
+            logger.info(f"Attempting to connect to Redis at: {masked_url}")
+
             self.redis_client = redis.from_url(
                 settings.redis_url,
                 encoding="utf-8",
