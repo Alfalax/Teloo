@@ -13,11 +13,34 @@ class RedisManager:
     
     async def connect(self):
         """Connect to Redis"""
-        self.redis_client = redis.from_url(
-            settings.REDIS_URL,
-            encoding="utf-8",
-            decode_responses=True
-        )
+        import logging
+        logger = logging.getLogger(__name__)
+        try:
+            # Log connection attempt (masking password)
+            masked_url = settings.REDIS_URL
+            if ":" in masked_url and "@" in masked_url:
+                try:
+                    # simplistic masking
+                    prefix = masked_url.split("@")[0]
+                    suffix = masked_url.split("@")[1]
+                    if ":" in prefix:
+                        scheme_user = prefix.split(":")[0] + ":" + prefix.split(":")[1]
+                        masked_url = f"{scheme_user}:****@{suffix}"
+                except:
+                    pass
+            logger.info(f"Attempting to connect to Redis at: {masked_url}")
+
+            self.redis_client = redis.from_url(
+                settings.REDIS_URL,
+                encoding="utf-8",
+                decode_responses=True
+            )
+            # Test connection
+            await self.redis_client.ping()
+            logger.info("Connected to Redis successfully")
+        except Exception as e:
+            logger.error(f"Failed to connect to Redis: {e}")
+            raise
         
     async def disconnect(self):
         """Disconnect from Redis"""
