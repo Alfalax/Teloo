@@ -44,7 +44,10 @@ class RedisManager:
             logger.info("Connected to Redis successfully")
         except Exception as e:
             logger.error(f"Failed to connect to Redis: {e}")
-            raise
+            # Do NOT raise exception here. Allow the app to start even if Redis fails.
+            # This enables the container to run and allows for debugging without crash loops.
+            # The liveness probe will pass, but the readiness probe will fail (correct behavior).
+            pass
     
     async def disconnect(self):
         """Disconnect from Redis"""
