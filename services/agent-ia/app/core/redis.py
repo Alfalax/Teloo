@@ -34,8 +34,15 @@ class RedisManager:
                     pass
             logger.info(f"Attempting to connect to Redis at: {masked_url}")
 
+            # Smart URL handling: Strip 'default' user if present to avoid Auth errors
+            # Some Redis configurations reject 'default' user but accept implicit auth
+            final_url = settings.redis_url
+            if "redis://default:" in final_url:
+                logger.info("Detected 'default' user in URL. Stripping it for compatibility...")
+                final_url = final_url.replace("redis://default:", "redis://:")
+
             self.redis_client = redis.from_url(
-                settings.redis_url,
+                final_url,
                 encoding="utf-8",
                 decode_responses=True,
                 max_connections=settings.redis_pool_size
