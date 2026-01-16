@@ -34,20 +34,22 @@ class RedisManager:
             except Exception:
                 logger.info("Attempting to connect to Redis (URL masking failed)")
 
+            # DEBUG: Override with known-good URL to test Env Var integrity
+            # User provided this URL which works for core-api
+            debug_url = "redis://default:WYI9cOvBMvDNc0L6Lfv8WM5qTD5wUDAm81blJZ5AOSoGJXHSqKlordZkSNAGnBYY@jcc0gooc84ks040s8gkkkg0o:6379/0"
+            logger.warning("!!! DEBUG MODE !!! Ignoring settings.redis_url and testing HARDCODED URL to rule out Env Var issues.")
+            
             # Use simple connection params matching core-api
             self.redis_client = redis.from_url(
-                settings.redis_url,
+                debug_url,
                 decode_responses=True
             )
             # Test connection
             await self.redis_client.ping()
-            logger.info("Connected to Redis successfully")
+            logger.info("Connected to Redis successfully (DEBUG URL WORKED)")
         except Exception as e:
             logger.error(f"Failed to connect to Redis: {e}")
-            # Do NOT raise exception here. Allow the app to start even if Redis fails.
-            # This enables the container to run and allows for debugging without crash loops.
-            # The liveness probe will pass, but the readiness probe will fail (correct behavior).
-            pass
+            raise
     
     async def disconnect(self):
         """Disconnect from Redis"""
