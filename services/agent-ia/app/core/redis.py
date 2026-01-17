@@ -18,55 +18,39 @@ class RedisManager:
         self.redis_client: Optional[redis.Redis] = None
     
     async def connect(self):
-        """Connect to Redis with auto-discovery of correct auth format"""
-        # Configuration (Hardcoded for debugging based on user input)
-        REDIS_HOST = "jcc0gooc84ks040s8gkkkg0o"
-        REDIS_PORT = "6379"
-        REDIS_PASS = "WYI9cOvBMvDNc0L6Lfv8WM5qTD5wUDAm81blJZ5AOSoGJXHSqKlordZkSNAGnBYY"
-        
-        # Candidate URLs to probe
-        candidates = [
-            # Try forcing RESP2 (Protocol 2) which is more compatible with some setups
-            ("RESP2 / Env Var (Stripped)",      settings.redis_url.strip(), {"protocol": 2}),
-            ("RESP2 / Env Var (RAW)",           settings.redis_url,         {"protocol": 2}),  # <-- NEW: Try exact raw string
-            ("RESP2 / Default User", f"redis://default:{REDIS_PASS}@{REDIS_HOST}:{REDIS_PORT}/0", {"protocol": 2}),
-        ]
-
-        logger.info("Starting Redis Connection Probe (Round 2: Protocols)...")
-
-        for name, url_template, *extra_args in candidates:
-            # Handle list vs tuple unpacking flexibility if I messed up candidates structure above
-            # Unpacking for list of tuples: (name, url) or (name, url, kwargs)
-            kwargs = extra_args[0] if extra_args else {}
+        """Connect to Redis"""
+        try:
+            # Standard secure connection logic
+            # We strip whitespace just in case (handled by config, but good double-check)
+            url = settings.redis_url.strip() if settings.redis_url else ""
             
-            # If it comes from tuple in list, it's just url
-            url = url_template
-            
+            # Masking for log
+            import urllib.parse
             try:
-                # Masking for log
-                masked = url.replace(REDIS_PASS, "****") if REDIS_PASS in url else url
-                logger.info(f"Probing: {name} | URL: {masked} | Kwargs: {kwargs}")
+                 parsed = urllib.parse.urlparse(url)
+                 if parsed.password:
+                     masked = url.replace(parsed.password, "****")
+                     logger.info(f"Connecting to Redis at: {masked}")
+                 else:
+                     logger.info(f"Connecting to Redis at: {url}")
+            except:
+                 logger.info("Connecting to Redis...")
 
-                # Pass kwargs (like protocol=2)
-                client = redis.from_url(url, decode_responses=True, **kwargs)
-                await client.ping()
-                
-                # If we get here, it worked!
-                logger.info(f"SUCCESS! Connected using: {name}")
-                self.redis_client = client
-                return
-
-            except Exception as e:
-                logger.warning(f"Failed probe {name}: {e}")
-                try:
-                   await client.close()
-                except:
-                   pass
-
-        logger.error("All Redis connection probes failed.")
-        # Fix: Use correct exception class
-        from redis.exceptions import AuthenticationError
-        raise AuthenticationError("Could not connect to Redis with any known configuration.")
+            self.redis_client = redis.from_url(
+                url,
+                decode_responses=True
+            )
+            
+            # Test connection
+            await self.redis_client.ping()
+            logger.info("Connected to Redis successfully")
+            
+        except Exception as e:
+            # SOFT FAIL: Log error but do not crash.
+            # This allows the container to start for manual debugging.
+            logger.error(f"Failed to connect to Redis (Startup): {e}")
+            logger.warning("Service starting in DEGRADED MODE without Redis.")
+            # Do not raise.
     
     async def disconnect(self):
         """Disconnect from Redis"""

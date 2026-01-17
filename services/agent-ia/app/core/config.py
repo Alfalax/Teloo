@@ -98,8 +98,12 @@ class Settings(BaseSettings):
     # Cache Configuration
     cache_ttl_hours: int = 24
     
-    # Removed validator to allow raw URL usage like core-api
-    pass
+    @field_validator("redis_url")
+    @classmethod
+    def clean_redis_url(cls, v: str) -> str:
+        if v:
+            return v.strip()
+        return v
     
     class Config:
         env_file = ".env"
