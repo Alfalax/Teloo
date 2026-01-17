@@ -26,21 +26,28 @@ class RedisManager:
         
         # Candidate URLs to probe
         candidates = [
-            ("Legacy (No User)", f"redis://:{REDIS_PASS}@{REDIS_HOST}:{REDIS_PORT}/0"),
-            ("Default User",     f"redis://default:{REDIS_PASS}@{REDIS_HOST}:{REDIS_PORT}/0"),
-            ("No Auth",          f"redis://{REDIS_HOST}:{REDIS_PORT}/0"),
-            ("Env Var",          settings.redis_url.strip())
+            # Try forcing RESP2 (Protocol 2) which is more compatible with some setups
+            ("RESP2 / Env Var",      settings.redis_url.strip(), {"protocol": 2}),
+            ("RESP2 / Default User", f"redis://default:{REDIS_PASS}@{REDIS_HOST}:{REDIS_PORT}/0", {"protocol": 2}),
         ]
 
-        logger.info("Starting Redis Connection Probe...")
+        logger.info("Starting Redis Connection Probe (Round 2: Protocols)...")
 
-        for name, url in candidates:
+        for name, url_template, *extra_args in candidates:
+            # Handle list vs tuple unpacking flexibility if I messed up candidates structure above
+            # Unpacking for list of tuples: (name, url) or (name, url, kwargs)
+            kwargs = extra_args[0] if extra_args else {}
+            
+            # If it comes from tuple in list, it's just url
+            url = url_template
+            
             try:
                 # Masking for log
                 masked = url.replace(REDIS_PASS, "****") if REDIS_PASS in url else url
-                logger.info(f"Probing: {name} | URL: {masked}")
+                logger.info(f"Probing: {name} | URL: {masked} | Kwargs: {kwargs}")
 
-                client = redis.from_url(url, decode_responses=True)
+                # Pass kwargs (like protocol=2)
+                client = redis.from_url(url, decode_responses=True, **kwargs)
                 await client.ping()
                 
                 # If we get here, it worked!
@@ -50,15 +57,15 @@ class RedisManager:
 
             except Exception as e:
                 logger.warning(f"Failed probe {name}: {e}")
-                # Explicitly close simple clients that failed
-                # (Note: from_url returns a client that manages a pool, close() is good practice)
                 try:
                    await client.close()
                 except:
                    pass
 
         logger.error("All Redis connection probes failed.")
-        raise redis.exceptions.AuthenticationError("Could not connect to Redis with any known configuration.")
+        # Fix: Use correct exception class
+        from redis.exceptions import AuthenticationError
+        raise AuthenticationError("Could not connect to Redis with any known configuration.")
     
     async def disconnect(self):
         """Disconnect from Redis"""
