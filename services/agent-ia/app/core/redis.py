@@ -35,8 +35,9 @@ class RedisManager:
                 logger.info("Attempting to connect to Redis (URL masking failed)")
             # DEBUG: Override with known-good URL to test Env Var integrity
             # User provided this URL which works for core-api
-            debug_url = "redis://default:WYI9cOvBMvDNc0L6Lfv8WM5qTD5wUDAm81blJZ5AOSoGJXHSqKlordZkSNAGnBYY@jcc0gooc84ks040s8gkkkg0o:6379/0"
-            logger.warning("!!! DEBUG MODE !!! Ignoring settings.redis_url and testing HARDCODED URL to rule out Env Var issues.")
+            # TEST 2: Remove 'default' username. Try legacy auth format.
+            debug_url = "redis://:WYI9cOvBMvDNc0L6Lfv8WM5qTD5wUDAm81blJZ5AOSoGJXHSqKlordZkSNAGnBYY@jcc0gooc84ks040s8gkkkg0o:6379/0"
+            logger.warning("!!! DEBUG MODE CHECK 2 !!! Testing HARDCODED URL **WITHOUT USERNAME**.")
             
             # Use simple connection params matching core-api
             self.redis_client = redis.from_url(
