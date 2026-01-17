@@ -18,38 +18,47 @@ class RedisManager:
         self.redis_client: Optional[redis.Redis] = None
     
     async def connect(self):
-        """Connect to Redis"""
-        try:
-            # Log connection attempt (masking password)
-            # Log connection attempt (masking password)
-            import urllib.parse
-            final_url = settings.redis_url
+        """Connect to Redis with auto-discovery of correct auth format"""
+        # Configuration (Hardcoded for debugging based on user input)
+        REDIS_HOST = "jcc0gooc84ks040s8gkkkg0o"
+        REDIS_PORT = "6379"
+        REDIS_PASS = "WYI9cOvBMvDNc0L6Lfv8WM5qTD5wUDAm81blJZ5AOSoGJXHSqKlordZkSNAGnBYY"
+        
+        # Candidate URLs to probe
+        candidates = [
+            ("Legacy (No User)", f"redis://:{REDIS_PASS}@{REDIS_HOST}:{REDIS_PORT}/0"),
+            ("Default User",     f"redis://default:{REDIS_PASS}@{REDIS_HOST}:{REDIS_PORT}/0"),
+            ("No Auth",          f"redis://{REDIS_HOST}:{REDIS_PORT}/0"),
+            ("Env Var",          settings.redis_url.strip())
+        ]
+
+        logger.info("Starting Redis Connection Probe...")
+
+        for name, url in candidates:
             try:
-                parsed = urllib.parse.urlparse(final_url)
-                if parsed.password:
-                    masked_netloc = parsed.netloc.replace(parsed.password, "****")
-                    logger.info(f"Attempting to connect to Redis at: {parsed.scheme}://{masked_netloc}{parsed.path}")
-                else:
-                    logger.info(f"Attempting to connect to Redis at: {parsed.scheme}://{parsed.hostname}:{parsed.port}{parsed.path}")
-            except Exception:
-                logger.info("Attempting to connect to Redis (URL masking failed)")
-            # DEBUG: Override with known-good URL to test Env Var integrity
-            # User provided this URL which works for core-api
-            # TEST 2: Remove 'default' username. Try legacy auth format.
-            debug_url = "redis://:WYI9cOvBMvDNc0L6Lfv8WM5qTD5wUDAm81blJZ5AOSoGJXHSqKlordZkSNAGnBYY@jcc0gooc84ks040s8gkkkg0o:6379/0"
-            logger.warning("!!! DEBUG MODE CHECK 2 !!! Testing HARDCODED URL **WITHOUT USERNAME**.")
-            
-            # Use simple connection params matching core-api
-            self.redis_client = redis.from_url(
-                debug_url,
-                decode_responses=True
-            )
-            # Test connection
-            await self.redis_client.ping()
-            logger.info("Connected to Redis successfully (DEBUG URL WORKED)")
-        except Exception as e:
-            logger.error(f"Failed to connect to Redis: {e}")
-            raise
+                # Masking for log
+                masked = url.replace(REDIS_PASS, "****") if REDIS_PASS in url else url
+                logger.info(f"Probing: {name} | URL: {masked}")
+
+                client = redis.from_url(url, decode_responses=True)
+                await client.ping()
+                
+                # If we get here, it worked!
+                logger.info(f"SUCCESS! Connected using: {name}")
+                self.redis_client = client
+                return
+
+            except Exception as e:
+                logger.warning(f"Failed probe {name}: {e}")
+                # Explicitly close simple clients that failed
+                # (Note: from_url returns a client that manages a pool, close() is good practice)
+                try:
+                   await client.close()
+                except:
+                   pass
+
+        logger.error("All Redis connection probes failed.")
+        raise redis.exceptions.AuthenticationError("Could not connect to Redis with any known configuration.")
     
     async def disconnect(self):
         """Disconnect from Redis"""
