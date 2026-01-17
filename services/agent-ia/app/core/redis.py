@@ -27,7 +27,8 @@ class RedisManager:
         # Candidate URLs to probe
         candidates = [
             # Try forcing RESP2 (Protocol 2) which is more compatible with some setups
-            ("RESP2 / Env Var",      settings.redis_url.strip(), {"protocol": 2}),
+            ("RESP2 / Env Var (Stripped)",      settings.redis_url.strip(), {"protocol": 2}),
+            ("RESP2 / Env Var (RAW)",           settings.redis_url,         {"protocol": 2}),  # <-- NEW: Try exact raw string
             ("RESP2 / Default User", f"redis://default:{REDIS_PASS}@{REDIS_HOST}:{REDIS_PORT}/0", {"protocol": 2}),
         ]
 
