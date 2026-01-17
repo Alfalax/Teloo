@@ -21,7 +21,6 @@ class RedisManager:
         """Connect to Redis"""
         try:
             # Standard secure connection logic
-            # We strip whitespace just in case (handled by config, but good double-check)
             url = settings.redis_url.strip() if settings.redis_url else ""
             
             # Masking for log
@@ -46,11 +45,8 @@ class RedisManager:
             logger.info("Connected to Redis successfully")
             
         except Exception as e:
-            # SOFT FAIL: Log error but do not crash.
-            # This allows the container to start for manual debugging.
-            logger.error(f"Failed to connect to Redis (Startup): {e}")
-            logger.warning("Service starting in DEGRADED MODE without Redis.")
-            # Do not raise.
+            logger.error(f"Failed to connect to Redis: {e}")
+            raise
     
     async def disconnect(self):
         """Disconnect from Redis"""
