@@ -37,7 +37,8 @@ class RedisManager:
 
             self.redis_client = redis.from_url(
                 url,
-                decode_responses=True
+                decode_responses=True,
+                protocol=2,  # Force RESP2 to avoid RESP3 auth handshake issues
             )
             
             # Test connection

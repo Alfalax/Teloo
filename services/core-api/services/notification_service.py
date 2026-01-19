@@ -10,7 +10,7 @@ import redis.asyncio as redis
 from datetime import datetime
 import json
 
-from ..models.user import Usuario
+from models.user import Usuario
 from ..models.solicitud import Solicitud
 from ..models.oferta import Oferta
 from .events_service import events_service
