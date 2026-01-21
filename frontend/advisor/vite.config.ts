@@ -41,6 +41,7 @@ export default defineConfig({
     host: '0.0.0.0',
     port: 3001,
     strictPort: true,
+    allowedHosts: ['advisor.teloo.cloud'],
   },
   // Suppress ESLint errors during build
   esbuild: {
