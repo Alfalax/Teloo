@@ -97,5 +97,8 @@ EXPOSE 3001
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
     CMD curl -f http://localhost:3001 || exit 1
 
+# Install serve for static file serving (bypasses Vite security checks)
+RUN npm install -g serve
+
 # Production command (serve built files)
-CMD ["npm", "run", "preview", "--", "--host", "0.0.0.0", "--port", "3001"]
+CMD ["serve", "-s", "dist", "-l", "3001"]
