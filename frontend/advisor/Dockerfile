@@ -101,4 +101,5 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
 RUN npm install -g serve
 
 # Production command (serve built files)
-CMD ["serve", "-s", "dist", "-l", "3001"]
+# Production command (serve built files) - USING ENTRYPOINT TO PREVENT OVERRIDE
+ENTRYPOINT ["serve", "-s", "dist", "-l", "3001"]
