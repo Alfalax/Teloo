@@ -90,6 +90,9 @@ RUN groupadd -g 1001 nodejs && \
     useradd -r -u 1001 -g nodejs nextjs && \
     chown -R nextjs:nodejs /app
 
+# Install serve for static file serving (bypasses Vite security checks)
+RUN npm install -g serve
+
 USER nextjs
 
 EXPOSE 3001
@@ -97,8 +100,7 @@ EXPOSE 3001
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
     CMD curl -f http://localhost:3001 || exit 1
 
-# Install serve for static file serving (bypasses Vite security checks)
-RUN npm install -g serve
+
 
 # Production command (serve built files)
 # Production command (serve built files) - USING ENTRYPOINT TO PREVENT OVERRIDE
