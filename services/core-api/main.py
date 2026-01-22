@@ -90,13 +90,22 @@ async def options_middleware(request, call_next):
     """Allow OPTIONS requests without authentication for CORS preflight"""
     if request.method == "OPTIONS":
         from fastapi.responses import Response
+        origin = request.headers.get("origin", "*")
         return Response(status_code=200, headers={
-            "Access-Control-Allow-Origin": request.headers.get("origin", "*"),
-            "Access-Control-Allow-Methods": ", ".join(allow_methods),
-            "Access-Control-Allow-Headers": ", ".join(allow_headers),
+            "Access-Control-Allow-Origin": origin,
+            "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS, PATCH",
+            "Access-Control-Allow-Headers": "Authorization, Content-Type, X-Requested-With, Accept, Origin",
             "Access-Control-Allow-Credentials": "true",
+            "Access-Control-Max-Age": "86400",
         })
-    return await call_next(request)
+    
+    # Add CORS headers to all responses
+    response = await call_next(request)
+    origin = request.headers.get("origin")
+    if origin and origin in origins:
+        response.headers["Access-Control-Allow-Origin"] = origin
+        response.headers["Access-Control-Allow-Credentials"] = "true"
+    return response
 
 # Initialize database
 init_db(app)
