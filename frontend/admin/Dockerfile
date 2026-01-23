@@ -77,8 +77,8 @@ FROM nginx:alpine AS production
 # Copy built assets from builder
 COPY --from=builder /app/dist /app/dist
 
-# Copy custom nginx configuration
-COPY nginx.conf /etc/nginx/conf.d/default.conf
+# Copy custom nginx configuration template
+COPY nginx.conf /etc/nginx/templates/default.conf.template
 
 # Expose port 80 (Standard web port)
 EXPOSE 80
@@ -89,4 +89,5 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
 
 # Start Nginx
 CMD ["nginx", "-g", "daemon off;"]
+
 
