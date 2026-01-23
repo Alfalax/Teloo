@@ -63,7 +63,10 @@ if cors_origins_env:
         origins = [o.strip() for o in cors_origins_env.split(",") if o.strip()]
         logger.info(f"CORS origins loaded from comma-separated list: {origins}")
 else:
+    # Default origins include production domains
     origins = [
+        "https://admin.teloo.cloud",
+        "https://advisor.teloo.cloud",
         "http://localhost:3000",
         "http://localhost:3001",
         "http://127.0.0.1:3000",
