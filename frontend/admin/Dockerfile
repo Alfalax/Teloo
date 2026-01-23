@@ -71,29 +71,22 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
 # Development command
 CMD ["npm", "run", "dev", "--", "--host", "0.0.0.0"]
 
-# Stage 4: Production (Serve with Nginx)
+# Stage 4: Production (Serve with Nginx + API Proxy)
 FROM nginx:alpine AS production
 
 # Copy built assets from builder
-COPY --from=builder /app/dist /usr/share/nginx/html
+COPY --from=builder /app/dist /app/dist
 
-# Copy custom nginx config to handle SPA routing (Client-side routing fallback)
-RUN echo 'server { \
-    listen 80; \
-    server_name localhost; \
-    root /usr/share/nginx/html; \
-    index index.html; \
-    location / { \
-        try_files $uri $uri/ /index.html; \
-    } \
-}' > /etc/nginx/conf.d/default.conf
+# Copy custom nginx configuration
+COPY nginx.conf /etc/nginx/conf.d/default.conf
 
 # Expose port 80 (Standard web port)
 EXPOSE 80
 
 # Healthcheck for Nginx
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
-    CMD curl -f http://localhost:80 || exit 1
+    CMD wget --no-verbose --tries=1 --spider http://localhost:80 || exit 1
 
 # Start Nginx
 CMD ["nginx", "-g", "daemon off;"]
+

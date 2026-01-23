@@ -71,37 +71,21 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
 # Development command
 CMD ["npm", "run", "dev", "--", "--host", "0.0.0.0", "--port", "3001"]
 
-# Stage 4: Production (for future use)
-FROM node:18-slim AS production
-WORKDIR /app
-
-ENV NODE_ENV=production
-
-# Install only curl for health checks
-RUN apt-get update && apt-get install -y curl && rm -rf /var/lib/apt/lists/*
+# Stage 4: Production (Serve with Nginx + API Proxy)
+FROM nginx:alpine AS production
 
 # Copy built assets from builder
-COPY --from=builder /app/dist ./dist
-COPY --from=deps /app/node_modules ./node_modules
-COPY package.json ./
+COPY --from=builder /app/dist /app/dist
 
-# Create non-root user
-RUN groupadd -g 1001 nodejs && \
-    useradd -r -u 1001 -g nodejs nextjs && \
-    chown -R nextjs:nodejs /app
+# Copy custom nginx configuration
+COPY nginx.conf /etc/nginx/conf.d/default.conf
 
-# Install serve for static file serving (bypasses Vite security checks)
-RUN npm install -g serve
+# Expose port 80 (Standard web port)
+EXPOSE 80
 
-USER nextjs
-
-EXPOSE 3001
-
+# Healthcheck for Nginx
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
-    CMD curl -f http://localhost:3001 || exit 1
+    CMD wget --no-verbose --tries=1 --spider http://localhost:80 || exit 1
 
-
-
-# Production command (serve built files)
-# Production command (serve built files) - USING ENTRYPOINT TO PREVENT OVERRIDE
-ENTRYPOINT ["serve", "-s", "dist", "-l", "3001"]
+# Start Nginx
+CMD ["nginx", "-g", "daemon off;"]
