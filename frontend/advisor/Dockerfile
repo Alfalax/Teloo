@@ -77,6 +77,9 @@ FROM nginx:alpine AS production
 # Copy built assets from builder
 COPY --from=builder /app/dist /app/dist
 
+# Force rebuild
+ENV FORCE_REBUILD=20260123-1200
+
 # Copy custom nginx configuration template
 COPY nginx.conf /etc/nginx/templates/default.conf.template
 
