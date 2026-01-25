@@ -14,7 +14,7 @@ RUN npm ci
 COPY . .
 
 # Build
-RUN npm run build
+RUN npm run build:prod
 
 # Install serve
 RUN npm install -g serve
