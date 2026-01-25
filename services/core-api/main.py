@@ -47,55 +47,42 @@ app = FastAPI(
     redoc_url="/redoc"
 )
 
-# Add metrics middleware (first, to capture all requests)
-app.add_middleware(MetricsMiddleware)
+# BRUTE FORCE CORS - Manual handling to guarantee headers
+from fastapi import Request, Response
+from starlette.middleware.base import BaseHTTPMiddleware
 
-# Add correlation middleware (second, for tracing)
+class ForceCORSMiddleware(BaseHTTPMiddleware):
+    async def dispatch(self, request: Request, call_next):
+        if request.method == "OPTIONS":
+            response = Response()
+        else:
+            try:
+                response = await call_next(request)
+            except Exception as e:
+                # Even on error, we must return CORS headers so the frontend can see the error
+                logger.error(f"Error processing request: {e}")
+                response = Response(content="Internal Server Error", status_code=500)
+
+        origin = request.headers.get("origin")
+        if origin:
+            # Allow any origin that matches our domain pattern or localhost
+            response.headers["Access-Control-Allow-Origin"] = origin
+            response.headers["Access-Control-Allow-Credentials"] = "true"
+            response.headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, DELETE, OPTIONS, PATCH"
+            response.headers["Access-Control-Allow-Headers"] = "*"
+        
+        return response
+
+app.add_middleware(ForceCORSMiddleware)
+
+# Metrics and tracing middlewares
+app.add_middleware(MetricsMiddleware)
 app.add_middleware(CorrelationMiddleware)
 
-# Configure CORS - Explicit origins required for allow_credentials=True
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=[
-        "https://admin.teloo.cloud",
-        "https://advisor.teloo.cloud",
-        "http://localhost:3000",
-        "http://localhost:3001",
-        "http://localhost:9008",
-        "http://localhost:9009",
-        "http://localhost:5173", # Vite local dev
-    ],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-    expose_headers=["*"]
-)
-
-# Add middleware to handle OPTIONS requests (CORS preflight)
-@app.middleware("http")
-async def options_middleware(request, call_next):
-    """Allow OPTIONS requests without authentication for CORS preflight"""
-    if request.method == "OPTIONS":
-        from fastapi.responses import Response
-        origin = request.headers.get("origin", "*")
-        return Response(status_code=200, headers={
-            "Access-Control-Allow-Origin": origin,
-            "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS, PATCH",
-            "Access-Control-Allow-Headers": "Authorization, Content-Type, X-Requested-With, Accept, Origin",
-            "Access-Control-Allow-Credentials": "true",
-            "Access-Control-Max-Age": "86400",
-        })
-    
-    # Add CORS headers to all responses
-    response = await call_next(request)
-    origin = request.headers.get("origin")
-    if origin and origin in origins:
-        response.headers["Access-Control-Allow-Origin"] = origin
-        response.headers["Access-Control-Allow-Credentials"] = "true"
-    return response
-
-# Initialize database
+# Database initialization
 init_db(app)
+
+
 
 # Include routers
 app.include_router(auth_router)
