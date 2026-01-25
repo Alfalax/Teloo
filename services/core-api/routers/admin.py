@@ -503,13 +503,17 @@ async def create_usuario(
         if existing:
             raise HTTPException(status_code=400, detail="El email ya está registrado")
         
-        # Validar password
-        if 'password' not in usuario_data or not usuario_data['password']:
-             raise HTTPException(status_code=400, detail="La contraseña es obligatoria")
+        # Validar password o asignar por defecto
+        password_final = usuario_data.get('password')
+        password_generada = False
+        
+        if not password_final:
+             password_final = "Teloo2026."
+             password_generada = True
 
         # Crear usuario
         from services.auth_service import AuthService
-        password_hash = AuthService.get_password_hash(usuario_data['password'])
+        password_hash = AuthService.get_password_hash(password_final)
         
         usuario = await Usuario.create(
             email=usuario_data['email'],
@@ -521,7 +525,7 @@ async def create_usuario(
             estado=EstadoUsuario(usuario_data.get('estado', 'ACTIVO'))
         )
         
-        return {
+        response_data = {
             "success": True,
             "usuario": {
                 "id": str(usuario.id),
@@ -536,6 +540,12 @@ async def create_usuario(
                 "updated_at": usuario.updated_at.isoformat()
             }
         }
+        
+        if password_generada:
+            response_data["password_temporal"] = password_final
+            response_data["message"] = f"Usuario creado. Contraseña temporal: {password_final}"
+            
+        return response_data
     except HTTPException:
         raise
     except Exception as e:
