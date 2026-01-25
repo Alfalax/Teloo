@@ -79,18 +79,18 @@ WORKDIR /app
 # Copy built assets from builder
 COPY --from=builder /app/dist ./dist
 
-# Install serve globally
-RUN npm install -g serve
+# Install serve and curl globally
+RUN apt-get update && apt-get install -y curl && rm -rf /var/lib/apt/lists/* && npm install -g serve
 
-# Expose port 3001
-EXPOSE 3001
+# Expose port 9009
+EXPOSE 9009
 
 # Healthcheck
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
-    CMD curl -f http://localhost:3001 || exit 1
+    CMD curl -f http://localhost:9009 || exit 1
 
 # Serve static files
-CMD ["serve", "-s", "dist", "-l", "3001"]
+CMD ["serve", "-s", "dist", "-l", "9009"]
 
 
 
