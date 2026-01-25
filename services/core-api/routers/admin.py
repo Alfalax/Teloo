@@ -515,14 +515,35 @@ async def create_usuario(
         from services.auth_service import AuthService
         password_hash = AuthService.get_password_hash(password_final)
         
+        # Mapeo de roles para robustez (soporta español e inglés)
+        rol_input = usuario_data.get('rol', 'CLIENT')
+        rol_mapping = {
+            "Administrador": "ADMIN",
+            "Asesor": "ADVISOR",
+            "Analista": "ANALYST",
+            "Soporte": "SUPPORT",
+            "Cliente": "CLIENT",
+            # English fallback
+            "ADMIN": "ADMIN",
+            "ADVISOR": "ADVISOR",
+            "ANALYST": "ANALYST",
+            "SUPPORT": "SUPPORT",
+            "CLIENT": "CLIENT"
+        }
+        
+        rol_valido = rol_mapping.get(rol_input, "CLIENT")
+        
+        # Validar estado
+        estado_input = usuario_data.get('estado', 'ACTIVO')
+        
         usuario = await Usuario.create(
             email=usuario_data['email'],
             password_hash=password_hash,
             nombre=usuario_data['nombre'],
             apellido=usuario_data['apellido'],
             telefono=usuario_data['telefono'],
-            rol=RolUsuario(usuario_data.get('rol', 'CLIENT')),
-            estado=EstadoUsuario(usuario_data.get('estado', 'ACTIVO'))
+            rol=RolUsuario(rol_valido),
+            estado=EstadoUsuario(estado_input)
         )
         
         response_data = {
