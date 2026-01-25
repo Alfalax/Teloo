@@ -11,8 +11,8 @@ from datetime import datetime
 import json
 
 from models.user import Usuario
-from ..models.solicitud import Solicitud
-from ..models.oferta import Oferta
+from models.solicitud import Solicitud
+from models.oferta import Oferta
 from .events_service import events_service
 
 logger = logging.getLogger(__name__)
@@ -270,7 +270,7 @@ class NotificationService:
         """Send notification via WhatsApp (Agent IA)"""
         try:
             # Get user's phone number
-            from ..models.user import Usuario
+            from models.user import Usuario
             user = await Usuario.get_or_none(id=user_id)
             
             if not user or not user.telefono:
