@@ -71,29 +71,26 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
 # Development command
 CMD ["npm", "run", "dev", "--", "--host", "0.0.0.0", "--port", "3001"]
 
-# Stage 4: Production (Serve with Nginx + API Proxy)
-FROM nginx:alpine AS production
+# Stage 4: Production (Simple static server)
+FROM node:18-slim AS production
+
+WORKDIR /app
 
 # Copy built assets from builder
-COPY --from=builder /app/dist /app/dist
+COPY --from=builder /app/dist ./dist
 
-# Force rebuild
-ENV FORCE_REBUILD=20260123-1200
+# Install serve globally
+RUN npm install -g serve
 
-# Copy custom nginx configuration template
-COPY nginx.conf /etc/nginx/templates/default.conf.template
+# Expose port 3001
+EXPOSE 3001
 
-# Expose port 80 (Standard web port)
-EXPOSE 80
-
-# Configure Nginx to only substitute BACKEND_URL variable
-ENV NGINX_ENVSUBST_FILTER=BACKEND_URL
-
-# Healthcheck for Nginx
+# Healthcheck
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
-    CMD wget --no-verbose --tries=1 --spider http://localhost:80 || exit 1
+    CMD curl -f http://localhost:3001 || exit 1
 
-CMD ["nginx", "-g", "daemon off;"]
+# Serve static files
+CMD ["serve", "-s", "dist", "-l", "3001"]
 
 
 

@@ -53,38 +53,14 @@ app.add_middleware(MetricsMiddleware)
 # Add correlation middleware (second, for tracing)
 app.add_middleware(CorrelationMiddleware)
 
-# Configure CORS
-cors_origins_env = os.getenv("BACKEND_CORS_ORIGINS")
-if cors_origins_env:
-    try:
-        origins = json.loads(cors_origins_env)
-        logger.info(f"CORS origins loaded from JSON: {origins}")
-    except Exception as e:
-        origins = [o.strip() for o in cors_origins_env.split(",") if o.strip()]
-        logger.info(f"CORS origins loaded from comma-separated list: {origins}")
-else:
-    # Default origins include production domains
-    origins = [
-        "https://admin.teloo.cloud",
-        "https://advisor.teloo.cloud",
-        "http://localhost:3000",
-        "http://localhost:3001",
-        "http://127.0.0.1:3000",
-        "http://127.0.0.1:3001",
-    ]
-    logger.info(f"CORS origins using defaults: {origins}")
-
-allow_methods = ["GET", "POST", "PUT", "DELETE", "OPTIONS"] if environment == "production" else ["*"]
-allow_headers = ["Authorization", "Content-Type", "X-Requested-With"] if environment == "production" else ["*"]
-
-logger.info(f"Configuring CORS middleware - Origins: {origins}, Methods: {allow_methods}, Headers: {allow_headers}")
-
+# Configure CORS - Allow all origins for simplicity
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=origins,
+    allow_origins=["*"],
     allow_credentials=True,
-    allow_methods=allow_methods,
-    allow_headers=allow_headers,
+    allow_methods=["*"],
+    allow_headers=["*"],
+    expose_headers=["*"]
 )
 
 # Add middleware to handle OPTIONS requests (CORS preflight)
