@@ -21,7 +21,7 @@ async def test_create_user():
         # Inicializar Tortoise
         await Tortoise.init(
             db_url=db_url,
-            modules={"models": ["models.user", "models.solicitud", "models.oferta"]}
+            modules={"models": ["models.user", "models.solicitud", "models.oferta", "models.geografia"]}
         )
         print("Tortoise inicializado.")
         
