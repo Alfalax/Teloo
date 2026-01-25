@@ -59,17 +59,17 @@ class ForceCORSMiddleware(BaseHTTPMiddleware):
             try:
                 response = await call_next(request)
             except Exception as e:
-                # Even on error, we must return CORS headers so the frontend can see the error
                 logger.error(f"Error processing request: {e}")
                 response = Response(content="Internal Server Error", status_code=500)
 
         origin = request.headers.get("origin")
         if origin:
-            # Allow any origin that matches our domain pattern or localhost
-            response.headers["Access-Control-Allow-Origin"] = origin
-            response.headers["Access-Control-Allow-Credentials"] = "true"
-            response.headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, DELETE, OPTIONS, PATCH"
-            response.headers["Access-Control-Allow-Headers"] = "*"
+            # Permitir cualquier origen de teloo.cloud o localhost
+            if ".teloo.cloud" in origin or "localhost" in origin:
+                response.headers["Access-Control-Allow-Origin"] = origin
+                response.headers["Access-Control-Allow-Credentials"] = "true"
+                response.headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, DELETE, OPTIONS, PATCH"
+                response.headers["Access-Control-Allow-Headers"] = "*"
         
         return response
 
