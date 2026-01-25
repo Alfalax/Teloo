@@ -53,10 +53,18 @@ app.add_middleware(MetricsMiddleware)
 # Add correlation middleware (second, for tracing)
 app.add_middleware(CorrelationMiddleware)
 
-# Configure CORS - Allow all origins for simplicity
+# Configure CORS - Explicit origins required for allow_credentials=True
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=[
+        "https://admin.teloo.cloud",
+        "https://advisor.teloo.cloud",
+        "http://localhost:3000",
+        "http://localhost:3001",
+        "http://localhost:9008",
+        "http://localhost:9009",
+        "http://localhost:5173", # Vite local dev
+    ],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
