@@ -498,10 +498,23 @@ async def create_usuario(
         from models.enums import RolUsuario, EstadoUsuario
         
         # Verificar si el email ya existe
-        # Verificar si el email ya existe
         existing = await Usuario.get_or_none(email=usuario_data['email'])
         if existing:
             raise HTTPException(status_code=400, detail="El email ya está registrado")
+        
+        # Procesar nombre_completo si viene en lugar de nombre/apellido separados
+        if 'nombre_completo' in usuario_data and 'nombre' not in usuario_data:
+            partes = usuario_data['nombre_completo'].strip().split(maxsplit=1)
+            nombre = partes[0] if len(partes) > 0 else "Usuario"
+            apellido = partes[1] if len(partes) > 1 else "Sin Apellido"
+        else:
+            nombre = usuario_data.get('nombre', 'Usuario')
+            apellido = usuario_data.get('apellido', 'Sin Apellido')
+        
+        # Validar telefono (obligatorio)
+        if 'telefono' not in usuario_data or not usuario_data['telefono']:
+            raise HTTPException(status_code=400, detail="El teléfono es obligatorio")
+        telefono = usuario_data['telefono']
         
         # Validar password o asignar por defecto
         password_final = usuario_data.get('password')
@@ -539,9 +552,9 @@ async def create_usuario(
         usuario = await Usuario.create(
             email=usuario_data['email'],
             password_hash=password_hash,
-            nombre=usuario_data['nombre'],
-            apellido=usuario_data['apellido'],
-            telefono=usuario_data['telefono'],
+            nombre=nombre,
+            apellido=apellido,
+            telefono=telefono,
             rol=RolUsuario(rol_valido),
             estado=EstadoUsuario(estado_input)
         )
