@@ -100,6 +100,7 @@ export interface Usuario {
   id: string;
   nombre_completo: string;
   email: string;
+  telefono?: string;
   rol: 'ADMIN' | 'ADVISOR' | 'ANALYST' | 'SUPPORT' | 'CLIENT';
   estado: 'ACTIVO' | 'INACTIVO' | 'SUSPENDIDO';
   created_at: string;
@@ -116,7 +117,7 @@ export interface Rol {
   updated_at: string;
 }
 
-export type CategoriaConfiguracion = 
+export type CategoriaConfiguracion =
   | 'pesos_escalamiento'
   | 'umbrales_niveles'
   | 'tiempos_espera_nivel'

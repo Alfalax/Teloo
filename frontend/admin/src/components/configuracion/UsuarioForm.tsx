@@ -17,6 +17,7 @@ import { ROLES_DISPONIBLES, ESTADOS_USUARIO } from '@/types/configuracion';
 const usuarioSchema = z.object({
   nombre_completo: z.string().min(2, 'El nombre debe tener al menos 2 caracteres'),
   email: z.string().email('Email inválido'),
+  telefono: z.string().regex(/^\+57[0-9]{10}$/, 'Formato: +57XXXXXXXXXX (10 dígitos)'),
   rol: z.enum(['ADMIN', 'ADVISOR', 'ANALYST', 'SUPPORT', 'CLIENT']),
   estado: z.enum(['ACTIVO', 'INACTIVO', 'SUSPENDIDO'])
 });
@@ -42,9 +43,11 @@ export function UsuarioForm({ initialData, onSubmit, onCancel, isEditing = false
     defaultValues: initialData ? {
       nombre_completo: initialData.nombre_completo,
       email: initialData.email,
+      telefono: initialData.telefono || '',
       rol: initialData.rol,
       estado: initialData.estado
     } : {
+      telefono: '+57',
       rol: 'CLIENT',
       estado: 'ACTIVO'
     }
@@ -85,6 +88,19 @@ export function UsuarioForm({ initialData, onSubmit, onCancel, isEditing = false
         />
         {errors.email && (
           <p className="text-sm text-red-600">{errors.email.message}</p>
+        )}
+      </div>
+
+      <div className="space-y-2">
+        <Label htmlFor="telefono">Teléfono</Label>
+        <Input
+          id="telefono"
+          type="tel"
+          placeholder="+573001234567"
+          {...register('telefono')}
+        />
+        {errors.telefono && (
+          <p className="text-sm text-red-600">{errors.telefono.message}</p>
         )}
       </div>
 
