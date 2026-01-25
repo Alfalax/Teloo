@@ -498,23 +498,19 @@ async def create_usuario(
         from models.enums import RolUsuario, EstadoUsuario
         
         # Verificar si el email ya existe
-        logger.info("Verificando existencia de email...")
+        # Verificar si el email ya existe
         existing = await Usuario.get_or_none(email=usuario_data['email'])
         if existing:
-            logger.warning(f"Email ya registrado: {usuario_data.get('email')}")
             raise HTTPException(status_code=400, detail="El email ya está registrado")
         
-        # Hashear password (posible punto de fallo)
-        logger.info("Generando hash de contraseña...")
-        try:
-            password_hash = AuthService.get_password_hash(usuario_data['password'])
-            logger.info("Hash generado correctamente")
-        except Exception as e:
-            logger.error(f"CRASH POTENCIAL AL HASHEAR: {str(e)}")
-            raise e
+        # Validar password
+        if 'password' not in usuario_data or not usuario_data['password']:
+             raise HTTPException(status_code=400, detail="La contraseña es obligatoria")
 
         # Crear usuario
-        logger.info("Guardando usuario en base de datos...")
+        from services.auth_service import AuthService
+        password_hash = AuthService.get_password_hash(usuario_data['password'])
+        
         usuario = await Usuario.create(
             email=usuario_data['email'],
             password_hash=password_hash,
@@ -524,7 +520,6 @@ async def create_usuario(
             rol=RolUsuario(usuario_data.get('rol', 'CLIENT')),
             estado=EstadoUsuario(usuario_data.get('estado', 'ACTIVO'))
         )
-        logger.info(f"Usuario creado con ID: {usuario.id}")
         
         return {
             "success": True,
@@ -544,9 +539,6 @@ async def create_usuario(
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Error NO CONTROLADO creando usuario: {str(e)}")
-        import traceback
-        logger.error(traceback.format_exc())
         raise HTTPException(status_code=500, detail=f"Error creando usuario: {str(e)}")
 
 
