@@ -2,7 +2,7 @@
 FROM node:18-slim
 
 # Cache buster
-ARG CACHE_BUST=2026-01-24-v1
+ARG CACHE_BUST=2026-01-24-v3
 
 WORKDIR /app
 
@@ -16,11 +16,15 @@ COPY . .
 # Build
 RUN npm run build:prod
 
-# Install serve
-RUN npm install -g serve
+# Install serve and curl
+RUN apt-get update && apt-get install -y curl && rm -rf /var/lib/apt/lists/* && npm install -g serve
 
 # Expose port
 EXPOSE 9009
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
+    CMD curl -f http://localhost:9009 || exit 1
 
 # Start
 CMD ["serve", "-s", "dist", "-l", "9009"]
