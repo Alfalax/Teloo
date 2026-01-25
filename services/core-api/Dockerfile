@@ -30,12 +30,12 @@ RUN useradd --create-home --shell /bin/bash app \
 USER app
 
 # Expose port
-EXPOSE 9002
+EXPOSE 8000
 
 # Health check uses liveness probe to verify process is running
 # Detailed dependency checks are available at /health but shouldn't fail the container boot
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
-    CMD curl -f http://localhost:9002/health/live || exit 1
+    CMD curl -f http://localhost:8000/health/live || exit 1
 
 # Default command
-CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "9002"]
+CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
