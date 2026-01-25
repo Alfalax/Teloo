@@ -15,14 +15,13 @@ from models.user import Usuario
 from models.enums import RolUsuario, EstadoUsuario
 from utils.secrets import get_jwt_config
 
-# try:
-#     pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto", bcrypt__rounds=12)
-#     pwd_context.hash("test")
-# except Exception:
-#     pwd_context = CryptContext(schemes=["pbkdf2_sha256"], deprecated="auto")
+try:
+    pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto", bcrypt__rounds=12)
+    pwd_context.hash("test")
+except Exception:
+    pwd_context = CryptContext(schemes=["pbkdf2_sha256"], deprecated="auto")
 
-# FORCE PBKDF2 due to potential segfaults with bcrypt in Alpine
-pwd_context = CryptContext(schemes=["pbkdf2_sha256"], deprecated="auto")
+# FORCE PBKDF2 removed - going back to default behavior
 
 JWT_CONFIG = get_jwt_config()
 SECRET_KEY = JWT_CONFIG.get("secret_key")
