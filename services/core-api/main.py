@@ -79,6 +79,11 @@ app.add_middleware(ForceCORSMiddleware)
 app.add_middleware(MetricsMiddleware)
 app.add_middleware(CorrelationMiddleware)
 
+# Proxy Headers Middleware - CRITICAL for generating correct HTTPS URLs behind Nginx/Coolify
+# This fixes the "Mixed Content" issue where backend returns http:// links for pagination
+from uvicorn.middleware.proxy_headers import ProxyHeadersMiddleware
+app.add_middleware(ProxyHeadersMiddleware, trusted_hosts="*")
+
 # Database initialization
 init_db(app)
 
