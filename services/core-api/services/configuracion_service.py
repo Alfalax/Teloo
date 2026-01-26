@@ -495,12 +495,147 @@ class ConfiguracionService:
         Returns:
             Dict: Metadatos por categoría
         """
+        # Metadata estático para parametros_generales
+        PARAMETROS_METADATA = {
+            'ofertas_minimas_deseadas': {
+                'min': 1,
+                'max': 10,
+                'default': 2,
+                'unit': 'ofertas',
+                'description': 'Número mínimo de ofertas deseadas por solicitud'
+            },
+            'precio_minimo_oferta': {
+                'min': 100,
+                'max': 1000000,
+                'default': 1000,
+                'unit': 'COP',
+                'description': 'Precio mínimo aceptable para una oferta'
+            },
+            'precio_maximo_oferta': {
+                'min': 1000,
+                'max': 100000000,
+                'default': 50000000,
+                'unit': 'COP',
+                'description': 'Precio máximo aceptable para una oferta'
+            },
+            'garantia_minima_meses': {
+                'min': 0,
+                'max': 120,
+                'default': 1,
+                'unit': 'meses',
+                'description': 'Garantía mínima requerida'
+            },
+            'garantia_maxima_meses': {
+                'min': 1,
+                'max': 120,
+                'default': 60,
+                'unit': 'meses',
+                'description': 'Garantía máxima permitida'
+            },
+            'tiempo_entrega_minimo_dias': {
+                'min': 0,
+                'max': 365,
+                'default': 0,
+                'unit': 'días',
+                'description': 'Tiempo de entrega mínimo'
+            },
+            'tiempo_entrega_maximo_dias': {
+                'min': 1,
+                'max': 365,
+                'default': 90,
+                'unit': 'días',
+                'description': 'Tiempo de entrega máximo permitido'
+            },
+            'cobertura_minima_porcentaje': {
+                'min': 0,
+                'max': 100,
+                'default': 50,
+                'unit': '%',
+                'description': 'Porcentaje mínimo de cobertura requerido'
+            },
+            'timeout_evaluacion_segundos': {
+                'min': 1,
+                'max': 30,
+                'default': 5,
+                'unit': 'segundos',
+                'description': 'Tiempo máximo para evaluación automática'
+            },
+            'vigencia_auditoria_dias': {
+                'min': 1,
+                'max': 365,
+                'default': 30,
+                'unit': 'días',
+                'description': 'Días de vigencia de una auditoría'
+            },
+            'timeout_ofertas_horas': {
+                'min': 1,
+                'max': 168,
+                'default': 20,
+                'unit': 'horas',
+                'description': 'Tiempo máximo para que expire una oferta'
+            },
+            'notificacion_expiracion_horas_antes': {
+                'min': 1,
+                'max': 24,
+                'default': 2,
+                'unit': 'horas',
+                'description': 'Horas antes de expiración para notificar'
+            },
+            'confianza_minima_operar': {
+                'min': 1.0,
+                'max': 5.0,
+                'default': 2.0,
+                'unit': 'estrellas',
+                'description': 'Confianza mínima para que un asesor opere'
+            },
+            'periodo_actividad_reciente_dias': {
+                'min': 1,
+                'max': 90,
+                'default': 30,
+                'unit': 'días',
+                'description': 'Período para calcular actividad reciente'
+            },
+            'periodo_desempeno_historico_meses': {
+                'min': 1,
+                'max': 24,
+                'default': 6,
+                'unit': 'meses',
+                'description': 'Período para calcular desempeño histórico'
+            },
+            'fallback_actividad_asesores_nuevos': {
+                'min': 0.0,
+                'max': 5.0,
+                'default': 3.0,
+                'unit': 'puntos',
+                'description': 'Puntaje de actividad por defecto para asesores nuevos'
+            },
+            'fallback_desempeno_asesores_nuevos': {
+                'min': 0.0,
+                'max': 5.0,
+                'default': 3.0,
+                'unit': 'puntos',
+                'description': 'Puntaje de desempeño por defecto para asesores nuevos'
+            },
+            'puntaje_defecto_asesores_nuevos': {
+                'min': 0,
+                'max': 100,
+                'default': 50,
+                'unit': 'puntos',
+                'description': 'Puntaje general por defecto para asesores nuevos'
+            }
+        }
+        
         params = await ParametroConfig.all()
         
         metadata = {}
         for param in params:
             if param.metadata_json:
                 metadata[param.clave] = param.metadata_json
+        
+        # Añadir metadata estático de parametros_generales si no existe
+        for key, meta in PARAMETROS_METADATA.items():
+            if key not in metadata:
+                metadata[key] = meta
         
         return metadata
     
