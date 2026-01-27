@@ -144,7 +144,7 @@ async def import_divipola_from_excel(excel_path: str):
     
     await Tortoise.init(
         db_url=db_url,
-        modules={"models": ["models.geografia"]}
+        modules={"models": ["models"]}
     )
     
     await Tortoise.generate_schemas()
