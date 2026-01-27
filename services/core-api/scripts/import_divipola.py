@@ -4,6 +4,7 @@ Importa todos los municipios de Colombia con su información geográfica
 """
 
 import asyncio
+import os
 import pandas as pd
 from pathlib import Path
 import sys
@@ -129,17 +130,21 @@ async def import_divipola_from_excel(excel_path: str):
     # Conectar a base de datos
     print("🔌 Conectando a base de datos...")
     
-    # Detectar si estamos en Docker o desarrollo local
-    import os
-    db_host = os.getenv("DB_HOST", "localhost")
-    if Path("/app").exists():  # Estamos en Docker
-        db_host = "postgres"
+    # Prioridad: 1. Variable de entorno DATABASE_URL, 2. Construcción manual
+    db_url = os.getenv("DATABASE_URL")
     
-    db_url = f"postgres://teloo_user:teloo_password@{db_host}:5432/teloo_v3"
+    if not db_url:
+        db_host = os.getenv("DB_HOST", "localhost")
+        if Path("/app").exists():  # Estamos en Docker
+            db_host = "postgres"
+        db_user = os.getenv("DB_USER", "teloo_user")
+        db_pass = os.getenv("DB_PASSWORD", "teloo_password")
+        db_name = os.getenv("DB_NAME", "teloo_v3")
+        db_url = f"postgres://{db_user}:{db_pass}@{db_host}:5432/{db_name}"
     
     await Tortoise.init(
         db_url=db_url,
-        modules={"models": ["models"]}
+        modules={"models": ["models.geografia"]}
     )
     
     await Tortoise.generate_schemas()
