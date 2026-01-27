@@ -495,7 +495,10 @@ async def create_usuario(
     try:
         logger.info(f"Iniciando creación de usuario: {usuario_data.get('email')}")
         from services.auth_service import AuthService
-        from models.enums import RolUsuario, EstadoUsuario
+        from models.enums import RolUsuario, EstadoUsuario, EstadoAsesor
+        from models.user import Asesor
+        from models.geografia import Municipio
+        from tortoise.transactions import in_transaction
         
         # Verificar si el email ya existe
         existing = await Usuario.get_or_none(email=usuario_data['email'])
@@ -524,10 +527,6 @@ async def create_usuario(
              password_final = "Teloo2026."
              password_generada = True
 
-        # Crear usuario
-        from services.auth_service import AuthService
-        password_hash = AuthService.get_password_hash(password_final)
-        
         # Mapeo de roles para robustez (soporta español e inglés)
         rol_input = usuario_data.get('rol', 'CLIENT')
         rol_mapping = {
@@ -536,7 +535,6 @@ async def create_usuario(
             "Analista": "ANALYST",
             "Soporte": "SUPPORT",
             "Cliente": "CLIENT",
-            # English fallback
             "ADMIN": "ADMIN",
             "ADVISOR": "ADVISOR",
             "ANALYST": "ANALYST",
@@ -545,19 +543,49 @@ async def create_usuario(
         }
         
         rol_valido = rol_mapping.get(rol_input, "CLIENT")
-        
-        # Validar estado
         estado_input = usuario_data.get('estado', 'ACTIVO')
-        
-        usuario = await Usuario.create(
-            email=usuario_data['email'],
-            password_hash=password_hash,
-            nombre=nombre,
-            apellido=apellido,
-            telefono=telefono,
-            rol=RolUsuario(rol_valido),
-            estado=EstadoUsuario(estado_input)
-        )
+
+        # Iniciar transacción para asegurar atomicidad
+        async with in_transaction() as conn:
+            # Hash de password
+            password_hash = AuthService.get_password_hash(password_final)
+            
+            # 1. Crear usuario base
+            usuario = await Usuario.create(
+                email=usuario_data['email'],
+                password_hash=password_hash,
+                nombre=nombre,
+                apellido=apellido,
+                telefono=telefono,
+                rol=RolUsuario(rol_valido),
+                estado=EstadoUsuario(estado_input),
+                using_db=conn
+            )
+            
+            # 2. Si es Asesor, crear perfil de asesor
+            if rol_valido == "ADVISOR":
+                # Validar campos obligatorios que vienen del frontend
+                if 'punto_venta' not in usuario_data or 'municipio_id' not in usuario_data:
+                    raise HTTPException(
+                        status_code=400, 
+                        detail="Para el rol Asesor son obligatorios: Punto de Venta y Ciudad"
+                    )
+                
+                # Obtener municipio para extraer ciudad/depto para display
+                municipio = await Municipio.get_or_none(id=usuario_data['municipio_id']).using_db(conn)
+                if not municipio:
+                    raise HTTPException(status_code=400, detail="Municipio no válido")
+
+                await Asesor.create(
+                    usuario=usuario,
+                    municipio=municipio,
+                    ciudad=municipio.municipio,
+                    departamento=municipio.departamento,
+                    punto_venta=usuario_data['punto_venta'],
+                    direccion_punto_venta=usuario_data.get('direccion_punto_venta', ''),
+                    estado=EstadoAsesor.ACTIVO,
+                    using_db=conn
+                )
         
         response_data = {
             "success": True,
@@ -570,19 +598,22 @@ async def create_usuario(
                 "telefono": usuario.telefono,
                 "rol": usuario.rol.value,
                 "estado": usuario.estado.value,
-                "created_at": usuario.created_at.isoformat(),
-                "updated_at": usuario.updated_at.isoformat()
+                "created_at": usuario.created_at.isoformat()
             }
         }
         
         if password_generada:
             response_data["password_temporal"] = password_final
-            response_data["message"] = f"Usuario creado. Contraseña temporal: {password_final}"
+            response_data["message"] = f"Usuario creado y perfil de asesor activado. Contraseña temporal: {password_final}"
+        else:
+            response_data["message"] = "Usuario creado y perfil de asesor activado."
             
         return response_data
+        
     except HTTPException:
         raise
     except Exception as e:
+        logger.error(f"Error en create_usuario: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Error creando usuario: {str(e)}")
 
 
