@@ -50,6 +50,13 @@ async def lifespan(app: FastAPI):
         if settings.telegram_enabled and settings.telegram_bot_token:
             if settings.telegram_mode == "webhook" and settings.telegram_webhook_url:
                 from app.services.telegram_service import telegram_service
+                from app.services.telegram_message_processor import telegram_message_processor
+                
+                # Start queue processor in background
+                telegram_task = asyncio.create_task(telegram_message_processor.process_queued_messages())
+                logger.info("⚙️ Telegram queue processor started (Webhook Mode)")
+                
+                # Register webhook
                 webhook_url = f"{settings.telegram_webhook_url}/v1/telegram/webhook"
                 success = await telegram_service.set_webhook(webhook_url, secret_token=settings.telegram_webhook_secret)
                 if success:
