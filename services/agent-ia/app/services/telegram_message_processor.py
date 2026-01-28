@@ -249,8 +249,8 @@ class TelegramMessageProcessor:
                         "usar_nlp": True  # ALWAYS use AI to interpret responses (handles typos, variations, natural language)
                     },
                     headers={
-                        "X-Service-API-Key": settings.service_api_key,
-                        "X-Service-Name": "agent-ia"
+                        "X-Service-API-Key": str(settings.service_api_key or ""),
+                        "X-Service-Name": str(settings.service_name or "agent-ia")
                     }
                 )
                 
@@ -721,8 +721,8 @@ Usuario: "agrega pastillas de freno traseras"
                                         f"{settings.core_api_url}/v1/solicitudes/services/bot",
                                         json=solicitud_payload,
                                         headers={
-                                            "X-Service-Name": settings.service_name,
-                                            "X-Service-API-Key": settings.service_api_key
+                                            "X-Service-Name": str(settings.service_name or "agent-ia"),
+                                            "X-Service-API-Key": str(settings.service_api_key or "")
                                         }
                                     )
                                 
@@ -835,13 +835,13 @@ Usuario: "agrega pastillas de freno traseras"
                                     }
                                 
                                 # Aplicar correcciones FUSIONANDO datos (no reemplazando)
-                                if "cliente" in updated_data:
+                                if updated_data and "cliente" in updated_data and updated_data["cliente"]:
                                     # Fusionar cliente: solo actualizar campos que vienen en updated_data
                                     for key, value in updated_data["cliente"].items():
                                         if value:  # Solo actualizar si el valor no está vacío
                                             existing_draft["cliente"][key] = value
                                 
-                                if "vehiculo" in updated_data:
+                                if updated_data and "vehiculo" in updated_data and updated_data["vehiculo"]:
                                     # Fusionar vehículo: solo actualizar campos que vienen en updated_data
                                     if "vehiculo" not in existing_draft:
                                         existing_draft["vehiculo"] = {}
@@ -849,7 +849,7 @@ Usuario: "agrega pastillas de freno traseras"
                                         if value:  # Solo actualizar si el valor no está vacío
                                             existing_draft["vehiculo"][key] = value
                                 
-                                if "repuestos" in updated_data:
+                                if updated_data and "repuestos" in updated_data and updated_data["repuestos"]:
                                     # Solo reemplazar repuestos si vienen datos nuevos
                                     if updated_data["repuestos"]:
                                         existing_draft["repuestos"] = updated_data["repuestos"]
@@ -869,8 +869,8 @@ Usuario: "agrega pastillas de freno traseras"
                                         f"{settings.core_api_url}/v1/solicitudes/services/municipio",
                                         params={"ciudad": ciudad_normalizada},
                                         headers={
-                                            "X-Service-Name": settings.service_name,
-                                            "X-Service-API-Key": settings.service_api_key
+                                            "X-Service-Name": str(settings.service_name or "agent-ia"),
+                                            "X-Service-API-Key": str(settings.service_api_key or "")
                                         }
                                     )
                                 
@@ -1373,8 +1373,8 @@ Mensaje: "para una Yamaha FZ 2.0 del 2018"
                         f"{settings.core_api_url}/v1/solicitudes/services/bot",
                         json=solicitud_payload,
                         headers={
-                            "X-Service-Name": settings.service_name,
-                            "X-Service-API-Key": settings.service_api_key
+                            "X-Service-Name": str(settings.service_name or "agent-ia"),
+                            "X-Service-API-Key": str(settings.service_api_key or "")
                         }
                     )
                 
