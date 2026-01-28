@@ -153,7 +153,6 @@ class TelegramMessageProcessor:
                 draft_key = f"solicitud_draft:{telegram_message.chat_id}"
                 await redis_manager.delete(draft_key)
                 
-                telegram_service = TelegramService()
                 await telegram_service.send_message(
                     telegram_message.chat_id,
                     "✅ Entendido, he cancelado todo.\n\nSi cambias de opinión y necesitas repuestos, solo escríbeme. ¡Estoy aquí para ayudarte!"
