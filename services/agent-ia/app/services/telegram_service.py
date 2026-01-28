@@ -164,6 +164,9 @@ class TelegramService:
         try:
             url = f"{self.base_url}/setWebhook"
             
+            # Clean trailing slashes to avoid // in URL
+            webhook_url = webhook_url.rstrip('/')
+            
             payload = {
                 "url": webhook_url,
                 "allowed_updates": ["message", "edited_message"]
@@ -172,16 +175,16 @@ class TelegramService:
             if secret_token:
                 payload["secret_token"] = secret_token
             
+            logger.info(f"Attempting to set Telegram Webhook: {webhook_url}")
             response = await self.client.post(url, json=payload)
-            response.raise_for_status()
             
             result = response.json()
             
             if result.get("ok"):
-                logger.info(f"Webhook set to {webhook_url}")
+                logger.info(f"✅ Webhook successfully set to {webhook_url}")
                 return True
             else:
-                logger.error(f"Failed to set webhook: {result}")
+                logger.error(f"❌ Failed to set webhook: {result.get('description', 'No description')}")
                 return False
                 
         except Exception as e:
