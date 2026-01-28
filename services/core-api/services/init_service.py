@@ -240,13 +240,17 @@ class InitService:
                     # Obtener un municipio real para el asesor basado en su ciudad
                     municipio = await Municipio.get_or_none(municipio_norm=Municipio.normalizar_ciudad(asesor_data["ciudad"]))
                     
+                    if not municipio:
+                        logger.warning(f"⚠️ Skipping sample advisor {asesor_data['email']}: Municipality {asesor_data['ciudad']} not found in database. Please run import_divipola.py.")
+                        continue
+                        
                     # Create advisor
                     await Asesor.create(
                         usuario=user,
                         ciudad=asesor_data["ciudad"],
                         departamento=asesor_data["departamento"],
                         punto_venta=asesor_data["punto_venta"],
-                        municipio=municipio  # Asignar municipio encontrado
+                        municipio=municipio
                     )
             
             # Create sample PQRs
