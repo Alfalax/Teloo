@@ -459,6 +459,33 @@ class TelegramMessageProcessor:
                                 if transcription:
                                     logger.info(f"Audio transcribed successfully: {transcription[:100]}...")
                                     message_content = transcription
+                                    
+                                    # Get extraction from audio
+                                    extracted_data = await nlp_service.extract_solicitud_data(transcription)
+                                    
+                                    # PASO CRÍTICO: Si ya existe un draft, fusionar los datos nuevos con los viejos
+                                    # Esto evita que el bot "olvide" lo que ya se le envió (ej. teléfono o ciudad)
+                                    existing_draft = await redis_manager.get_json(f"solicitud_draft:{telegram_message.chat_id}")
+                                    if existing_draft:
+                                        logger.info(f"🔄 Merging audio extraction with existing draft for {telegram_message.chat_id}")
+                                        
+                                        # Fusionar cliente (nombre, teléfono, ciudad)
+                                        if "cliente" in extracted_data and extracted_data["cliente"]:
+                                            for field in ["nombre", "telefono", "ciudad"]:
+                                                if not extracted_data["cliente"].get(field) and existing_draft.get("cliente", {}).get(field):
+                                                    extracted_data["cliente"][field] = existing_draft["cliente"][field]
+                                        
+                                        # Fusionar vehículo (marca, línea, año)
+                                        if "vehiculo" in extracted_data and extracted_data["vehiculo"]:
+                                            for field in ["marca", "linea", "anio"]:
+                                                if not extracted_data["vehiculo"].get(field) and existing_draft.get("vehiculo", {}).get(field):
+                                                    extracted_data["vehiculo"][field] = existing_draft["vehiculo"][field]
+                                        
+                                        # Si en el draft ya había repuestos y el audio NO trajo nuevos, mantener los viejos
+                                        if not extracted_data.get("repuestos") and existing_draft.get("repuestos"):
+                                            extracted_data["repuestos"] = existing_draft["repuestos"]
+
+                                    return await self.process_solicitud_message(telegram_message, extracted_data)
                                 else:
                                     logger.warning(f"Audio transcription returned empty")
                                     message_content = "Audio recibido pero no se pudo transcribir"
@@ -602,17 +629,8 @@ Si intent es "correct":
    - Si el último mensaje del bot fue una pregunta sobre cantidades (ej: "¿vienen 1 o el par?")
    - Y el usuario responde con un número (ej: "las 2", "entonces las 2", "serían 2")
    - Identifica el repuesto mencionado en la pregunta del bot (busca en el último mensaje)
-   - Actualiza la cantidad de ESE repuesto específico al número mencionado
-
-EJEMPLOS:
-Usuario: "¿las pastillas vienen 1 o el par?"
-→ intent: "question", answer: "Las pastillas de freno normalmente vienen por par (2 unidades). En tu solicitud tengo las cantidades que mencionaste."
-
-Usuario: "entonces necesito las 2" (después de pregunta sobre "pastillas")
-→ intent: "correct"
-→ Busca en el último mensaje del bot qué repuesto se mencionó ("pastillas")
-→ Busca en los repuestos actuales el que contiene "pastillas" y fue agregado más recientemente
-→ Actualiza su cantidad a 2
+   - Busca en los repuestos actuales el que contiene "pastillas" y fue agregado más recientemente
+   - Actualiza su cantidad a 2
 
 Usuario: "los amortiguadores son delanteros"
 → intent: "correct", busca "amortiguadores traseros" y cámbialo a "amortiguadores delanteros"
@@ -665,7 +683,8 @@ Usuario: "agrega pastillas de freno traseras"
                                         "cantidad": rep.get("cantidad", 1),
                                         "marca_vehiculo": vehiculo.get("marca", "N/A"),
                                         "linea_vehiculo": vehiculo.get("linea", "N/A") if vehiculo.get("linea") else "N/A",
-                                        "anio_vehiculo": int(vehiculo.get("anio", 2020)),
+                                        # Validar año
+                                        "anio_vehiculo": (lambda x: int(x) if str(x).strip().isdigit() else 0)(vehiculo.get("anio", 0)),
                                         "observaciones": rep.get("observaciones", "")
                                     })
                                 
