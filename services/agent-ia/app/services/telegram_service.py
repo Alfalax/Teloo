@@ -150,12 +150,13 @@ class TelegramService:
             logger.error(f"Error downloading file: {e}")
             return None
     
-    async def set_webhook(self, webhook_url: str) -> bool:
+    async def set_webhook(self, webhook_url: str, secret_token: Optional[str] = None) -> bool:
         """
         Set webhook URL for receiving updates
         
         Args:
             webhook_url: Public HTTPS URL for webhook
+            secret_token: Optional secret token for security
             
         Returns:
             Success status
@@ -167,6 +168,9 @@ class TelegramService:
                 "url": webhook_url,
                 "allowed_updates": ["message", "edited_message"]
             }
+            
+            if secret_token:
+                payload["secret_token"] = secret_token
             
             response = await self.client.post(url, json=payload)
             response.raise_for_status()

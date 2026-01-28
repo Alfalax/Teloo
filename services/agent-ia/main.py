@@ -45,14 +45,23 @@ async def lifespan(app: FastAPI):
         listener_task = asyncio.create_task(client_notification_listener.start_listening())
         logger.info("Client notification listener started")
         
-        # Start Telegram polling if enabled
+        # Start Telegram Service
         telegram_task = None
         if settings.telegram_enabled and settings.telegram_bot_token:
-            from app.services.telegram_polling import polling_service
-            telegram_task = asyncio.create_task(polling_service.start())
-            logger.info("Telegram polling service started")
+            if settings.telegram_mode == "webhook" and settings.telegram_webhook_url:
+                from app.services.telegram_service import telegram_service
+                webhook_url = f"{settings.telegram_webhook_url}/v1/telegram/webhook"
+                success = await telegram_service.set_webhook(webhook_url, secret_token=settings.telegram_webhook_secret)
+                if success:
+                    logger.info(f"✅ Telegram Webhook registered: {webhook_url}")
+                else:
+                    logger.error("❌ Failed to register Telegram Webhook")
+            else:
+                from app.services.telegram_polling import polling_service
+                telegram_task = asyncio.create_task(polling_service.start())
+                logger.info("🚀 Telegram polling service started (Development Mode)")
         else:
-            logger.info("Telegram polling disabled or token not configured")
+            logger.info("Telegram service disabled or token not configured")
         
         logger.info("Agent IA Service started successfully")
         yield
@@ -217,7 +226,7 @@ async def health_check():
     
     # Check WhatsApp service status
     try:
-        whatsapp_configured = bool(settings.whatsapp_token and settings.whatsapp_phone_number_id)
+        whatsapp_configured = bool(settings.whatsapp_access_token and settings.whatsapp_phone_number_id)
         health_status["checks"]["whatsapp"] = {
             "status": "healthy" if whatsapp_configured else "not_configured",
             "message": "WhatsApp credentials configured" if whatsapp_configured else "WhatsApp not configured"

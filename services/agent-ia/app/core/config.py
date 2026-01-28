@@ -42,6 +42,9 @@ class Settings(BaseSettings):
     # Telegram Configuration
     telegram_bot_token: Optional[str] = None
     telegram_enabled: bool = True
+    telegram_mode: str = "polling"  # polling or webhook
+    telegram_webhook_url: Optional[str] = None
+    telegram_webhook_secret: Optional[str] = None
     
     # Audio Processing Configuration
     audio_primary_strategy: str = "whisper"  # whisper, anthropic, gemini, openai
