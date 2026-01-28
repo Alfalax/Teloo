@@ -437,8 +437,9 @@ class TelegramMessageProcessor:
                     }
                 
                 # Procesar audio/voz con Whisper
-                if whatsapp_message.media_url and whatsapp_message.media_type in ["voice", "audio"]:
+                if whatsapp_message.media_url and whatsapp_message.media_type in ["voice", "audio"] and not getattr(telegram_message, "_audio_processed", False):
                     logger.info(f"Processing audio/voice from URL: {whatsapp_message.media_url}")
+
                     
                     try:
                         # Descargar el archivo de audio desde Telegram
@@ -494,7 +495,16 @@ class TelegramMessageProcessor:
                                             if key in existing_draft and key not in extracted_data:
                                                 extracted_data[key] = existing_draft[key]
 
-                                    return await self.process_solicitud_message(telegram_message, extracted_data)
+                                    # Guardar en Redis ANTES de llamar recursivamente
+                                    await redis_manager.set_json(f"solicitud_draft:{telegram_message.chat_id}", extracted_data, ttl=3600)
+                                    
+                                    # Marcar como procesado y re-lanzar como texto
+                                    telegram_message.text_content = transcription
+                                    telegram_message._audio_processed = True
+                                    whatsapp_message.media_url = None # Evitar re-procesar audio
+                                    
+                                    return await self._handle_solicitud_message(telegram_message, conversation, whatsapp_message)
+
                                 else:
                                     logger.warning(f"Audio transcription returned empty")
                                     message_content = "Audio recibido pero no se pudo transcribir"
