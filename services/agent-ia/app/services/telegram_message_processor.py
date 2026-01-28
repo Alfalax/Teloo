@@ -461,7 +461,7 @@ class TelegramMessageProcessor:
                                     message_content = transcription
                                     
                                     # Get extraction from audio
-                                    extracted_data = await nlp_service.extract_solicitud_data(transcription)
+                                    extracted_data = await nlp_service.extract_entities_from_text(transcription)
                                     
                                     # PASO CRÍTICO: Si ya existe un draft, fusionar los datos nuevos con los viejos
                                     # Esto evita que el bot "olvide" lo que ya se le envió (ej. teléfono o ciudad)
@@ -675,6 +675,20 @@ Usuario: "agrega pastillas de freno traseras"
                                 vehiculo = extracted_data.get("vehiculo", {})
                                 cliente = extracted_data.get("cliente", {})
                                 
+                                # Validar año antes de proceder
+                                raw_anio = str(vehiculo.get("anio", "")).strip()
+                                if not raw_anio.isdigit() or int(raw_anio) < 1980 or int(raw_anio) > 2026:
+                                    logger.warning(f"⚠️ Año de vehículo inválido o ausente: '{raw_anio}'")
+                                    # Guardar draft de nuevo para no perder nada
+                                    await redis_manager.set_json(draft_key, existing_draft, ttl=3600)
+                                    await telegram_service.send_message(
+                                        telegram_message.chat_id, 
+                                        "✅ He guardado los datos, pero me falta saber el **año del vehículo** (ej: 2022) para poder crear la solicitud.\n\nPor favor, dime el año."
+                                    )
+                                    return {"success": True, "action": "year_requested"}
+                                
+                                anio_val = int(raw_anio)
+                                
                                 # Preparar repuestos
                                 repuestos_formatted = []
                                 for rep in extracted_data["repuestos"]:
@@ -683,8 +697,7 @@ Usuario: "agrega pastillas de freno traseras"
                                         "cantidad": rep.get("cantidad", 1),
                                         "marca_vehiculo": vehiculo.get("marca", "N/A"),
                                         "linea_vehiculo": vehiculo.get("linea", "N/A") if vehiculo.get("linea") else "N/A",
-                                        # Validar año
-                                        "anio_vehiculo": (lambda x: int(x) if str(x).strip().isdigit() else 0)(vehiculo.get("anio", 0)),
+                                        "anio_vehiculo": anio_val,
                                         "observaciones": rep.get("observaciones", "")
                                     })
                                 
@@ -1299,6 +1312,20 @@ Mensaje: "para una Yamaha FZ 2.0 del 2018"
                         
                         return {"success": True, "action": "ciudad_validation_pending"}
                 
+                # Validar año antes de proceder
+                raw_anio = str(vehiculo.get("anio", "")).strip()
+                if not raw_anio.isdigit() or int(raw_anio) < 1980 or int(raw_anio) > 2026:
+                    logger.warning(f"⚠️ Año de vehículo inválido o ausente en flujo normal: '{raw_anio}'")
+                    # Guardar draft para que el usuario pueda corregir
+                    await redis_manager.set_json(draft_key, extracted_data, ttl=3600)
+                    await telegram_service.send_message(
+                        telegram_message.chat_id, 
+                        "✅ He guardado los datos, pero me falta saber el **año del vehículo** (ej: 2022) para completar tu solicitud.\n\nPor favor, dime el año."
+                    )
+                    return {"success": True, "action": "year_requested"}
+                
+                anio_val = int(raw_anio)
+
                 # Si llegamos aquí, el usuario YA confirmó - Crear solicitud
                 repuestos_formatted = []
                 for rep in extracted_data["repuestos"]:
@@ -1307,7 +1334,7 @@ Mensaje: "para una Yamaha FZ 2.0 del 2018"
                         "cantidad": rep.get("cantidad", 1),
                         "marca_vehiculo": vehiculo.get("marca", "N/A"),
                         "linea_vehiculo": vehiculo.get("linea", "N/A") if vehiculo.get("linea") else "N/A",
-                        "anio_vehiculo": int(vehiculo.get("anio", 2020)),
+                        "anio_vehiculo": anio_val,
                         "observaciones": rep.get("observaciones", "")
                     })
                 

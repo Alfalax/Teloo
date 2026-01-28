@@ -32,7 +32,7 @@ class RepuestoSolicitadoInput(BaseModel):
     cantidad: int = Field(..., ge=1)
     marca_vehiculo: str = Field(..., min_length=1, max_length=50)
     linea_vehiculo: str = Field(..., min_length=1, max_length=100)
-    anio_vehiculo: int = Field(..., ge=1980, le=2025)
+    anio_vehiculo: int = Field(..., ge=1980, le=2026)
     observaciones: Optional[str] = None
     es_urgente: bool = False
 
