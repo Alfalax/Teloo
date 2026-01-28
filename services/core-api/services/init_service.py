@@ -27,18 +27,16 @@ class InitService:
             # Initialize configuration parameters
             await InitService._create_config_parameters()
             
-            # Create sample data ONLY for development
-            # Try/Except block added to ensure service starts even if sample data fails
-            # (e.g. missing municipalities in DB)
+            # Create sample data ONLY if explicitly requested
             try:
                 import os
-                environment = os.getenv("ENVIRONMENT", "development")
-                if environment != "production":
+                create_sample_data = os.getenv("CREATE_SAMPLE_DATA", "false").lower() == "true"
+                if create_sample_data:
                     await InitService._create_sample_data()
                 else:
-                    logger.info("🏭 Production environment detected: Skipping sample data creation")
+                    logger.info("ℹ️ Sample data creation is disabled (CREATE_SAMPLE_DATA=false)")
             except Exception as e:
-                logger.warning(f"⚠️ Could not create sample data (Non-critical): {e}")
+                logger.warning(f"⚠️ Could not create sample data: {e}")
             
             logger.info("✅ Database initialization completed successfully")
             
