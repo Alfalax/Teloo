@@ -1427,9 +1427,8 @@ Mensaje: "para una Yamaha FZ 2.0 del 2018"
                 }
                     
             except Exception as e:
-                logger.error(f"Error processing with OpenAI: {e}")
-                error_msg = f"❌ Error procesando tu mensaje: {str(e)}\n\n"
-                error_msg += "Por favor, intenta de nuevo o contacta soporte."
+                logger.error(f"❌ Error in Telegram processor logic: {e}")
+                error_msg = "Lo siento, hubo un problema técnico procesando tu solicitud.\n\nPor favor, intenta de nuevo en unos minutos."
                 await telegram_service.send_message(telegram_message.chat_id, error_msg)
                 return {"success": False, "error": str(e)}
             
