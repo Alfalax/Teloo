@@ -1369,7 +1369,7 @@ Mensaje: "para una Yamaha FZ 2.0 del 2018"
                 }
                 
                 # Llamar al endpoint seguro del bot
-                                logger.info(f"📤 Sending request to Core API: {settings.core_api_url}/v1/solicitudes/services/bot")
+                logger.info(f"📤 Sending request to Core API: {settings.core_api_url}/v1/solicitudes/services/bot")
                 async with httpx.AsyncClient(timeout=30.0) as api_client:
                     api_response = await api_client.post(
                         f"{settings.core_api_url}/v1/solicitudes/services/bot",
