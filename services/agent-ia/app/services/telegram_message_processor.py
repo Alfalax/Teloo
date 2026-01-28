@@ -864,6 +864,7 @@ Usuario: "agrega pastillas de freno traseras"
                                 ciudad_normalizada = limpiar_ciudad(ciudad_para_validar)
                                 
                                 # Buscar municipio en la base de datos
+                                logger.info(f"🔍 Validating city at: {settings.core_api_url}/v1/solicitudes/services/municipio")
                                 async with httpx.AsyncClient(timeout=10.0) as geo_client:
                                     geo_response = await geo_client.get(
                                         f"{settings.core_api_url}/v1/solicitudes/services/municipio",
@@ -1368,6 +1369,7 @@ Mensaje: "para una Yamaha FZ 2.0 del 2018"
                 }
                 
                 # Llamar al endpoint seguro del bot
+                                logger.info(f"📤 Sending request to Core API: {settings.core_api_url}/v1/solicitudes/services/bot")
                 async with httpx.AsyncClient(timeout=30.0) as api_client:
                     api_response = await api_client.post(
                         f"{settings.core_api_url}/v1/solicitudes/services/bot",
