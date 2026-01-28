@@ -148,6 +148,9 @@ class TelegramMessageProcessor:
                 # User wants to cancel current operation
                 await context_mgr.clear_pending_action(user_id)
                 
+                # Clear conversation history so NEXT message starts fresh
+                await context_mgr.clear_history(user_id)
+                
                 # Clear draft from Redis
                 from app.core.redis import redis_manager
                 draft_key = f"solicitud_draft:{telegram_message.chat_id}"
