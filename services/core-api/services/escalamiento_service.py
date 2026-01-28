@@ -18,8 +18,9 @@ from models.analytics import (
 )
 from models.enums import CanalNotificacion, EstadoAsesor, EstadoUsuario
 from services.events_service import events_service
-
-logger = logging.getLogger(__name__)
+from services.notification_service import notification_service
+from models.analytics import ParametroConfig
+from utils.datetime_utils import now_utc
 
 
 class EscalamientoService:
@@ -621,134 +622,90 @@ class EscalamientoService:
         Returns:
             Dict: Resultado de la ejecución
         """
-        
-        # Obtener asesores del nivel desde EvaluacionAsesorTemp
-        evaluaciones = await EvaluacionAsesorTemp.filter(
-            solicitud=solicitud,
-            nivel_entrega=nivel
-        ).prefetch_related('asesor__usuario').all()
-        
-        if not evaluaciones:
-            logger.warning(f"No hay asesores en nivel {nivel} para solicitud {solicitud.id}")
+        try:
+            # Obtener asesores del nivel desde EvaluacionAsesorTemp
+            from models.solicitud import EvaluacionAsesorTemp
+            evaluaciones = await EvaluacionAsesorTemp.filter(
+                solicitud=solicitud,
+                nivel_entrega=nivel
+            ).prefetch_related('asesor__usuario').all()
+            
+            if not evaluaciones:
+                logger.warning(f"No hay asesores en nivel {nivel} para solicitud {solicitud.id}")
+                return {
+                    'success': False,
+                    'message': f'No hay asesores en nivel {nivel}',
+                    'asesores_notificados': 0
+                }
+            
+            notificados = 0
+            
+            # Enviar notificaciones según el canal configurado para cada asesor
+            for evaluacion in evaluaciones:
+                try:
+                    user_id = str(evaluacion.asesor.usuario.id)
+                    canal = evaluacion.canal
+                    
+                    logger.info(f"Notificando asesor {evaluacion.asesor.usuario.nombre_completo} vía {canal}")
+                    
+                    # Usar el servicio de notificación unificado
+                    exito = await notification_service.send_notification(
+                        user_id=user_id,
+                        title="Nueva Solicitud de Repuestos",
+                        message=f"Tienes una nueva solicitud ({solicitud.codigo_solicitud}) disponible en Nivel {nivel}.",
+                        notification_type="solicitud_nueva",
+                        data={
+                            "solicitud_id": str(solicitud.id),
+                            "codigo": solicitud.codigo_solicitud,
+                            "nivel": nivel,
+                            "vehiculo": f"{solicitud.marca_vehiculo} {solicitud.linea_vehiculo}"
+                        },
+                        priority="high" if nivel <= 2 else "normal"
+                    )
+                    
+                    if exito:
+                        # Marcar como notificado
+                        evaluacion.fecha_notificacion = now_utc()
+                        evaluacion.fecha_timeout = now_utc() + timedelta(
+                            minutes=evaluacion.tiempo_espera_min
+                        )
+                        await evaluacion.save()
+                        notificados += 1
+                        
+                except Exception as e:
+                    logger.error(f"Error notificando al asesor {evaluacion.asesor.id}: {e}")
+            
+            # Registrar evento en tablas auxiliares para métricas de escalamiento
+            try:
+                asesores_notificados_data = []
+                for evaluacion in evaluaciones:
+                    if evaluacion.fecha_notificacion:
+                        asesores_notificados_data.append({
+                            'asesor_id': str(evaluacion.asesor.id)
+                        })
+                
+                if asesores_notificados_data:
+                    await events_service.on_solicitud_escalada(
+                        solicitud_id=str(solicitud.id),
+                        asesores_notificados=asesores_notificados_data,
+                        nivel=nivel,
+                        canal="MIXTO" # Puede ser WhatsApp o Push
+                    )
+            except Exception as e:
+                logger.error(f"Error registrando evento solicitud_escalada: {e}")
+            
+            return {
+                'success': True,
+                'message': f'Oleada Nivel {nivel} ejecutada',
+                'asesores_notificados': notificados
+            }
+            
+        except Exception as e:
+            logger.error(f"Error crítico en ejecutar_oleada: {e}")
             return {
                 'success': False,
-                'message': f'No hay asesores en nivel {nivel}',
-                'asesores_notificados': 0
+                'error': str(e)
             }
-        
-        # Agrupar por canal de notificación
-        asesores_whatsapp = []
-        asesores_push = []
-        
-        for evaluacion in evaluaciones:
-            if evaluacion.canal == CanalNotificacion.WHATSAPP:
-                asesores_whatsapp.append(evaluacion)
-            else:
-                asesores_push.append(evaluacion)
-        
-        # Enviar notificaciones según canal
-        notificados = 0
-        
-        # WhatsApp notifications (niveles 1-2)
-        if asesores_whatsapp:
-            for evaluacion in asesores_whatsapp:
-                try:
-                    # TODO: Integrar con servicio de WhatsApp
-                    # await whatsapp_service.enviar_notificacion_solicitud(
-                    #     evaluacion.asesor.usuario.telefono,
-                    #     solicitud
-                    # )
-                    
-                    # Marcar como notificado
-                    evaluacion.fecha_notificacion = datetime.now()
-                    evaluacion.fecha_timeout = datetime.now() + timedelta(
-                        minutes=evaluacion.tiempo_espera_min
-                    )
-                    await evaluacion.save()
-                    
-                    notificados += 1
-                    logger.info(f"Notificado por WhatsApp: {evaluacion.asesor.usuario.nombre_completo}")
-                    
-                except Exception as e:
-                    logger.error(f"Error notificando por WhatsApp a {evaluacion.asesor.id}: {e}")
-        
-        # Push notifications (niveles 3-4)
-        if asesores_push:
-            for evaluacion in asesores_push:
-                try:
-                    # TODO: Integrar con servicio de notificaciones push
-                    # await push_service.enviar_notificacion_solicitud(
-                    #     evaluacion.asesor.usuario.id,
-                    #     solicitud
-                    # )
-                    
-                    # Marcar como notificado
-                    evaluacion.fecha_notificacion = datetime.now()
-                    evaluacion.fecha_timeout = datetime.now() + timedelta(
-                        minutes=evaluacion.tiempo_espera_min
-                    )
-                    await evaluacion.save()
-                    
-                    notificados += 1
-                    logger.info(f"Notificado por Push: {evaluacion.asesor.usuario.nombre_completo}")
-                    
-                except Exception as e:
-                    logger.error(f"Error notificando por Push a {evaluacion.asesor.id}: {e}")
-        
-        # Registrar evento en tablas auxiliares para métricas de escalamiento
-        try:
-            asesores_notificados_data = []
-            for evaluacion in evaluaciones:
-                if evaluacion.fecha_notificacion:  # Solo los que fueron notificados
-                    asesores_notificados_data.append({
-                        'asesor_id': evaluacion.asesor.id
-                    })
-            
-            if asesores_notificados_data:
-                canal_str = 'WHATSAPP' if asesores_whatsapp else 'PUSH'
-                await events_service.on_solicitud_escalada(
-                    solicitud_id=solicitud.id,
-                    asesores_notificados=asesores_notificados_data,
-                    nivel=nivel,
-                    canal=canal_str
-                )
-        except Exception as e:
-            logger.error(f"Error registrando evento solicitud_escalada: {e}")
-        
-        # Publicar evento a Redis
-        if redis_client:
-            try:
-                evento_data = {
-                    'solicitud_id': str(solicitud.id),
-                    'nivel': nivel,
-                    'asesores_notificados': notificados,
-                    'canal_whatsapp': len(asesores_whatsapp),
-                    'canal_push': len(asesores_push),
-                    'timestamp': datetime.now().isoformat()
-                }
-                
-                await redis_client.publish('solicitud.oleada', str(evento_data))
-                logger.info(f"Evento solicitud.oleada publicado para nivel {nivel}")
-                
-            except Exception as e:
-                logger.error(f"Error publicando evento a Redis: {e}")
-        
-        # Programar timeout para siguiente nivel
-        # TODO: Implementar job scheduler para verificar timeout
-        # await scheduler.schedule_timeout_check(
-        #     solicitud.id,
-        #     nivel,
-        #     evaluaciones[0].tiempo_espera_min
-        # )
-        
-        return {
-            'success': True,
-            'message': f'Oleada nivel {nivel} ejecutada exitosamente',
-            'asesores_notificados': notificados,
-            'canal_whatsapp': len(asesores_whatsapp),
-            'canal_push': len(asesores_push),
-            'tiempo_espera_min': evaluaciones[0].tiempo_espera_min if evaluaciones else 0
-        }
     
     @staticmethod
     async def verificar_cierre_anticipado(
@@ -1058,14 +1015,9 @@ class EscalamientoService:
             logger.info(f"✅ Solicitud {solicitud_id} actualizada a Nivel {nivel_inicial}")
             
             # 5. Ejecutar primera oleada (notificar asesores del nivel inicial)
-            # Por ahora solo actualizamos el nivel, las notificaciones se implementarán después
-            resultado_oleada = {
-                'nivel_ejecutado': nivel_inicial,
-                'asesores_notificados': resultado_escalamiento['estadisticas']['distribucion_niveles'].get(nivel_inicial, 0),
-                'mensaje': f'Primera oleada programada para Nivel {nivel_inicial}'
-            }
+            resultado_oleada = await EscalamientoService.ejecutar_oleada(solicitud, nivel_inicial)
             
-            logger.info(f"🎯 Primera oleada: {resultado_oleada['asesores_notificados']} asesores en Nivel {nivel_inicial}")
+            logger.info(f"🎯 Primera oleada: {resultado_oleada.get('asesores_notificados', 0)} asesores notificados en Nivel {nivel_inicial}")
             
             return {
                 'success': True,

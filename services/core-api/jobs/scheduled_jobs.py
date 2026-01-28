@@ -370,21 +370,28 @@ async def verificar_timeouts_escalamiento(
         from services.escalamiento_service import EscalamientoService
         
         # Obtener configuración de tiempos por nivel
-        config = await ConfiguracionService.get_config('tiempos_espera_nivel')
+        config = await ConfiguracionService.get_config('tiempos_espera_minutos')
         
-        # Convertir claves de string a int si es necesario
+        # Convertir claves de string a int (soporta "1" o "nivel1")
+        tiempos_nivel = {}
         if config and isinstance(config, dict):
-            tiempos_nivel = {int(k): v for k, v in config.items()}
-            logger.info(f"⚙️ Tiempos configurados por nivel: {tiempos_nivel}")
+            for k, v in config.items():
+                try:
+                    # Extraer solo los números de la llave (ej: "nivel1" -> 1)
+                    num_key = ''.join(filter(str.isdigit, str(k)))
+                    if num_key:
+                        tiempos_nivel[int(num_key)] = int(v)
+                except (ValueError, TypeError):
+                    continue
+            
+            if tiempos_nivel:
+                logger.info(f"⚙️ Tiempos configurados procesados: {tiempos_nivel}")
+            else:
+                tiempos_nivel = {1: 15, 2: 20, 3: 25, 4: 30, 5: 35}
+                logger.warning(f"⚠️ No se pudieron procesar tiempos, usando fallback: {tiempos_nivel}")
         else:
-            tiempos_nivel = {
-                1: 15,  # minutos (fallback)
-                2: 20,
-                3: 25,
-                4: 30,
-                5: 35
-            }
-            logger.warning(f"⚠️ Usando tiempos por defecto: {tiempos_nivel}")
+            tiempos_nivel = {1: 15, 2: 20, 3: 25, 4: 30, 5: 35}
+            logger.warning(f"⚠️ Configuración no encontrada, usando fallback: {tiempos_nivel}")
         
         # Buscar solicitudes ABIERTAS que puedan necesitar escalamiento
         solicitudes_abiertas = await Solicitud.filter(
@@ -622,6 +629,10 @@ async def verificar_timeouts_escalamiento(
                         solicitud.nivel_actual = siguiente_nivel
                         solicitud.fecha_escalamiento = datetime.now(timezone.utc)
                         await solicitud.save()
+                        
+                        # DISPARAR NOTIFICACIÓN REAL PARA EL NUEVO NIVEL
+                        await EscalamientoService.ejecutar_oleada(solicitud, siguiente_nivel, redis_client)
+                        
                         solicitudes_escaladas += 1
                         
                         # Publicar evento de escalamiento
@@ -648,6 +659,9 @@ async def verificar_timeouts_escalamiento(
                 solicitud.nivel_actual = siguiente_nivel
                 solicitud.fecha_escalamiento = datetime.now(timezone.utc)
                 await solicitud.save()
+                
+                # DISPARAR NOTIFICACIÓN REAL PARA EL NUEVO NIVEL
+                await EscalamientoService.ejecutar_oleada(solicitud, siguiente_nivel, redis_client)
                 
                 solicitudes_escaladas += 1
                 
