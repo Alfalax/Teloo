@@ -152,7 +152,6 @@ class TelegramMessageProcessor:
                 await context_mgr.clear_history(user_id)
                 
                 # Clear draft from Redis
-                from app.core.redis import redis_manager
                 draft_key = f"solicitud_draft:{telegram_message.chat_id}"
                 await redis_manager.delete(draft_key)
                 
@@ -539,7 +538,6 @@ class TelegramMessageProcessor:
                         logger.error(f"Error processing Excel file: {e}")
                 
                 # RECUPERAR DRAFT EXISTENTE PRIMERO
-                from app.core.redis import redis_manager
                 draft_key = f"solicitud_draft:{telegram_message.chat_id}"
                 existing_draft = await redis_manager.get_json(draft_key)
                 

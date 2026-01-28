@@ -388,26 +388,41 @@ class LLMProviderService:
             
             data = json.loads(content)
             
-            # Extract structured data
+            # Extract and sanitize structured data
             repuestos = data.get("repuestos", [])
             vehiculo = data.get("vehiculo")
             cliente = data.get("cliente")
             
+            # Sanitizar diccionarios para evitar errores de validación de Pydantic (null -> "")
+            if isinstance(vehiculo, dict):
+                vehiculo = {k: str(v) if v is not None else "" for k, v in vehiculo.items()}
+            elif vehiculo is None:
+                vehiculo = {}
+                
+            if isinstance(cliente, dict):
+                cliente = {k: str(v) if v is not None else "" for k, v in cliente.items()}
+            elif cliente is None:
+                cliente = {}
+            
+            # Ensure repuestos is a list and sanitize each repuesto
+            if not isinstance(repuestos, list):
+                repuestos = []
+            
             # Calculate completeness
-            is_complete = bool(repuestos and vehiculo)
+            is_complete = bool(repuestos and vehiculo and vehiculo.get("marca"))
             missing_fields = []
             if not repuestos:
                 missing_fields.append("repuestos")
-            if not vehiculo:
+            if not vehiculo or not vehiculo.get("marca"):
                 missing_fields.append("vehiculo")
-            if not cliente:
+            if not cliente or not cliente.get("telefono"):
                 missing_fields.append("cliente")
             
             # Calculate confidence based on completeness and provider
             confidence_score = 0.5
             if is_complete:
                 confidence_score = 0.9
-            elif repuestos or vehiculo:
+            elif repuestos or (vehiculo and vehiculo.get("marca")):
                 confidence_score = 0.7
             
             # Adjust confidence based on provider quality
