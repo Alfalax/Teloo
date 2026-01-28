@@ -237,12 +237,16 @@ class InitService:
                         estado=EstadoUsuario.ACTIVO
                     )
                     
+                    # Obtener un municipio real para el asesor basado en su ciudad
+                    municipio = await Municipio.get_or_none(municipio_norm=Municipio.normalizar_ciudad(asesor_data["ciudad"]))
+                    
                     # Create advisor
                     await Asesor.create(
                         usuario=user,
                         ciudad=asesor_data["ciudad"],
                         departamento=asesor_data["departamento"],
-                        punto_venta=asesor_data["punto_venta"]
+                        punto_venta=asesor_data["punto_venta"],
+                        municipio=municipio  # Asignar municipio encontrado
                     )
             
             # Create sample PQRs

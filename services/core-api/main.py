@@ -65,11 +65,12 @@ class ForceCORSMiddleware(BaseHTTPMiddleware):
         origin = request.headers.get("origin")
         if origin:
             # Permitir cualquier origen de teloo.cloud o localhost
-            if ".teloo.cloud" in origin or "localhost" in origin:
+            if ".teloo.cloud" in origin or "localhost" in origin or origin.endswith("teloo.cloud"):
                 response.headers["Access-Control-Allow-Origin"] = origin
                 response.headers["Access-Control-Allow-Credentials"] = "true"
                 response.headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, DELETE, OPTIONS, PATCH"
-                response.headers["Access-Control-Allow-Headers"] = "*"
+                response.headers["Access-Control-Allow-Headers"] = "Content-Type, Authorization, X-Requested-With, Accept, Origin"
+                response.headers["Access-Control-Max-Age"] = "3600"
         
         return response
 
