@@ -100,7 +100,7 @@ class RegexProcessor:
                     }
                 elif pattern_type == 'vehicle_year':
                     return {
-                        "marca": None,
+                        "marca": "",
                         "linea": match.group(1).title(),
                         "anio": match.group(2)
                     }

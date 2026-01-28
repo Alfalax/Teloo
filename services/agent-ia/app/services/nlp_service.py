@@ -342,6 +342,26 @@ class NLPService:
                 "error": str(e)
             }
     
+    async def extract_solicitud_data(self, text: str) -> Dict[str, Any]:
+        """
+        Extract solicitud entities from text using the main LLM pipeline
+        """
+        try:
+            processed_data = await llm_provider_service.process_content(text=text)
+            
+            # Convert to dict for compatibility with existing processor
+            return {
+                "repuestos": processed_data.repuestos,
+                "vehiculo": processed_data.vehiculo or {},
+                "cliente": processed_data.cliente or {},
+                "confidence": processed_data.confidence_score,
+                "method": processed_data.provider_used
+            }
+        except Exception as e:
+            logger.error(f"Error extracting solicitud data with LLM: {e}")
+            # Fallback to regex
+            return await self.extract_entities_from_text(text)
+
     async def extract_entities_from_text(self, text: str) -> Dict[str, Any]:
         """
         Extract entities from text using regex patterns
@@ -356,9 +376,9 @@ class NLPService:
             result = regex_processor.process(text)
             
             return {
-                "repuestos": result.repuestos,
-                "vehiculo": result.vehiculo,
-                "cliente": result.cliente,
+                "repuestos": result.repuestos or [],
+                "vehiculo": result.vehiculo or {},
+                "cliente": result.cliente or {},
                 "confidence": result.confidence_score,
                 "method": "regex"
             }
@@ -367,8 +387,8 @@ class NLPService:
             logger.error(f"Error extracting entities with regex: {e}")
             return {
                 "repuestos": [],
-                "vehiculo": None,
-                "cliente": None,
+                "vehiculo": {},
+                "cliente": {},
                 "confidence": 0.0,
                 "method": "error"
             }

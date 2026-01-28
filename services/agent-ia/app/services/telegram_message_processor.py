@@ -399,7 +399,6 @@ class TelegramMessageProcessor:
                 
                 # /reiniciar o /cancelar - Limpiar draft y empezar de nuevo
                 if comando in ["/reiniciar", "/cancelar", "/empezar", "/nuevo"]:
-                    from app.core.redis import redis_manager
                     draft_key = f"solicitud_draft:{telegram_message.chat_id}"
                     await redis_manager.delete(draft_key)
                     
@@ -460,8 +459,8 @@ class TelegramMessageProcessor:
                                     logger.info(f"Audio transcribed successfully: {transcription[:100]}...")
                                     message_content = transcription
                                     
-                                    # Get extraction from audio
-                                    extracted_data = await nlp_service.extract_entities_from_text(transcription)
+                                    # Get extraction from audio (Using LLM for better results)
+                                    extracted_data = await nlp_service.extract_solicitud_data(transcription)
                                     
                                     # PASO CRÍTICO: Si ya existe un draft, fusionar los datos nuevos con los viejos
                                     # Esto evita que el bot "olvide" lo que ya se le envió (ej. teléfono o ciudad)
@@ -470,20 +469,31 @@ class TelegramMessageProcessor:
                                         logger.info(f"🔄 Merging audio extraction with existing draft for {telegram_message.chat_id}")
                                         
                                         # Fusionar cliente (nombre, teléfono, ciudad)
-                                        if "cliente" in extracted_data and extracted_data["cliente"]:
-                                            for field in ["nombre", "telefono", "ciudad"]:
+                                        # Si el audio no trajo datos de cliente, usar los del draft
+                                        if not extracted_data.get("cliente") or not any(extracted_data["cliente"].values()):
+                                            extracted_data["cliente"] = existing_draft.get("cliente", {})
+                                        else:
+                                            # Hay datos nuevos, pero completar los que falten con los del draft
+                                            for field in ["nombre", "telefono", "ciudad", "ciudad_display"]:
                                                 if not extracted_data["cliente"].get(field) and existing_draft.get("cliente", {}).get(field):
                                                     extracted_data["cliente"][field] = existing_draft["cliente"][field]
                                         
                                         # Fusionar vehículo (marca, línea, año)
-                                        if "vehiculo" in extracted_data and extracted_data["vehiculo"]:
+                                        if not extracted_data.get("vehiculo") or not any(extracted_data["vehiculo"].values()):
+                                            extracted_data["vehiculo"] = existing_draft.get("vehiculo", {})
+                                        else:
                                             for field in ["marca", "linea", "anio"]:
                                                 if not extracted_data["vehiculo"].get(field) and existing_draft.get("vehiculo", {}).get(field):
                                                     extracted_data["vehiculo"][field] = existing_draft["vehiculo"][field]
                                         
-                                        # Si en el draft ya había repuestos y el audio NO trajo nuevos, mantener los viejos
+                                        # Fusionar repuestos
                                         if not extracted_data.get("repuestos") and existing_draft.get("repuestos"):
                                             extracted_data["repuestos"] = existing_draft["repuestos"]
+                                        
+                                        # Preservar metadatos del draft (municipio_id, etc.)
+                                        for key in ["_municipio_id", "_departamento", "_status"]:
+                                            if key in existing_draft and key not in extracted_data:
+                                                extracted_data[key] = existing_draft[key]
 
                                     return await self.process_solicitud_message(telegram_message, extracted_data)
                                 else:
