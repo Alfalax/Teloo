@@ -29,12 +29,16 @@ export default function Header() {
 
         <div className="flex items-center gap-4">
           <div className="hidden md:flex items-center gap-2 bg-white/90 rounded-md px-2 py-1 shadow-sm">
-            <Search className="h-4 w-4 text-muted-foreground" />
-            <Input placeholder="Buscar..." className="h-8 w-56 border-0 bg-transparent focus-visible:ring-0" />
+            <Search className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
+            <Input
+              placeholder="Buscar..."
+              className="h-8 w-56 border-0 bg-transparent focus-visible:ring-0"
+              aria-label="Buscar"
+            />
           </div>
 
-          <Button variant="ghost" size="icon" className="relative text-white">
-            <Bell className="h-5 w-5" />
+          <Button variant="ghost" size="icon" className="relative text-white" aria-label="Notificaciones">
+            <Bell className="h-5 w-5" aria-hidden="true" />
             <span className="absolute top-1 right-1 h-2 w-2 rounded-full bg-primary"></span>
           </Button>
 
@@ -46,8 +50,15 @@ export default function Header() {
             <div className="h-9 w-9 rounded-full bg-white/20 flex items-center justify-center">
               <User className="h-5 w-5 text-white" />
             </div>
-            <Button variant="ghost" size="icon" onClick={handleLogout} title="Cerrar sesión" className="text-white">
-              <LogOut className="h-5 w-5" />
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={handleLogout}
+              title="Cerrar sesión"
+              className="text-white"
+              aria-label="Cerrar sesión"
+            >
+              <LogOut className="h-5 w-5" aria-hidden="true" />
             </Button>
           </div>
         </div>

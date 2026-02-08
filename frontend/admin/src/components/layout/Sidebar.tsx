@@ -76,6 +76,7 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
         <button
           onClick={onToggle}
           className="p-1.5 rounded-md hover:bg-accent hover:text-accent-foreground transition-colors"
+          aria-label={collapsed ? 'Expandir menú' : 'Colapsar menú'}
         >
           {collapsed ? (
             <ChevronRight className="h-4 w-4" />
