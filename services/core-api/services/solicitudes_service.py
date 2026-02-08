@@ -252,6 +252,74 @@ class SolicitudesService:
         }
     
     @staticmethod
+    async def _validate_and_normalize_municipio(municipio_id: str, ciudad_origen: str) -> tuple[Any, str]:
+        """Validate municipio exists and normalize ciudad name."""
+        from models.geografia import Municipio
+        
+        # Validate municipio_id
+        municipio_obj = await Municipio.get_or_none(id=municipio_id)
+        if not municipio_obj:
+            raise ValueError(f"Municipio con ID {municipio_id} no encontrado en base de datos")
+            
+        # Normalize comparisons
+        ciudad_normalizada = Municipio.normalizar_ciudad(ciudad_origen)
+        
+        # Warn if mismatch creates ambiguity, but prefer DB name
+        if municipio_obj.municipio_norm != ciudad_normalizada:
+            logger.warning(
+                f"Ciudad origen '{ciudad_origen}' (norm: '{ciudad_normalizada}') "
+                f"difiere de municipio_id {municipio_id} ('{municipio_obj.municipio_norm}'). "
+                f"Se usará nombre oficial: {municipio_obj.municipio_norm}"
+            )
+            return municipio_obj, municipio_obj.municipio_norm
+            
+        return municipio_obj, ciudad_origen
+
+    @staticmethod
+    async def _get_or_create_client_user(
+        cliente_data: Dict[str, Any], 
+        municipio_obj: Any, 
+        ciudad_origen: str, 
+        departamento_origen: str
+    ) -> Any:
+        """Get existing client or create new user/client profile."""
+        from models.user import Usuario, Cliente
+        from models.enums import RolUsuario, EstadoUsuario
+        
+        # Normalize phone
+        telefono = cliente_data["telefono"]
+        if not telefono.startswith("+57"):
+            telefono_digits = ''.join(filter(str.isdigit, telefono))
+            telefono = f"+57{telefono_digits[-10:]}"
+            
+        # Try getting existing user
+        usuario = await Usuario.get_or_none(telefono=telefono)
+        
+        if not usuario:
+            # Create new user
+            usuario = await Usuario.create(
+                email=cliente_data.get("email"),
+                password_hash="temp_hash",
+                nombre=cliente_data["nombre"].split()[0] if cliente_data["nombre"] else "Cliente",
+                apellido=" ".join(cliente_data["nombre"].split()[1:]) if len(cliente_data["nombre"].split()) > 1 else "",
+                telefono=telefono,
+                rol=RolUsuario.CLIENT,
+                estado=EstadoUsuario.ACTIVO
+            )
+            
+        # Get or create client profile
+        cliente = await Cliente.get_or_none(usuario=usuario)
+        if not cliente:
+            cliente = await Cliente.create(
+                usuario=usuario,
+                municipio=municipio_obj,
+                ciudad=ciudad_origen,
+                departamento=departamento_origen
+            )
+            
+        return cliente
+
+    @staticmethod
     async def create_solicitud(
         cliente_data: Dict[str, Any],
         municipio_id: str,
@@ -260,110 +328,31 @@ class SolicitudesService:
         repuestos: List[Dict[str, Any]]
     ) -> Dict[str, Any]:
         """
-        Create new solicitud with cliente and repuestos
-        
-        Uses atomic transaction to ensure solicitud and all repuestos
-        are created together or rolled back on failure.
+        Create new solicitud with cliente and repuestos.
+        Uses atomic transaction for data integrity.
         """
-        from models.user import Usuario, Cliente
-        from models.enums import RolUsuario, EstadoUsuario
-        
-        # Validate and normalize ciudad_origen
-        # Importar función de limpieza de ciudad
-        from models.geografia import Municipio
-        
-        # Normalizar ciudad_origen (quitar departamentos, tildes, mayúsculas)
-        ciudad_normalizada = Municipio.normalizar_ciudad(ciudad_origen)
-        
-        # Validar que el municipio_id corresponda a la ciudad_origen
-        municipio_validacion = await Municipio.get_or_none(id=municipio_id)
-        if not municipio_validacion:
-            raise ValueError(f"Municipio con ID {municipio_id} no encontrado en base de datos")
-        
-        # Verificar que la ciudad normalizada coincida con el municipio
-        if municipio_validacion.municipio_norm != ciudad_normalizada:
-            logger.warning(
-                f"Ciudad origen '{ciudad_origen}' (normalizada: '{ciudad_normalizada}') "
-                f"no coincide con municipio_id {municipio_id} (municipio: '{municipio_validacion.municipio_norm}'). "
-                f"Se usará el nombre del municipio de la base de datos."
-            )
-            # Usar el nombre correcto del municipio de la base de datos
-            ciudad_origen = municipio_validacion.municipio_norm
-        
-        # Normalize phone number to Colombian format
-        telefono = cliente_data["telefono"]
-        if not telefono.startswith("+57"):
-            # Remove any non-digit characters
-            telefono_digits = ''.join(filter(str.isdigit, telefono))
-            # Add Colombian prefix
-            telefono = f"+57{telefono_digits[-10:]}"
-        
-        # Get or create usuario and cliente (telefono is now unique)
-        usuario = await Usuario.get_or_none(telefono=telefono)
-        
-        if not usuario:
-            # Create new usuario (email is optional for CLIENT role)
-            usuario = await Usuario.create(
-                email=cliente_data.get("email"),  # Can be None for clients
-                password_hash="temp_hash",  # Will be set when user registers
-                nombre=cliente_data["nombre"].split()[0] if cliente_data["nombre"] else "Cliente",
-                apellido=" ".join(cliente_data["nombre"].split()[1:]) if len(cliente_data["nombre"].split()) > 1 else "",
-                telefono=telefono,
-                rol=RolUsuario.CLIENT,
-                estado=EstadoUsuario.ACTIVO
-            )
-            
-            # Buscar municipio por ID para el nuevo cliente
-            from models.geografia import Municipio
-            municipio_obj = await Municipio.get_or_none(id=municipio_id)
-            
-            if not municipio_obj:
-                raise ValueError(f"Municipio con ID {municipio_id} no encontrado en base de datos")
-            
-            # Create cliente profile
-            cliente = await Cliente.create(
-                usuario=usuario,
-                municipio=municipio_obj,
-                ciudad=ciudad_origen,
-                departamento=departamento_origen
-            )
-        else:
-            # Get existing cliente
-            cliente = await Cliente.get_or_none(usuario=usuario)
-            if not cliente:
-                # Buscar municipio para el cliente
-                from models.geografia import Municipio
-                ciudad_norm = Municipio.normalizar_ciudad(ciudad_origen)
-                municipio = await Municipio.get_or_none(municipio_norm=ciudad_norm)
-                
-                if not municipio:
-                    raise ValueError(f"Municipio {ciudad_origen} no encontrado en base de datos DIVIPOLA")
-                
-                # Create cliente profile if doesn't exist
-                cliente = await Cliente.create(
-                    usuario=usuario,
-                    municipio=municipio,
-                    ciudad=ciudad_origen,
-                    departamento=departamento_origen
-                )
-        
-        # Buscar municipio por ID
-        from models.geografia import Municipio
-        municipio = await Municipio.get_or_none(id=municipio_id)
-        
-        if not municipio:
-            raise ValueError(f"Municipio con ID {municipio_id} no encontrado en base de datos")
-        
-        # Use atomic transaction to ensure solicitud and repuestos are created together
+        from models.solicitud import Solicitud, RepuestoSolicitado
+        from models.enums import EstadoSolicitud
         from tortoise.transactions import in_transaction
+
+        # 1. Validate geography
+        municipio_obj, ciudad_final = await SolicitudesService._validate_and_normalize_municipio(
+            municipio_id, ciudad_origen
+        )
+        
+        # 2. Get/Create Client
+        cliente = await SolicitudesService._get_or_create_client_user(
+            cliente_data, municipio_obj, ciudad_final, departamento_origen
+        )
+        
+        # 3. Create Solicitud + Repuestos in Transaction
         async with in_transaction() as conn:
-            # Create solicitud
             solicitud = await Solicitud.create(
                 cliente=cliente,
-                municipio=municipio,
+                municipio=municipio_obj,
                 estado=EstadoSolicitud.ABIERTA,
                 nivel_actual=1,
-                ciudad_origen=ciudad_origen,
+                ciudad_origen=ciudad_final,
                 departamento_origen=departamento_origen,
                 ofertas_minimas_deseadas=2,
                 timeout_horas=20,
@@ -372,10 +361,8 @@ class SolicitudesService:
                 using_db=conn
             )
             
-            # Create repuestos
-            repuestos_created = []
             for rep_data in repuestos:
-                repuesto = await RepuestoSolicitado.create(
+                await RepuestoSolicitado.create(
                     solicitud=solicitud,
                     nombre=rep_data["nombre"],
                     codigo=rep_data.get("codigo"),
@@ -388,31 +375,26 @@ class SolicitudesService:
                     es_urgente=rep_data.get("es_urgente", False),
                     using_db=conn
                 )
-                repuestos_created.append(repuesto)
         
-        # Transaction committed successfully at this point
-        
-        # Reload with relations
+        # 4. Reload relations
         await solicitud.fetch_related("cliente", "cliente__usuario", "repuestos_solicitados")
         
-        # Ejecutar escalamiento automáticamente con primera oleada si la solicitud está abierta
+        # 5. Trigger Escalation (Async/Fire-and-forget logic handled inside)
         if solicitud.estado == EstadoSolicitud.ABIERTA:
             try:
                 from services.escalamiento_service import EscalamientoService
                 resultado = await EscalamientoService.ejecutar_escalamiento_con_primera_oleada(str(solicitud.id))
                 
                 if resultado['success']:
-                    # Recargar solicitud para obtener el nivel actualizado
                     await solicitud.refresh_from_db()
-                    logger.info(f"✅ Escalamiento automático ejecutado para solicitud {solicitud.id}: Nivel {resultado.get('nivel_actual')}, {resultado.get('primera_oleada', {}).get('asesores_notificados', 0)} asesores")
+                    logger.info(f"✅ Escalamiento ejecutado: Nivel {resultado.get('nivel_actual')}")
                 else:
-                    logger.warning(f"⚠️ Escalamiento falló para solicitud {solicitud.id}: {resultado.get('error')}")
+                    logger.warning(f"⚠️ Escalamiento falló: {resultado.get('error')}")
             except Exception as e:
-                logger.error(f"❌ Error en escalamiento automático para solicitud {solicitud.id}: {e}")
-                import traceback
-                logger.error(traceback.format_exc())
-                # No fallar la creación de solicitud por error en escalamiento
+                logger.error(f"❌ Error crítico en escalamiento: {e}")
+                # Don't fail the request, just log it
         
+        # 6. Format Response
         return {
             "id": str(solicitud.id),
             "cliente_id": str(solicitud.cliente.id),
