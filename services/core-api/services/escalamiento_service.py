@@ -227,21 +227,34 @@ class EscalamientoService:
             List[Asesor]: Lista de asesores elegibles sin duplicados
         """
         
-        ciudad_solicitud = solicitud.ciudad_origen
-        departamento_solicitud = solicitud.departamento_origen
+        # Usar FK municipio directamente si está disponible (fuente única de verdad)
+        municipio_solicitud = None
+        if solicitud.municipio_id:
+            municipio_solicitud = await Municipio.get_or_none(id=solicitud.municipio_id)
         
-        # Normalizar ciudad y departamento de la solicitud
-        ciudad_norm = Municipio.normalizar_ciudad(ciudad_solicitud)
-        departamento_norm = Municipio.normalizar_ciudad(departamento_solicitud)
-        
-        # Obtener municipio de la solicitud usando ciudad Y departamento
-        municipio_solicitud = await Municipio.get_or_none(
-            municipio_norm=ciudad_norm,
-            departamento=departamento_norm
-        )
+        # Fallback: buscar por texto normalizado si no hay FK
+        if not municipio_solicitud:
+            ciudad_solicitud = solicitud.ciudad_origen
+            departamento_solicitud = solicitud.departamento_origen
+            ciudad_norm = Municipio.normalizar_ciudad(ciudad_solicitud)
+            
+            # Buscar municipio por nombre normalizado (ignorar departamento para evitar mismatch)
+            municipios_candidatos = await Municipio.filter(municipio_norm=ciudad_norm).all()
+            
+            if len(municipios_candidatos) == 1:
+                municipio_solicitud = municipios_candidatos[0]
+            elif len(municipios_candidatos) > 1:
+                # Múltiples ciudades con el mismo nombre, filtrar por departamento
+                departamento_norm = Municipio.normalizar_ciudad(departamento_solicitud)
+                for m in municipios_candidatos:
+                    if Municipio.normalizar_ciudad(m.departamento) == departamento_norm:
+                        municipio_solicitud = m
+                        break
+                if not municipio_solicitud:
+                    municipio_solicitud = municipios_candidatos[0]  # Tomar el primero como fallback
         
         if not municipio_solicitud:
-            logger.warning(f"Ciudad {ciudad_solicitud}, {departamento_solicitud} no encontrada en base de datos de municipios")
+            logger.warning(f"Ciudad {solicitud.ciudad_origen}, {solicitud.departamento_origen} no encontrada en base de datos de municipios")
             # Fallback: buscar todos los asesores activos
             asesores_fallback = await Asesor.filter(
                 estado=EstadoAsesor.ACTIVO,
@@ -252,6 +265,7 @@ class EscalamientoService:
         
         logger.info(f"📍 Municipio solicitud: {municipio_solicitud.municipio} ({municipio_solicitud.departamento})")
         logger.info(f"   Hub: {municipio_solicitud.hub_logistico}, Área Metro: {municipio_solicitud.area_metropolitana}")
+
         
         asesores_elegibles = set()
         
