@@ -965,7 +965,10 @@ class EscalamientoService:
     @staticmethod
     async def ejecutar_escalamiento_con_primera_oleada(solicitud_id: str) -> Dict:
         """
-        Ejecuta el escalamiento completo y la primera oleada automáticamente
+        Ejecuta el escalamiento completo y la primera oleada automáticamente.
+        
+        Si no hay asesores disponibles, escala rápidamente por los niveles 1→5
+        y cierra la solicitud como CERRADA_SIN_OFERTAS al llegar al nivel máximo.
         
         Args:
             solicitud_id: ID de la solicitud
@@ -973,6 +976,8 @@ class EscalamientoService:
         Returns:
             Dict: Resultado del escalamiento y primera oleada
         """
+        NIVEL_MAXIMO = 5
+        
         try:
             # 1. Obtener solicitud
             solicitud = await Solicitud.get_or_none(id=solicitud_id).prefetch_related('cliente__usuario', 'municipio')
@@ -985,36 +990,67 @@ class EscalamientoService:
             
             logger.info(f"🚀 Ejecutando escalamiento automático para solicitud {solicitud_id}")
             
+            from utils.datetime_utils import now_utc
+            from models.enums import EstadoSolicitud
+            
             # 2. Procesar escalamiento completo (evaluar y clasificar asesores)
             resultado_escalamiento = await EscalamientoService.procesar_escalamiento_completo(solicitud)
             
+            # 3. Manejar caso SIN asesores disponibles
             if not resultado_escalamiento['success']:
-                logger.error(f"❌ Escalamiento falló: {resultado_escalamiento.get('error')}")
-                return resultado_escalamiento
+                logger.warning(f"⚠️ No hay asesores disponibles: {resultado_escalamiento.get('error')}")
+                logger.info(f"📈 Escalando rápidamente solicitud {solicitud_id} del nivel 1 al {NIVEL_MAXIMO} (sin cobertura)")
+                
+                # Marcar fecha_escalamiento y avanzar directamente al nivel máximo
+                solicitud.nivel_actual = NIVEL_MAXIMO
+                solicitud.fecha_escalamiento = now_utc()
+                solicitud.estado = EstadoSolicitud.CERRADA_SIN_OFERTAS
+                await solicitud.save()
+                
+                logger.info(f"🔴 Solicitud {solicitud_id} cerrada como SIN OFERTAS (sin asesores en ningún nivel)")
+                
+                return {
+                    'success': True,
+                    'message': 'Sin asesores disponibles - solicitud cerrada sin ofertas',
+                    'escalamiento': resultado_escalamiento,
+                    'nivel_actual': NIVEL_MAXIMO,
+                    'cerrada_sin_cobertura': True
+                }
             
-            # 3. Determinar el nivel inicial (el nivel más bajo con asesores)
+            # 4. Determinar el nivel inicial (el nivel más bajo con asesores)
             niveles_disponibles = sorted(resultado_escalamiento['niveles_generados'])
             
             if not niveles_disponibles:
-                logger.warning(f"⚠️ No hay niveles disponibles para solicitud {solicitud_id}")
+                logger.warning(f"⚠️ Escalamiento exitoso pero sin niveles generados para solicitud {solicitud_id}")
+                
+                # Mismo tratamiento: sin niveles = sin cobertura
+                solicitud.nivel_actual = NIVEL_MAXIMO
+                solicitud.fecha_escalamiento = now_utc()
+                solicitud.estado = EstadoSolicitud.CERRADA_SIN_OFERTAS
+                await solicitud.save()
+                
+                logger.info(f"🔴 Solicitud {solicitud_id} cerrada como SIN OFERTAS (0 niveles generados)")
+                
                 return {
-                    'success': False,
-                    'error': 'No se generaron niveles de escalamiento'
+                    'success': True,
+                    'message': 'Sin niveles de escalamiento generados - solicitud cerrada sin ofertas',
+                    'escalamiento': resultado_escalamiento,
+                    'nivel_actual': NIVEL_MAXIMO,
+                    'cerrada_sin_cobertura': True
                 }
             
             nivel_inicial = niveles_disponibles[0]  # Empezar por el nivel más bajo (mejor)
             
             logger.info(f"📊 Niveles generados: {niveles_disponibles}, iniciando en Nivel {nivel_inicial}")
             
-            # 4. Actualizar nivel de la solicitud
+            # 5. Actualizar nivel de la solicitud
             solicitud.nivel_actual = nivel_inicial
-            from utils.datetime_utils import now_utc
             solicitud.fecha_escalamiento = now_utc()
             await solicitud.save()
             
             logger.info(f"✅ Solicitud {solicitud_id} actualizada a Nivel {nivel_inicial}")
             
-            # 5. Ejecutar primera oleada (notificar asesores del nivel inicial)
+            # 6. Ejecutar primera oleada (notificar asesores del nivel inicial)
             resultado_oleada = await EscalamientoService.ejecutar_oleada(solicitud, nivel_inicial)
             
             logger.info(f"🎯 Primera oleada: {resultado_oleada.get('asesores_notificados', 0)} asesores notificados en Nivel {nivel_inicial}")
@@ -1036,3 +1072,4 @@ class EscalamientoService:
                 'error': f'Error crítico: {str(e)}',
                 'solicitud_id': solicitud_id
             }
+
