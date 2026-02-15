@@ -22,6 +22,7 @@ from services.notification_service import notification_service
 from models.analytics import ParametroConfig
 from utils.datetime_utils import now_utc
 
+logger = logging.getLogger(__name__)
 
 class EscalamientoService:
     """
