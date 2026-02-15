@@ -393,11 +393,42 @@ async def verificar_timeouts_escalamiento(
             tiempos_nivel = {1: 15, 2: 20, 3: 25, 4: 30, 5: 35}
             logger.warning(f"⚠️ Configuración no encontrada, usando fallback: {tiempos_nivel}")
         
+        # === RESCATE DE SOLICITUDES HUÉRFANAS ===
+        # Solicitudes ABIERTAS sin fecha_escalamiento = el escalamiento inicial falló
+        # Reintentamos el proceso completo (si hay asesores funciona normal, si no cierra correctamente)
+        solicitudes_huerfanas = await Solicitud.filter(
+            estado=EstadoSolicitud.ABIERTA,
+            fecha_escalamiento__isnull=True
+        ).all()
+        
+        solicitudes_rescatadas = 0
+        if solicitudes_huerfanas:
+            logger.warning(f"🔧 Encontradas {len(solicitudes_huerfanas)} solicitudes huérfanas (sin escalamiento). Reintentando...")
+            
+            for sol_huerfana in solicitudes_huerfanas:
+                try:
+                    logger.info(f"🔄 Reintentando escalamiento para solicitud huérfana {sol_huerfana.id}")
+                    resultado_rescate = await EscalamientoService.ejecutar_escalamiento_con_primera_oleada(str(sol_huerfana.id))
+                    
+                    if resultado_rescate.get('success'):
+                        solicitudes_rescatadas += 1
+                        if resultado_rescate.get('cerrada_sin_cobertura'):
+                            logger.info(f"🔴 Solicitud huérfana {sol_huerfana.id} cerrada sin cobertura (sin asesores)")
+                        else:
+                            logger.info(f"✅ Solicitud huérfana {sol_huerfana.id} rescatada → Nivel {resultado_rescate.get('nivel_actual')}")
+                    else:
+                        logger.error(f"❌ No se pudo rescatar solicitud {sol_huerfana.id}: {resultado_rescate.get('error')}")
+                        
+                except Exception as e:
+                    logger.error(f"❌ Error rescatando solicitud {sol_huerfana.id}: {e}")
+        
+        # === PROCESAMIENTO NORMAL DE TIMEOUTS ===
         # Buscar solicitudes ABIERTAS que puedan necesitar escalamiento
         solicitudes_abiertas = await Solicitud.filter(
             estado=EstadoSolicitud.ABIERTA,
             fecha_escalamiento__isnull=False  # Solo las que ya tienen escalamiento inicial
         ).all()
+
         
         logger.info(f"📋 Encontradas {len(solicitudes_abiertas)} solicitudes abiertas con escalamiento")
         
@@ -687,15 +718,16 @@ async def verificar_timeouts_escalamiento(
                 continue
         
         # Log resumen
-        if solicitudes_escaladas > 0 or solicitudes_cerradas > 0:
-            logger.info(f"📊 Resumen: {solicitudes_escaladas} escaladas, {solicitudes_cerradas} cerradas")
+        if solicitudes_escaladas > 0 or solicitudes_cerradas > 0 or solicitudes_rescatadas > 0:
+            logger.info(f"📊 Resumen: {solicitudes_rescatadas} rescatadas, {solicitudes_escaladas} escaladas, {solicitudes_cerradas} cerradas")
         
         return {
             'success': True,
+            'solicitudes_rescatadas': solicitudes_rescatadas,
             'solicitudes_escaladas': solicitudes_escaladas,
             'solicitudes_cerradas': solicitudes_cerradas,
             'timestamp': datetime.now().isoformat(),
-            'message': f'Verificación completada: {solicitudes_escaladas} escaladas, {solicitudes_cerradas} cerradas'
+            'message': f'Verificación completada: {solicitudes_rescatadas} rescatadas, {solicitudes_escaladas} escaladas, {solicitudes_cerradas} cerradas'
         }
         
     except Exception as e:
