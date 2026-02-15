@@ -1,23 +1,26 @@
 """
 Initialization service for TeLOO V3
 Handles automatic database initialization on startup
+
+NOTE: This service ONLY creates essential system data (admin user + config parameters).
+      NO sample/test/hardcoded data is created here.
+      All business data (clients, advisors, PQRs, etc.) must be created through the application UI.
 """
 
 import logging
-import hashlib
-from models.user import Usuario, Cliente, Asesor
-from models.enums import RolUsuario, EstadoUsuario, TipoPQR, PrioridadPQR, EstadoPQR
-from models.analytics import ParametroConfig, PQR
-from models.geografia import Municipio
+import os
+from models.user import Usuario
+from models.enums import RolUsuario, EstadoUsuario
+from models.analytics import ParametroConfig
 
 logger = logging.getLogger(__name__)
 
 class InitService:
-    """Service for initializing database with default data"""
+    """Service for initializing database with essential system data"""
     
     @staticmethod
     async def initialize_default_data():
-        """Initialize database with default admin user and configuration"""
+        """Initialize database with admin user and configuration parameters only"""
         try:
             logger.info("🚀 Starting database initialization...")
             
@@ -27,45 +30,29 @@ class InitService:
             # Initialize configuration parameters
             await InitService._create_config_parameters()
             
-            # Create sample data ONLY if explicitly requested
-            try:
-                import os
-                create_sample_data = os.getenv("CREATE_SAMPLE_DATA", "false").lower() == "true"
-                if create_sample_data:
-                    await InitService._create_sample_data()
-                else:
-                    logger.info("ℹ️ Sample data creation is disabled (CREATE_SAMPLE_DATA=false)")
-            except Exception as e:
-                logger.warning(f"⚠️ Could not create sample data: {e}")
-            
             logger.info("✅ Database initialization completed successfully")
             
         except Exception as e:
             logger.error(f"❌ Error during database initialization: {e}")
-            # We treat init errors as non-fatal to allow service to start and be fixed later
-            # This is critical for initial deployment where data might be missing
             logger.warning("⚠️ Service starting despite initialization errors")
     
     @staticmethod
     async def _create_admin_user():
         """Create or update admin user"""
-        admin_email = "admin@teloo.com"
-        admin_password = "admin123"
+        admin_email = os.getenv("ADMIN_EMAIL", "admin@teloo.com")
+        admin_password = os.getenv("ADMIN_PASSWORD", "admin123")
         
         try:
             existing_admin = await Usuario.get_or_none(email=admin_email)
             
-            # Import AuthService for proper password hashing
             from services.auth_service import AuthService
             
             if existing_admin:
-                # Update existing admin password with proper bcrypt hash
                 password_hash = AuthService.get_password_hash(admin_password)
                 existing_admin.password_hash = password_hash
                 await existing_admin.save()
                 logger.info(f"🔄 Admin user updated: {admin_email}")
             else:
-                # Create new admin user with proper bcrypt hash
                 password_hash = AuthService.get_password_hash(admin_password)
                 await Usuario.create(
                     email=admin_email,
@@ -78,7 +65,6 @@ class InitService:
                 )
                 
                 logger.info(f"✅ Admin user created: {admin_email}")
-                logger.info(f"   Default password: {admin_password}")
                 
         except Exception as e:
             logger.error(f"❌ Error creating admin user: {e}")
@@ -147,170 +133,3 @@ class InitService:
         except Exception as e:
             logger.error(f"❌ Error creating config parameters: {e}")
             raise
-
-    @staticmethod
-    async def _create_sample_data():
-        """Create sample data for development"""
-        try:
-            logger.info("📊 Creating sample data...")
-            
-            # Note: Geographic data (municipios) should be imported using import_divipola.py script
-            # This ensures all 1,122 Colombian municipalities are properly loaded
-            logger.info("ℹ️ Geographic data should be imported using: docker exec -it teloo-core-api python scripts/import_divipola.py")
-            
-            # Create sample clients
-            clientes_sample = [
-                {"email": "cliente1@example.com", "nombre": "Juan", "apellido": "Pérez", "telefono": "+573001234567", "ciudad": "Bogotá", "departamento": "Cundinamarca"},
-                {"email": "cliente2@example.com", "nombre": "María", "apellido": "García", "telefono": "+573007654321", "ciudad": "Medellín", "departamento": "Antioquia"},
-                {"email": "cliente3@example.com", "nombre": "Carlos", "apellido": "López", "telefono": "+573009876543", "ciudad": "Cali", "departamento": "Valle del Cauca"},
-                {"email": "cliente4@example.com", "nombre": "Ana", "apellido": "Martínez", "telefono": "+573005555555", "ciudad": "Barranquilla", "departamento": "Atlántico"},
-                {"email": "cliente5@example.com", "nombre": "Luis", "apellido": "Rodríguez", "telefono": "+573006666666", "ciudad": "Bogotá", "departamento": "Cundinamarca"},
-            ]
-            
-            for cliente_data in clientes_sample:
-                existing_user = await Usuario.get_or_none(email=cliente_data["email"])
-                if not existing_user:
-                    # Create user
-                    from services.auth_service import AuthService
-                    password_hash = AuthService.get_password_hash("cliente123")
-                    user = await Usuario.create(
-                        email=cliente_data["email"],
-                        password_hash=password_hash,
-                        nombre=cliente_data["nombre"],
-                        apellido=cliente_data["apellido"],
-                        telefono=cliente_data["telefono"],
-                        rol=RolUsuario.CLIENT,
-                        estado=EstadoUsuario.ACTIVO
-                    )
-                    
-                    # Create client
-                    await Cliente.create(
-                        usuario=user,
-                        ciudad=cliente_data["ciudad"],
-                        departamento=cliente_data["departamento"]
-                    )
-            
-            # Create sample advisors
-            asesores_sample = [
-                {
-                    "email": "asesor1@teloo.com", 
-                    "nombre": "Pedro", "apellido": "Martínez", "telefono": "+573101234567",
-                    "ciudad": "Bogotá", "departamento": "Cundinamarca", "punto_venta": "Repuestos Martínez"
-                },
-                {
-                    "email": "asesor2@teloo.com", 
-                    "nombre": "Ana", "apellido": "Rodríguez", "telefono": "+573107654321",
-                    "ciudad": "Medellín", "departamento": "Antioquia", "punto_venta": "AutoPartes Ana"
-                },
-                {
-                    "email": "asesor3@teloo.com", 
-                    "nombre": "Carlos", "apellido": "Gómez", "telefono": "+573108888888",
-                    "ciudad": "Cali", "departamento": "Valle del Cauca", "punto_venta": "Repuestos Valle"
-                },
-                {
-                    "email": "asesor4@teloo.com", 
-                    "nombre": "Laura", "apellido": "Díaz", "telefono": "+573109999999",
-                    "ciudad": "Barranquilla", "departamento": "Atlántico", "punto_venta": "Costa Repuestos"
-                },
-                {
-                    "email": "asesor5@teloo.com", 
-                    "nombre": "Miguel", "apellido": "Torres", "telefono": "+573100000000",
-                    "ciudad": "Bogotá", "departamento": "Cundinamarca", "punto_venta": "Torres AutoPartes"
-                },
-            ]
-            
-            for asesor_data in asesores_sample:
-                existing_user = await Usuario.get_or_none(email=asesor_data["email"])
-                if not existing_user:
-                    # Create user
-                    from services.auth_service import AuthService
-                    password_hash = AuthService.get_password_hash("asesor123")
-                    user = await Usuario.create(
-                        email=asesor_data["email"],
-                        password_hash=password_hash,
-                        nombre=asesor_data["nombre"],
-                        apellido=asesor_data["apellido"],
-                        telefono=asesor_data["telefono"],
-                        rol=RolUsuario.ADVISOR,
-                        estado=EstadoUsuario.ACTIVO
-                    )
-                    
-                    # Obtener un municipio real para el asesor basado en su ciudad
-                    municipio = await Municipio.get_or_none(municipio_norm=Municipio.normalizar_ciudad(asesor_data["ciudad"]))
-                    
-                    if not municipio:
-                        logger.warning(f"⚠️ Skipping sample advisor {asesor_data['email']}: Municipality {asesor_data['ciudad']} not found in database. Please run import_divipola.py.")
-                        continue
-                        
-                    # Create advisor
-                    await Asesor.create(
-                        usuario=user,
-                        ciudad=asesor_data["ciudad"],
-                        departamento=asesor_data["departamento"],
-                        punto_venta=asesor_data["punto_venta"],
-                        municipio=municipio
-                    )
-            
-            # Create sample PQRs
-            clientes = await Cliente.all()
-            if clientes:
-                pqrs_sample = [
-                    {
-                        "cliente": clientes[0],
-                        "tipo": TipoPQR.QUEJA,
-                        "prioridad": PrioridadPQR.MEDIA,
-                        "estado": EstadoPQR.ABIERTA,
-                        "resumen": "Demora en la entrega del repuesto",
-                        "detalle": "El repuesto solicitado no llegó en el tiempo prometido"
-                    },
-                    {
-                        "cliente": clientes[1] if len(clientes) > 1 else clientes[0],
-                        "tipo": TipoPQR.PETICION,
-                        "prioridad": PrioridadPQR.BAJA,
-                        "estado": EstadoPQR.EN_PROCESO,
-                        "resumen": "Solicitud de información sobre garantía",
-                        "detalle": "Necesito información sobre la garantía de los repuestos"
-                    },
-                    {
-                        "cliente": clientes[2] if len(clientes) > 2 else clientes[0],
-                        "tipo": TipoPQR.RECLAMO,
-                        "prioridad": PrioridadPQR.ALTA,
-                        "estado": EstadoPQR.ABIERTA,
-                        "resumen": "Repuesto defectuoso recibido",
-                        "detalle": "El repuesto recibido presenta fallas de fabricación"
-                    },
-                    {
-                        "cliente": clientes[3] if len(clientes) > 3 else clientes[0],
-                        "tipo": TipoPQR.PETICION,
-                        "prioridad": PrioridadPQR.BAJA,
-                        "estado": EstadoPQR.CERRADA,
-                        "resumen": "Consulta sobre disponibilidad",
-                        "detalle": "Consulta sobre disponibilidad de repuestos específicos"
-                    },
-                    {
-                        "cliente": clientes[4] if len(clientes) > 4 else clientes[0],
-                        "tipo": TipoPQR.QUEJA,
-                        "prioridad": PrioridadPQR.CRITICA,
-                        "estado": EstadoPQR.ABIERTA,
-                        "resumen": "Problema con facturación",
-                        "detalle": "Error en el cobro de la factura, se cobró de más"
-                    },
-                    {
-                        "cliente": clientes[0],
-                        "tipo": TipoPQR.RECLAMO,
-                        "prioridad": PrioridadPQR.MEDIA,
-                        "estado": EstadoPQR.EN_PROCESO,
-                        "resumen": "Servicio de instalación deficiente",
-                        "detalle": "El técnico no instaló correctamente el repuesto"
-                    },
-                ]
-                
-                for pqr_data in pqrs_sample:
-                    existing = await PQR.get_or_none(resumen=pqr_data["resumen"])
-                    if not existing:
-                        await PQR.create(**pqr_data)
-            
-            logger.info("✅ Sample data created successfully")
-            
-        except Exception as e:
-            logger.error(f"⚠️ Error creating sample data: {e}")
