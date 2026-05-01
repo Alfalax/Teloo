@@ -6,6 +6,7 @@ Handles administrative functions including geographic data import
 from fastapi import APIRouter, UploadFile, File, HTTPException, Depends, Query
 from typing import Dict, Any, Optional
 import logging
+import secrets
 from services.geografia_service import GeografiaService
 from services.configuracion_service import ConfiguracionService
 from services.scheduler_service import scheduler_service
@@ -45,7 +46,15 @@ async def import_divipola(
     
     if not file.filename:
         raise HTTPException(status_code=400, detail="No se proporcionó archivo")
-    
+
+    if not file.filename.lower().endswith('.xlsx'):
+        raise HTTPException(status_code=400, detail="El archivo debe ser formato .xlsx")
+
+    header = await file.read(4)
+    await file.seek(0)
+    if header != b'PK\x03\x04':
+        raise HTTPException(status_code=400, detail="El contenido del archivo no corresponde a un Excel válido")
+
     return await GeografiaService.importar_divipola_excel(file)
 
 
@@ -524,8 +533,8 @@ async def create_usuario(
         password_generada = False
         
         if not password_final:
-             password_final = "Teloo2026."
-             password_generada = True
+            password_final = secrets.token_urlsafe(12)
+            password_generada = True
 
         # Mapeo de roles para robustez (soporta español e inglés)
         rol_input = usuario_data.get('rol', 'CLIENT')
@@ -607,9 +616,13 @@ async def create_usuario(
             response_data["message"] = f"Usuario creado y perfil de asesor activado. Contraseña temporal: {password_final}"
         else:
             response_data["message"] = "Usuario creado y perfil de asesor activado."
-            
+
+        logger.info(
+            "AUDIT create_usuario email=%s rol=%s by=%s",
+            usuario.email, usuario.rol.value, current_user.email,
+        )
         return response_data
-        
+
     except HTTPException:
         raise
     except Exception as e:
@@ -647,7 +660,11 @@ async def update_usuario(
             usuario.password_hash = AuthService.get_password_hash(usuario_data['password'])
         
         await usuario.save()
-        
+
+        logger.info(
+            "AUDIT update_usuario id=%s email=%s fields=%s by=%s",
+            usuario_id, usuario.email, list(usuario_data.keys()), current_user.email,
+        )
         return {
             "success": True,
             "usuario": {
@@ -683,8 +700,14 @@ async def delete_usuario(
         if str(usuario.id) == str(current_user.id):
             raise HTTPException(status_code=400, detail="No puedes eliminar tu propio usuario")
         
+        email_eliminado = usuario.email
+        rol_eliminado = usuario.rol.value
         await usuario.delete()
-        
+
+        logger.info(
+            "AUDIT delete_usuario id=%s email=%s rol=%s by=%s",
+            usuario_id, email_eliminado, rol_eliminado, current_user.email,
+        )
         return {"success": True, "message": "Usuario eliminado correctamente"}
     except HTTPException:
         raise

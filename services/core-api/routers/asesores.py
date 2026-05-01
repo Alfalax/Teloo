@@ -554,7 +554,14 @@ async def import_asesores_excel(
     """
     if not file.filename or not file.filename.endswith(('.xlsx', '.xls')):
         raise HTTPException(status_code=400, detail="Archivo debe ser Excel (.xlsx o .xls)")
-    
+
+    header = await file.read(4)
+    await file.seek(0)
+    XLSX_MAGIC = b'PK\x03\x04'
+    XLS_MAGIC = b'\xd0\xcf\x11\xe0'
+    if header != XLSX_MAGIC and header != XLS_MAGIC:
+        raise HTTPException(status_code=400, detail="El contenido del archivo no corresponde a un Excel válido")
+
     from services.asesores_service import AsesoresService
     return await AsesoresService.import_asesores_excel(file)
 

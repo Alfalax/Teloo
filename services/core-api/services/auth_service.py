@@ -17,7 +17,7 @@ from models.enums import RolUsuario, EstadoUsuario
 from utils.secrets import get_jwt_config
 
 try:
-    pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto", bcrypt__rounds=12)
+    pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto", bcrypt__rounds=14)
     pwd_context.hash("test")
 except Exception:
     pwd_context = CryptContext(schemes=["pbkdf2_sha256"], deprecated="auto")
@@ -27,7 +27,7 @@ except Exception:
 JWT_CONFIG = get_jwt_config()
 SECRET_KEY = JWT_CONFIG.get("secret_key")
 ALGORITHM = JWT_CONFIG.get("algorithm", "HS256")
-ACCESS_TOKEN_EXPIRE_MINUTES = int(JWT_CONFIG.get("access_token_expire_minutes", 15))
+ACCESS_TOKEN_EXPIRE_MINUTES = int(JWT_CONFIG.get("access_token_expire_minutes", 10))
 REFRESH_TOKEN_EXPIRE_DAYS = int(JWT_CONFIG.get("refresh_token_expire_days", 7))
 
 def _jwt_algorithm() -> str:

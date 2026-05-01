@@ -4,7 +4,12 @@ Modelos de datos usando Tortoise ORM
 """
 
 from .base import BaseModel
-from .enums import *
+from .enums import (
+    RolUsuario, EstadoUsuario, EstadoSolicitud, EstadoOferta,
+    EstadoAsesor, TipoPQR, PrioridadPQR, EstadoPQR,
+    TipoTransaccion, EstadoTransaccion, TipoEvento, CanalNotificacion,
+    OrigenOferta, EstadoAuditoria,
+)
 from .user import Usuario, Cliente, Asesor
 from .solicitud import Solicitud, RepuestoSolicitado
 from .oferta import Oferta, OfertaDetalle, AdjudicacionRepuesto, Evaluacion

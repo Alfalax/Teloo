@@ -302,10 +302,13 @@ async def upload_oferta_excel(
                 status_code=400,
                 detail="Archivo debe ser formato .xlsx"
             )
-        
+
         # Read file content
         file_content = await file.read()
-        
+
+        if file_content[:4] != b'PK\x03\x04':
+            raise HTTPException(status_code=400, detail="El contenido del archivo no corresponde a un Excel válido")
+
         # Create bulk offer
         result = await OfertasService.create_oferta_bulk_excel(
             solicitud_id=solicitud_id,
@@ -664,10 +667,13 @@ async def upload_oferta_excel(
                 status_code=400,
                 detail="Archivo debe ser formato .xlsx"
             )
-        
+
         # Read file content
         file_content = await file.read()
-        
+
+        if file_content[:4] != b'PK\x03\x04':
+            raise HTTPException(status_code=400, detail="El contenido del archivo no corresponde a un Excel válido")
+
         # Validate file size (5MB max)
         max_size = 5 * 1024 * 1024  # 5MB
         if len(file_content) > max_size:
@@ -791,7 +797,10 @@ async def validate_excel_file(
         
         # Read file content
         file_content = await file.read()
-        
+
+        if file_content[:4] != b'PK\x03\x04':
+            raise HTTPException(status_code=400, detail="El contenido del archivo no corresponde a un Excel válido")
+
         # Validate file size
         max_size = 5 * 1024 * 1024  # 5MB
         if len(file_content) > max_size:
