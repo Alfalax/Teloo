@@ -169,9 +169,7 @@ async def buscar_cliente_por_telefono(
         }
         
     except Exception as e:
-        import traceback
-        print(f"Error in buscar_cliente_por_telefono: {str(e)}")
-        print(traceback.format_exc())
+        logger.exception(f"Error in buscar_cliente_por_telefono: {str(e)}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Error searching cliente: {str(e)}"
@@ -323,9 +321,7 @@ async def get_advisor_metrics(
         }
         
     except Exception as e:
-        import traceback
-        print(f"Error in metrics endpoint: {str(e)}")
-        print(traceback.format_exc())
+        logger.exception(f"Error in metrics endpoint: {str(e)}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Error fetching metrics: {str(e)}"
@@ -375,9 +371,7 @@ async def get_solicitudes(
         return result
         
     except Exception as e:
-        import traceback
-        print(f"Error in get_solicitudes: {str(e)}")
-        print(traceback.format_exc())
+        logger.exception(f"Error in get_solicitudes: {str(e)}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Error fetching solicitudes: {str(e)}"
@@ -396,9 +390,7 @@ async def get_solicitudes_stats(
         return stats
         
     except Exception as e:
-        import traceback
-        print(f"Error in get_solicitudes_stats: {str(e)}")
-        print(traceback.format_exc())
+        logger.exception(f"Error in get_solicitudes_stats: {str(e)}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Error fetching stats: {str(e)}"
@@ -434,9 +426,7 @@ async def create_solicitud(
             detail=str(e)
         )
     except Exception as e:
-        import traceback
-        print(f"Error in create_solicitud: {str(e)}")
-        print(traceback.format_exc())
+        logger.exception(f"Error in create_solicitud: {str(e)}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Error creating solicitud: {str(e)}"
@@ -628,9 +618,7 @@ async def descargar_plantilla_oferta(
     except HTTPException:
         raise
     except Exception as e:
-        import traceback
-        print(f"Error generando plantilla: {str(e)}")
-        print(traceback.format_exc())
+        logger.exception(f"Error generando plantilla: {str(e)}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Error generando plantilla: {str(e)}"
@@ -659,9 +647,7 @@ async def get_solicitud(
     except HTTPException:
         raise
     except Exception as e:
-        import traceback
-        print(f"Error in get_solicitud: {str(e)}")
-        print(traceback.format_exc())
+        logger.exception(f"Error in get_solicitud: {str(e)}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Error fetching solicitud: {str(e)}"

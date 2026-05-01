@@ -32,11 +32,12 @@ from middleware.metrics_middleware import MetricsMiddleware
 # Load environment variables
 load_dotenv()
 
+from config import settings
+
 # Initialize structured logging
-log_level = os.getenv("LOG_LEVEL", "INFO")
-environment = os.getenv("ENVIRONMENT", "development")
-init_logger("core-api", log_level)
+init_logger("core-api", settings.log_level)
 logger = get_logger()
+environment = settings.environment
 
 # Create FastAPI app
 app = FastAPI(
@@ -51,14 +52,10 @@ app = FastAPI(
 from fastapi import Request, Response
 from starlette.middleware.base import BaseHTTPMiddleware
 
-_raw_origins = os.getenv(
-    "ALLOWED_ORIGINS",
-    "https://app.teloo.cloud,https://admin.teloo.cloud,https://advisor.teloo.cloud,https://teloo.cloud,https://www.teloo.cloud"
-)
-_ALLOWED_ORIGINS: set = {o.strip() for o in _raw_origins.split(",") if o.strip()}
+_ALLOWED_ORIGINS: set = {o.strip() for o in settings.allowed_origins.split(",") if o.strip()}
 
 # Development: add localhost origins when not in production
-if os.getenv("ENVIRONMENT", "development") != "production":
+if settings.environment != "production":
     _ALLOWED_ORIGINS.update({
         "http://localhost:3000",
         "http://localhost:3001",
@@ -100,8 +97,7 @@ app.add_middleware(CorrelationMiddleware)
 # trusted_hosts MUST be set to specific proxy IPs/CIDRs in production via TRUSTED_PROXY_HOSTS env var
 # Leaving "*" allows IP spoofing via X-Forwarded-For — set this before going live
 from uvicorn.middleware.proxy_headers import ProxyHeadersMiddleware
-_trusted_proxy = os.getenv("TRUSTED_PROXY_HOSTS", "*")
-app.add_middleware(ProxyHeadersMiddleware, trusted_hosts=_trusted_proxy)
+app.add_middleware(ProxyHeadersMiddleware, trusted_hosts=settings.trusted_proxy_hosts)
 
 # Database initialization
 init_db(app)
@@ -122,7 +118,7 @@ uploads_dir = Path("uploads")
 uploads_dir.mkdir(exist_ok=True)
 app.mount("/uploads", StaticFiles(directory="uploads"), name="uploads")
 
-_INTERNAL_API_KEY = os.getenv("INTERNAL_API_KEY", "")
+_INTERNAL_API_KEY = settings.internal_api_key
 
 
 def _require_internal_key(request: Request) -> None:
@@ -297,12 +293,14 @@ async def startup_event():
         )
         
         # Warn about missing security configuration
-        if not os.getenv("INTERNAL_API_KEY"):
+        if not settings.internal_api_key:
             logger.warning("INTERNAL_API_KEY not set — /health and /metrics are unprotected")
-        if not os.getenv("TRUSTED_PROXY_HOSTS"):
-            logger.warning("TRUSTED_PROXY_HOSTS not set — using '*' (IP spoofing risk in production)")
-        if not os.getenv("ALLOWED_ORIGINS"):
-            logger.warning("ALLOWED_ORIGINS not set — using default teloo.cloud whitelist")
+        if settings.trusted_proxy_hosts == "*":
+            logger.warning("TRUSTED_PROXY_HOSTS is '*' — IP spoofing risk in production")
+        if not settings.agent_ia_api_key:
+            logger.warning("AGENT_IA_API_KEY not set — service authentication disabled")
+        if not settings.analytics_api_key:
+            logger.warning("ANALYTICS_API_KEY not set — analytics auth disabled")
 
         # Initialize database with default data
         from services.init_service import InitService
@@ -310,8 +308,7 @@ async def startup_event():
         logger.info("Default data initialized")
         
         # Initialize scheduler
-        redis_url = os.getenv("REDIS_URL", "redis://localhost:6379")
-        await scheduler_service.initialize(redis_url)
+        await scheduler_service.initialize(settings.redis_url)
         await scheduler_service.start()
         logger.info("Scheduler service started successfully")
         

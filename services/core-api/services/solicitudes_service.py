@@ -115,14 +115,15 @@ class SolicitudesService:
         total_pages = (total + page_size - 1) // page_size
         offset = (page - 1) * page_size
         
-        # Get paginated results
+        # Get paginated results — prefetch ofertas__detalles to avoid N+1 in the asesor loop
         solicitudes = await query.offset(offset).limit(page_size).prefetch_related(
             "cliente",
             "cliente__usuario",
             "repuestos_solicitados",
-            "ofertas"
+            "ofertas",
+            "ofertas__detalles",
         )
-        
+
         # Format response
         items = []
         for sol in solicitudes:
@@ -131,8 +132,7 @@ class SolicitudesService:
             if asesor_id and hasattr(sol, 'ofertas'):
                 for oferta in sol.ofertas:
                     if str(oferta.asesor_id) == str(asesor_id):
-                        # Load detalles for the oferta
-                        await oferta.fetch_related('detalles')
+                        # detalles already prefetched — no extra query needed
                         mi_oferta = {
                             "id": str(oferta.id),
                             "solicitud_id": str(oferta.solicitud_id),

@@ -11,6 +11,7 @@ from services.evaluacion_service import EvaluacionService
 from services.concurrencia_service import ConcurrenciaService
 from middleware.auth_middleware import get_current_user
 from models.user import Usuario
+from utils.redis_client import get_redis
 
 logger = logging.getLogger(__name__)
 
@@ -47,8 +48,7 @@ async def ejecutar_evaluacion(
         
         # Acquire evaluation lock
         async with ConcurrenciaService.lock_evaluacion(solicitud_id):
-            # TODO: Get Redis client from dependency injection
-            redis_client = None  # Will be injected when Redis is set up
+            redis_client = await get_redis()
             
             # Execute evaluation with timeout
             resultado = await EvaluacionService.ejecutar_evaluacion_con_timeout(
@@ -164,8 +164,7 @@ async def procesar_expiracion_ofertas(
                 detail="Horas de expiración debe estar entre 1 y 168 (1 semana)"
             )
         
-        # TODO: Get Redis client from dependency injection
-        redis_client = None
+        redis_client = await get_redis()
         
         # Process expiration
         resultado = await EvaluacionService.procesar_expiracion_ofertas(
@@ -244,8 +243,7 @@ async def notificar_expiracion_proxima(
                 detail="Horas antes debe ser menor que horas de expiración total"
             )
         
-        # TODO: Get Redis client from dependency injection
-        redis_client = None
+        redis_client = await get_redis()
         
         # Send notifications
         resultado = await EvaluacionService.notificar_expiracion_proxima(

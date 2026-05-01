@@ -16,6 +16,7 @@ from middleware.auth_middleware import get_current_user
 from models.user import Usuario
 from models.solicitud import Solicitud, RepuestoSolicitado
 from models.enums import EstadoSolicitud, EstadoOferta
+from utils.redis_client import get_redis
 
 logger = logging.getLogger(__name__)
 
@@ -133,7 +134,7 @@ async def create_oferta_individual(
             tiempo_entrega_dias=oferta_data.tiempo_entrega_dias,
             observaciones=oferta_data.observaciones,
             detalles=detalles_dict,
-            redis_client=None  # TODO: Inject Redis client
+            redis_client=await get_redis()
         )
         
         return OfertaResponse(**result)
@@ -311,7 +312,7 @@ async def upload_oferta_excel(
             asesor_id=str(asesor.id),
             excel_file_content=file_content,
             filename=file.filename,
-            redis_client=None  # TODO: Inject Redis client
+            redis_client=await get_redis()
         )
         
         if not result['success']:
@@ -428,7 +429,7 @@ async def update_oferta_estado(
             oferta_id=oferta_id,
             nuevo_estado=estado_data.nuevo_estado,
             motivo=estado_data.motivo,
-            redis_client=None  # TODO: Inject Redis client
+            redis_client=await get_redis()
         )
         
         return EstadoUpdateResponse(**result)
@@ -521,7 +522,7 @@ async def marcar_ofertas_expiradas(
         # Mark offers as expired
         result = await OfertasService.marcar_ofertas_expiradas(
             horas_expiracion=horas_expiracion,
-            redis_client=None  # TODO: Inject Redis client
+            redis_client=await get_redis()
         )
         
         return result
@@ -681,7 +682,7 @@ async def upload_oferta_excel(
             asesor_id=str(asesor.id),
             excel_file_content=file_content,
             filename=file.filename,
-            redis_client=None  # TODO: Inject Redis client
+            redis_client=await get_redis()
         )
         
         return BulkUploadResponse(**result)
@@ -862,7 +863,7 @@ async def actualizar_estado_oferta(
             nuevo_estado=nuevo_estado,
             usuario_id=str(current_user.id),
             motivo=motivo,
-            redis_client=None  # TODO: Inject Redis client
+            redis_client=await get_redis()
         )
         
         return result
@@ -939,7 +940,7 @@ async def marcar_ofertas_expiradas(
         from jobs.scheduled_jobs import procesar_expiracion_ofertas
         result = await procesar_expiracion_ofertas(
             timeout_horas=timeout_horas,
-            redis_client=None  # TODO: Inject Redis client
+            redis_client=await get_redis()
         )
         
         return result
