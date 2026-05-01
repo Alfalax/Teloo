@@ -71,6 +71,10 @@ class InMemoryRateLimiter:
 # Instancia global del rate limiter
 rate_limiter = InMemoryRateLimiter()
 
+# Stricter limiter for auth endpoints — 10 attempts per minute per IP
+_login_rate_limiter = InMemoryRateLimiter()
+_login_rate_limiter.max_requests = 10
+
 
 async def check_rate_limit(request: Request, identifier: str = None):
     """
@@ -90,5 +94,16 @@ async def check_rate_limit(request: Request, identifier: str = None):
         raise HTTPException(
             status_code=status.HTTP_429_TOO_MANY_REQUESTS,
             detail="Rate limit exceeded. Please try again later.",
+            headers={"Retry-After": "60"}
+        )
+
+
+async def check_login_rate_limit(request: Request):
+    """Stricter rate limit for login endpoint — 10 attempts per minute per IP."""
+    key = f"login:{request.client.host}"
+    if not _login_rate_limiter.is_allowed(key):
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail="Too many login attempts. Please try again in a minute.",
             headers={"Retry-After": "60"}
         )

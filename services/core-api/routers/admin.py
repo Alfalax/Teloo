@@ -51,7 +51,7 @@ async def import_divipola(
 
 @router.get("/geografia/departamentos")
 async def get_departamentos(
-    current_user: Usuario = Depends(get_current_active_user)
+    current_user: Usuario = Depends(get_current_admin_user)
 ) -> Dict:
     """
     Obtiene lista de todos los departamentos únicos
@@ -70,7 +70,7 @@ async def get_departamentos(
 @router.get("/geografia/ciudades")
 async def get_ciudades(
     departamento: Optional[str] = Query(None, description="Filtrar por departamento"),
-    current_user: Usuario = Depends(get_current_active_user)
+    current_user: Usuario = Depends(get_current_admin_user)
 ) -> Dict:
     """
     Obtiene lista de ciudades, opcionalmente filtradas por departamento

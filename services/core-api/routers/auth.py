@@ -3,12 +3,15 @@ Authentication router for TeLOO V3
 Handles login, refresh token, and authentication endpoints
 """
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from datetime import datetime
+from typing import Optional
+from pydantic import BaseModel
 from models.auth import LoginRequest, TokenResponse, RefreshTokenRequest, UserInfo
 from models.user import Usuario
 from services.auth_service import AuthService
+from middleware.rate_limiter import check_login_rate_limit
 
 router = APIRouter(prefix="/auth", tags=["Authentication"])
 security = HTTPBearer()
@@ -35,8 +38,12 @@ async def options_handler():
 
 
 
+class LogoutRequest(BaseModel):
+    refresh_token: Optional[str] = None
+
+
 @router.post("/login", response_model=TokenResponse)
-async def login(login_data: LoginRequest):
+async def login(request: Request, login_data: LoginRequest, _=Depends(check_login_rate_limit)):
     """
     Authenticate user and return JWT tokens
     
@@ -93,16 +100,16 @@ async def refresh_token(refresh_data: RefreshTokenRequest):
     Returns new access token (15min) and refresh token (7 days)
     """
     try:
-        # Verify refresh token
-        payload = AuthService.verify_token(refresh_data.refresh_token, token_type="refresh")
+        # Verify refresh token (also checks blacklist)
+        payload = await AuthService.verify_token(refresh_data.refresh_token, token_type="refresh")
         email = payload.get("sub")
-        
+
         if not email:
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="Invalid refresh token"
             )
-        
+
         # Get user
         user = await Usuario.get_or_none(email=email)
         if not user:
@@ -110,17 +117,20 @@ async def refresh_token(refresh_data: RefreshTokenRequest):
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="User not found"
             )
-        
-        # Create new token pair
+
+        # Blacklist old refresh token before issuing new pair (rotation)
+        await AuthService.blacklist_token(refresh_data.refresh_token)
+
+        # Issue new token pair
         tokens = AuthService.create_token_pair(user)
-        
+
         return TokenResponse(
             access_token=tokens["access_token"],
             refresh_token=tokens["refresh_token"],
             token_type=tokens["token_type"],
-            expires_in=900  # 15 minutes
+            expires_in=900
         )
-        
+
     except HTTPException:
         raise
     except Exception:
@@ -152,15 +162,17 @@ async def get_current_user_info(credentials: HTTPAuthorizationCredentials = Depe
 
 
 @router.post("/logout")
-async def logout(credentials: HTTPAuthorizationCredentials = Depends(security)):
+async def logout(
+    logout_data: LogoutRequest = LogoutRequest(),
+    credentials: HTTPAuthorizationCredentials = Depends(security),
+):
     """
-    Logout user (client-side token invalidation)
-    
-    Note: JWT tokens are stateless, so logout is handled client-side
-    by removing the tokens from storage
+    Logout user — blacklists access token and optionally the refresh token in Redis.
+    Tokens remain cryptographically valid until expiry but are rejected on every request.
     """
-    # In a production system, you might want to maintain a blacklist
-    # of invalidated tokens in Redis or database
+    await AuthService.blacklist_token(credentials.credentials)
+    if logout_data.refresh_token:
+        await AuthService.blacklist_token(logout_data.refresh_token)
     return {"message": "Successfully logged out"}
 
 

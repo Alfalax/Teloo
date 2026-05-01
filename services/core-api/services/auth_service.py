@@ -5,6 +5,7 @@ Handles JWT token generation, validation, and user authentication
 
 import os
 import time
+import uuid
 from datetime import datetime, timedelta
 from typing import Optional, Dict, Any
 import jwt
@@ -64,34 +65,81 @@ class AuthService:
             expire_timestamp = time.time() + expires_delta.total_seconds()
         else:
             expire_timestamp = time.time() + (ACCESS_TOKEN_EXPIRE_MINUTES * 60)
-        
-        to_encode.update({"exp": int(expire_timestamp), "type": "access"})
+
+        to_encode.update({
+            "exp": int(expire_timestamp),
+            "type": "access",
+            "jti": str(uuid.uuid4()),
+        })
         encoded_jwt = jwt.encode(to_encode, SECRET_KEY, algorithm=_jwt_algorithm())
         return encoded_jwt
-    
+
     @staticmethod
     def create_refresh_token(data: Dict[str, Any]) -> str:
         """Create JWT refresh token"""
         to_encode = data.copy()
         expire_timestamp = time.time() + (REFRESH_TOKEN_EXPIRE_DAYS * 24 * 60 * 60)
-        to_encode.update({"exp": int(expire_timestamp), "type": "refresh"})
+        to_encode.update({
+            "exp": int(expire_timestamp),
+            "type": "refresh",
+            "jti": str(uuid.uuid4()),
+        })
         encoded_jwt = jwt.encode(to_encode, SECRET_KEY, algorithm=_jwt_algorithm())
         return encoded_jwt
-    
+
     @staticmethod
-    def verify_token(token: str, token_type: str = "access") -> Dict[str, Any]:
-        """Verify and decode JWT token"""
+    async def blacklist_token(token: str) -> None:
+        """Add a token's JTI to the Redis blacklist with TTL = remaining lifetime."""
         try:
-            # PyJWT automatically validates expiration when using consistent time sources
+            from utils.redis_client import get_redis
+            redis = await get_redis()
+            if redis is None:
+                return
+            payload = jwt.decode(
+                token, SECRET_KEY,
+                algorithms=[_jwt_algorithm()],
+                options={"verify_exp": False},
+            )
+            jti = payload.get("jti")
+            exp = payload.get("exp")
+            if not jti or not exp:
+                return
+            ttl = max(1, int(exp - time.time()))
+            await redis.set(f"token:blacklist:{jti}", "1", ex=ttl)
+        except Exception:
+            pass  # Never block logout due to Redis errors
+
+    @staticmethod
+    async def is_blacklisted(jti: str) -> bool:
+        """Check if a token JTI has been blacklisted."""
+        try:
+            from utils.redis_client import get_redis
+            redis = await get_redis()
+            if redis is None:
+                return False
+            return await redis.exists(f"token:blacklist:{jti}") == 1
+        except Exception:
+            return False  # Fail-open: never deny access due to Redis unavailability
+
+    @staticmethod
+    async def verify_token(token: str, token_type: str = "access") -> Dict[str, Any]:
+        """Verify and decode JWT token, checking blacklist."""
+        try:
             payload = jwt.decode(token, SECRET_KEY, algorithms=[_jwt_algorithm()])
-            
-            # Verify token type
+
             if payload.get("type") != token_type:
                 raise HTTPException(
                     status_code=status.HTTP_401_UNAUTHORIZED,
                     detail="Invalid token type"
                 )
-            
+
+            jti = payload.get("jti")
+            if jti and await AuthService.is_blacklisted(jti):
+                raise HTTPException(
+                    status_code=status.HTTP_401_UNAUTHORIZED,
+                    detail="Token has been revoked"
+                )
+
             return payload
         except ExpiredSignatureError:
             raise HTTPException(
@@ -123,7 +171,7 @@ class AuthService:
     @staticmethod
     async def get_current_user(token: str) -> Usuario:
         """Get current user from JWT token"""
-        payload = AuthService.verify_token(token)
+        payload = await AuthService.verify_token(token)
         email: str = payload.get("sub")
         
         if email is None:
