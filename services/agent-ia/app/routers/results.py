@@ -3,15 +3,35 @@ Results endpoints for sending evaluation results to clients
 """
 
 import logging
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Header, Depends, status
 from pydantic import BaseModel
 from typing import Optional
 
 from app.services.results_service import results_service
+from app.core.config import settings
 
 logger = logging.getLogger(__name__)
 
-router = APIRouter(prefix="/v1/results", tags=["results"])
+
+async def verify_core_api_key(
+    x_service_api_key: Optional[str] = Header(None, alias="X-Service-API-Key"),
+    x_service_name: Optional[str] = Header(None, alias="X-Service-Name"),
+) -> None:
+    """Validates that requests to results endpoints come from core-api."""
+    if not settings.service_api_key:
+        return  # Key not configured — allow (dev fallback)
+    if x_service_name != "core-api" or x_service_api_key != settings.service_api_key:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Service authentication required"
+        )
+
+
+router = APIRouter(
+    prefix="/v1/results",
+    tags=["results"],
+    dependencies=[Depends(verify_core_api_key)]
+)
 
 
 class SendResultsRequest(BaseModel):

@@ -3,7 +3,7 @@ TeLOO V3 Core API Service
 Motor central del sistema - gestión de solicitudes, ofertas, evaluación y escalamiento
 """
 
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 import os
@@ -47,9 +47,27 @@ app = FastAPI(
     redoc_url="/redoc"
 )
 
-# BRUTE FORCE CORS - Manual handling to guarantee headers
+# CORS - Explicit origin whitelist (no substring matching)
 from fastapi import Request, Response
 from starlette.middleware.base import BaseHTTPMiddleware
+
+_raw_origins = os.getenv(
+    "ALLOWED_ORIGINS",
+    "https://app.teloo.cloud,https://admin.teloo.cloud,https://advisor.teloo.cloud,https://teloo.cloud,https://www.teloo.cloud"
+)
+_ALLOWED_ORIGINS: set = {o.strip() for o in _raw_origins.split(",") if o.strip()}
+
+# Development: add localhost origins when not in production
+if os.getenv("ENVIRONMENT", "development") != "production":
+    _ALLOWED_ORIGINS.update({
+        "http://localhost:3000",
+        "http://localhost:3001",
+        "http://localhost:3002",
+        "http://localhost:8080",
+        "http://127.0.0.1:3000",
+        "http://127.0.0.1:3001",
+    })
+
 
 class ForceCORSMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next):
@@ -63,15 +81,13 @@ class ForceCORSMiddleware(BaseHTTPMiddleware):
                 response = Response(content="Internal Server Error", status_code=500)
 
         origin = request.headers.get("origin")
-        if origin:
-            # Permitir cualquier origen de teloo.cloud o localhost
-            if ".teloo.cloud" in origin or "localhost" in origin or origin.endswith("teloo.cloud"):
-                response.headers["Access-Control-Allow-Origin"] = origin
-                response.headers["Access-Control-Allow-Credentials"] = "true"
-                response.headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, DELETE, OPTIONS, PATCH"
-                response.headers["Access-Control-Allow-Headers"] = "*"
-                response.headers["Access-Control-Max-Age"] = "86400"
-        
+        if origin and origin in _ALLOWED_ORIGINS:
+            response.headers["Access-Control-Allow-Origin"] = origin
+            response.headers["Access-Control-Allow-Credentials"] = "true"
+            response.headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, DELETE, OPTIONS, PATCH"
+            response.headers["Access-Control-Allow-Headers"] = "Authorization, Content-Type, X-Correlation-ID, X-Service-API-Key, X-Service-Name"
+            response.headers["Access-Control-Max-Age"] = "86400"
+
         return response
 
 app.add_middleware(ForceCORSMiddleware)
@@ -81,9 +97,11 @@ app.add_middleware(MetricsMiddleware)
 app.add_middleware(CorrelationMiddleware)
 
 # Proxy Headers Middleware - CRITICAL for generating correct HTTPS URLs behind Nginx/Coolify
-# This fixes the "Mixed Content" issue where backend returns http:// links for pagination
+# trusted_hosts MUST be set to specific proxy IPs/CIDRs in production via TRUSTED_PROXY_HOSTS env var
+# Leaving "*" allows IP spoofing via X-Forwarded-For — set this before going live
 from uvicorn.middleware.proxy_headers import ProxyHeadersMiddleware
-app.add_middleware(ProxyHeadersMiddleware, trusted_hosts="*")
+_trusted_proxy = os.getenv("TRUSTED_PROXY_HOSTS", "*")
+app.add_middleware(ProxyHeadersMiddleware, trusted_hosts=_trusted_proxy)
 
 # Database initialization
 init_db(app)
@@ -104,23 +122,34 @@ uploads_dir = Path("uploads")
 uploads_dir.mkdir(exist_ok=True)
 app.mount("/uploads", StaticFiles(directory="uploads"), name="uploads")
 
+_INTERNAL_API_KEY = os.getenv("INTERNAL_API_KEY", "")
+
+
+def _require_internal_key(request: Request) -> None:
+    """Validates X-Internal-API-Key for sensitive internal endpoints."""
+    if not _INTERNAL_API_KEY:
+        return  # Key not configured — allow (dev fallback; warn on startup)
+    provided = request.headers.get("X-Internal-API-Key", "")
+    if provided != _INTERNAL_API_KEY:
+        raise HTTPException(status_code=401, detail="Missing or invalid X-Internal-API-Key")
+
+
 @app.get("/")
 async def root():
     """Root endpoint"""
     return {
         "service": "TeLOO V3 Core API",
         "version": "3.0.0",
-        "status": "running",
-        "environment": os.getenv("ENVIRONMENT", "development")
+        "status": "running"
     }
 
 @app.get("/health")
-async def health_check():
+async def health_check(request: Request):
     """
-    Health check endpoint with dependency checks
-    Returns 200 if all critical dependencies are healthy
-    Returns 503 if any critical dependency is unhealthy
+    Detailed health check — requires X-Internal-API-Key header.
+    Returns 200 if all critical dependencies are healthy, 503 otherwise.
     """
+    _require_internal_key(request)
     from fastapi import status
     from fastapi.responses import JSONResponse
     from tortoise import connections
@@ -244,11 +273,12 @@ async def liveness_check():
     }
 
 @app.get("/metrics")
-async def metrics():
-    """Prometheus metrics endpoint"""
+async def metrics(request: Request):
+    """Prometheus metrics — requires X-Internal-API-Key header."""
+    _require_internal_key(request)
     from fastapi.responses import Response
     from utils.metrics import get_metrics, get_metrics_content_type
-    
+
     return Response(
         content=get_metrics(),
         media_type=get_metrics_content_type()
@@ -266,6 +296,14 @@ async def startup_event():
             log_level=log_level
         )
         
+        # Warn about missing security configuration
+        if not os.getenv("INTERNAL_API_KEY"):
+            logger.warning("INTERNAL_API_KEY not set — /health and /metrics are unprotected")
+        if not os.getenv("TRUSTED_PROXY_HOSTS"):
+            logger.warning("TRUSTED_PROXY_HOSTS not set — using '*' (IP spoofing risk in production)")
+        if not os.getenv("ALLOWED_ORIGINS"):
+            logger.warning("ALLOWED_ORIGINS not set — using default teloo.cloud whitelist")
+
         # Initialize database with default data
         from services.init_service import InitService
         await InitService.initialize_default_data()

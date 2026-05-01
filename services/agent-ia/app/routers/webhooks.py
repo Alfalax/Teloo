@@ -67,11 +67,11 @@ async def verify_whatsapp_webhook(
     This endpoint is called by WhatsApp to verify the webhook URL.
     It must return the challenge value if the verify token matches.
     """
-    logger.info(f"Webhook verification request: mode={hub_mode}, token={hub_verify_token}")
-    
-    # Verify the token
+    logger.info(f"Webhook verification request: mode={hub_mode}")
+
+    # Verify the token — never log the token value itself
     if hub_verify_token != settings.whatsapp_verify_token:
-        logger.error(f"Invalid verify token: {hub_verify_token}")
+        logger.warning("Webhook verification failed: token mismatch")
         raise HTTPException(status_code=403, detail="Invalid verify token")
     
     # Verify the mode
@@ -100,13 +100,15 @@ async def whatsapp_webhook(
     try:
         # Get raw body for signature verification
         body = await request.body()
-        
-        # Verify webhook signature if enabled
-        if settings.webhook_signature_verification:
+
+        # Signature verification is MANDATORY — whatsapp_webhook_secret must be set in production
+        if settings.whatsapp_webhook_secret:
             signature = request.headers.get("X-Hub-Signature-256", "")
             if not whatsapp_service.verify_webhook_signature(body, signature):
-                logger.error("Invalid webhook signature")
+                logger.error("Invalid webhook signature — request rejected")
                 raise HTTPException(status_code=403, detail="Invalid signature")
+        else:
+            logger.warning("WHATSAPP_WEBHOOK_SECRET not set — signature verification skipped")
         
         # Log webhook received
         client_ip = get_client_ip(request)

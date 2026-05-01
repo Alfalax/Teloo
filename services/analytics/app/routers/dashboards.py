@@ -2,16 +2,34 @@
 Dashboard endpoints for Analytics Service
 """
 import logging
-from fastapi import APIRouter, Query, HTTPException
+from fastapi import APIRouter, Query, HTTPException, Depends, Header, status
 from datetime import datetime, timedelta
 from typing import Optional, Dict, Any
 from app.services.metrics_calculator import MetricsCalculator
 from app.services.batch_jobs import batch_jobs_service
 from app.services.scheduler import analytics_scheduler
+from app.core.config import settings
 
 logger = logging.getLogger(__name__)
 
-router = APIRouter(prefix="/v1/dashboards", tags=["dashboards"])
+async def verify_analytics_api_key(
+    x_api_key: Optional[str] = Header(None, alias="X-API-Key")
+) -> None:
+    """Validates X-API-Key against ANALYTICS_API_KEY env var."""
+    if not settings.ANALYTICS_API_KEY:
+        return  # Key not configured — allow (dev fallback)
+    if x_api_key != settings.ANALYTICS_API_KEY:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Missing or invalid X-API-Key header"
+        )
+
+
+router = APIRouter(
+    prefix="/v1/dashboards",
+    tags=["dashboards"],
+    dependencies=[Depends(verify_analytics_api_key)]
+)
 
 metrics_calculator = MetricsCalculator()
 

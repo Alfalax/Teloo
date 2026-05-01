@@ -44,7 +44,10 @@ class Settings(BaseSettings):
     
     # Eventos Redis
     REDIS_EVENTS_CHANNEL: str = "teloo:events"
-    
+
+    # Internal service authentication
+    ANALYTICS_API_KEY: str = os.getenv("ANALYTICS_API_KEY", "")
+
     class Config:
         env_file = ".env"
         extra = "ignore"  # Ignore extra fields from environment
