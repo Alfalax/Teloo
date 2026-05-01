@@ -82,7 +82,7 @@ class ForceCORSMiddleware(BaseHTTPMiddleware):
             response.headers["Access-Control-Allow-Origin"] = origin
             response.headers["Access-Control-Allow-Credentials"] = "true"
             response.headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, DELETE, OPTIONS, PATCH"
-            response.headers["Access-Control-Allow-Headers"] = "Authorization, Content-Type, X-Correlation-ID, X-Service-API-Key, X-Service-Name"
+            response.headers["Access-Control-Allow-Headers"] = "Authorization, Content-Type, X-Correlation-ID, X-Service-API-Key, X-Service-Name, Cache-Control"
             response.headers["Access-Control-Max-Age"] = "86400"
 
         return response
