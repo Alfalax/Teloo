@@ -375,28 +375,32 @@ class TelegramMessageProcessor:
         return response
     
     async def _handle_solicitud_message(
-        self, 
-        telegram_message: ProcessedTelegramMessage, 
+        self,
+        telegram_message: ProcessedTelegramMessage,
         conversation,
-        whatsapp_message: ProcessedMessage
+        whatsapp_message: ProcessedMessage,
     ) -> Dict[str, Any]:
-        """Handle message as part of solicitud creation process"""
+        """Handle message as part of solicitud creation process."""
         try:
             logger.info(f"Handling solicitud message from chat {telegram_message.chat_id}")
-            
-            # TEMPORAL: Procesamiento simple con OpenAI para pruebas
-            # TODO: Reemplazar con sistema WhatsApp completo cuando se implemente
+
             import httpx
             from app.core.config import settings
-            
+            from app.services.solicitud_bot_flow import run_solicitud_flow
+
             try:
-                # Si hay archivo adjunto (Excel o Audio), procesarlo primero
+                from app.services.solicitud_bot_flow import run_solicitud_flow
+
                 message_content = telegram_message.text_content or ""
-                
-                # COMANDOS ESPECIALES
+                draft_key = f"solicitud_draft:{telegram_message.chat_id}"
+                ciudad_invalida_key = f"ciudad_invalida:{telegram_message.chat_id}"
+
+                async def send_fn(msg: str) -> None:
+                    await telegram_service.send_message(telegram_message.chat_id, msg)
+
+                # --- COMANDOS ESPECIALES ---
                 comando = message_content.strip().lower()
-                
-                # /reiniciar o /cancelar - Limpiar draft y empezar de nuevo
+
                 if comando in ["/reiniciar", "/cancelar", "/empezar", "/nuevo"]:
                     draft_key = f"solicitud_draft:{telegram_message.chat_id}"
                     await redis_manager.delete(draft_key)
@@ -547,15 +551,22 @@ class TelegramMessageProcessor:
                     except Exception as e:
                         logger.error(f"Error processing Excel file: {e}")
                 
-                # RECUPERAR DRAFT EXISTENTE PRIMERO
-                draft_key = f"solicitud_draft:{telegram_message.chat_id}"
+                # Delegate the full conversation flow to the shared module
+                return await run_solicitud_flow(
+                    message_content=message_content,
+                    draft_key=draft_key,
+                    ciudad_invalida_key=ciudad_invalida_key,
+                    send_fn=send_fn,
+                    settings=settings,
+                )
+
+                # NOTE: everything below this line is unreachable — kept temporarily
+                # until the shared flow has been verified in production.
                 existing_draft = await redis_manager.get_json(draft_key)
-                
-                # Variables de control
                 user_confirmed = False
                 extracted_data = None
-                
-                # SIEMPRE ANALIZAR INTENCIÓN CUANDO HAY DRAFT (con o sin estado pending_confirmation)
+                if False and existing_draft:  # dead — flow handled by run_solicitud_flow above
+                    pass  # SIEMPRE ANALIZAR INTENCIÓN CUANDO HAY DRAFT
                 # Esto asegura que siempre pida confirmación antes de crear
                 if existing_draft:
                     logger.info(f"Draft exists for chat {telegram_message.chat_id}, analyzing user intent with GPT-4")
@@ -1498,42 +1509,6 @@ Mensaje: "para una Yamaha FZ 2.0 del 2018"
                 await telegram_service.send_message(telegram_message.chat_id, error_msg)
                 return {"success": False, "error": str(e)}
             
-            # Código original comentado para producción
-            if False:
-                # Create solicitud
-                solicitud_result = await solicitud_service.crear_solicitud_desde_whatsapp(
-                    processed_data,
-                    conversation
-                )
-                
-                if solicitud_result["success"]:
-                    # Store solicitud_id in conversation
-                    await conversation_service.set_solicitud_id(
-                        f"+tg{telegram_message.chat_id}",
-                        solicitud_result["solicitud_id"]
-                    )
-                    
-                    # Send confirmation
-                    confirmation_msg = f"✅ ¡Perfecto! Tu solicitud #{solicitud_result['solicitud_id']} ha sido creada.\n\n"
-                    confirmation_msg += "Estamos buscando las mejores ofertas para ti. Te notificaremos pronto. 🚀"
-                    await telegram_service.send_message(telegram_message.chat_id, confirmation_msg)
-                    
-                    logger.info(f"Solicitud created: {solicitud_result['solicitud_id']}")
-                else:
-                    error_msg = f"❌ Error creando solicitud: {solicitud_result['error']}"
-                    await telegram_service.send_message(telegram_message.chat_id, error_msg)
-                
-                return solicitud_result
-            else:
-                # Request missing information
-                missing_info_msg = await self._generate_missing_info_message(processed_data)
-                await telegram_service.send_message(telegram_message.chat_id, missing_info_msg)
-                
-                return {
-                    "success": True,
-                    "action": "info_requested",
-                    "missing_fields": processed_data.missing_fields
-                }
                 
         except Exception as e:
             logger.error(f"Error handling solicitud message: {e}")

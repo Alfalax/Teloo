@@ -317,53 +317,58 @@ class WhatsAppMessageProcessor:
         return response
     
     async def _handle_solicitud_message(
-        self, 
-        whatsapp_message: ProcessedMessage, 
-        conversation
+        self,
+        whatsapp_message: ProcessedMessage,
+        conversation,
     ) -> Dict[str, Any]:
-        """Handle message as part of solicitud creation process - Same logic as Telegram"""
+        """Handle message as part of solicitud creation process."""
         try:
-            logger.info(f"Handling solicitud message from {whatsapp_message.from_number}")
-            
-            # WhatsApp uses the same solicitud service as Telegram
-            # Import here to avoid circular dependencies
-            from app.services.solicitud_service import solicitud_service, limpiar_ciudad
             from app.core.config import settings
-            
-            # Get message content
-            message_content = whatsapp_message.text or ""
-            
-            # Check for draft in Redis
-            draft_key = f"solicitud_draft:whatsapp:{whatsapp_message.from_number}"
+            from app.services.solicitud_bot_flow import run_solicitud_flow
+
+            phone = whatsapp_message.from_number
+            message_content = whatsapp_message.text_content or ""
+
+            # Welcome detection — short greeting with no draft in progress
+            _GREETINGS = {
+                "hola", "hello", "hi", "buenas", "buenos días", "buenas tardes",
+                "buenas noches", "buen dia", "buen día", "ola", "hey",
+            }
+            draft_key = f"solicitud_draft:whatsapp:{phone}"
             existing_draft = await redis_manager.get_json(draft_key)
-            
-            # Process message using solicitud_service (same as Telegram)
-            result = await solicitud_service.process_solicitud_message(
-                user_id=f"+wa{whatsapp_message.from_number}",
-                message_content=message_content,
-                platform="whatsapp"
-            )
-            
-            # Send response via WhatsApp
-            if result.get("message"):
-                await whatsapp_service.send_text_message(
-                    whatsapp_message.from_number,
-                    result["message"]
+
+            if not existing_draft and message_content.lower().strip() in _GREETINGS:
+                welcome = (
+                    "👋 ¡Hola! Soy el asistente de *TeLOO*.\n\n"
+                    "Te ayudo a conseguir los mejores repuestos para tu vehículo al mejor precio.\n\n"
+                    "Para crear tu solicitud, contame:\n"
+                    "🔧 ¿Qué repuestos necesitás?\n"
+                    "🚗 Marca, modelo y año de tu vehículo\n"
+                    "📍 Tu ciudad\n"
+                    "👤 Tu nombre y teléfono\n\n"
+                    "_Podés enviarme un mensaje de voz o texto. ¡Como prefieras!_ 😊"
                 )
-            
-            return result
-            
+                await whatsapp_service.send_text_message(phone, welcome)
+                return {"success": True, "action": "welcome_sent"}
+
+            async def send_fn(msg: str) -> None:
+                await whatsapp_service.send_text_message(phone, msg)
+
+            return await run_solicitud_flow(
+                message_content=message_content,
+                draft_key=draft_key,
+                ciudad_invalida_key=f"ciudad_invalida:whatsapp:{phone}",
+                send_fn=send_fn,
+                settings=settings,
+            )
+
         except Exception as e:
-            logger.error(f"Error handling solicitud message: {e}")
+            logger.error(f"Error handling WhatsApp solicitud message: {e}")
             await whatsapp_service.send_text_message(
                 whatsapp_message.from_number,
-                "❌ Error procesando tu mensaje. Por favor intenta de nuevo."
+                "Lo siento, hubo un problema técnico. Por favor intentá de nuevo en unos minutos.",
             )
-            return {
-                "success": False,
-                "error": "Error procesando mensaje de solicitud",
-                "details": str(e)
-            }
+            return {"success": False, "error": str(e)}
 
 
 # Global WhatsApp message processor instance
