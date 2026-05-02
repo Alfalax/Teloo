@@ -7,7 +7,7 @@ import hashlib
 import json
 import logging
 import asyncio
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, Any, List
 from datetime import datetime, timedelta
 import httpx
 from fastapi import HTTPException
@@ -15,8 +15,8 @@ from fastapi import HTTPException
 from app.core.config import settings
 from app.core.redis import redis_manager
 from app.models.whatsapp import (
-    WhatsAppWebhook, 
-    ProcessedMessage, 
+    WhatsAppWebhook,
+    ProcessedMessage,
     WhatsAppOutgoingMessage,
     WhatsAppMessage
 )
@@ -143,7 +143,14 @@ class WhatsAppService:
                         elif message.type == "voice" and message.voice:
                             media_url = message.voice.get("id")
                             media_type = "voice"
-                        
+                        elif message.type == "interactive" and message.interactive:
+                            interactive_type = message.interactive.get("type")
+                            if interactive_type == "button_reply":
+                                button_reply = message.interactive.get("button_reply", {})
+                                # Use title as text so existing NLP/intent processing works as-is
+                                text_content = button_reply.get("title", "")
+                                logger.info(f"Button reply received: id={button_reply.get('id')} title={text_content}")
+
                         # Get context if reply
                         context_message_id = None
                         if message.context:
@@ -302,6 +309,72 @@ class WhatsAppService:
             logger.error(f"Error sending template message to {to_number}: {e}")
             return False
     
+    async def send_interactive_buttons(
+        self,
+        to_number: str,
+        body_text: str,
+        buttons: List[Dict[str, str]],
+    ) -> Dict[str, Any]:
+        """
+        Send an interactive button message (max 3 buttons).
+
+        Args:
+            to_number: Recipient phone number
+            body_text: Message body shown above the buttons (max 1024 chars)
+            buttons: List of {"id": str, "title": str} — max 3, title max 20 chars
+
+        Returns:
+            API response dict with 'ok' status
+        """
+        try:
+            if not await self.circuit_breaker.is_available():
+                logger.error(f"WhatsApp API circuit breaker OPEN, cannot send buttons to {to_number}")
+                return {"ok": False, "error": "Circuit breaker open"}
+
+            if not buttons:
+                return {"ok": False, "error": "buttons list is empty"}
+            if len(buttons) > 3:
+                buttons = buttons[:3]
+
+            async def _send_buttons():
+                interactive_payload = {
+                    "type": "button",
+                    "body": {"text": body_text},
+                    "action": {
+                        "buttons": [
+                            {
+                                "type": "reply",
+                                "reply": {
+                                    "id": btn["id"],
+                                    "title": btn["title"][:20],
+                                },
+                            }
+                            for btn in buttons
+                        ]
+                    },
+                }
+                message = WhatsAppOutgoingMessage(
+                    to=to_number,
+                    type="interactive",
+                    interactive=interactive_payload,
+                )
+                url = f"{self.api_url}/{self.phone_number_id}/messages"
+                response = await self.client.post(url, json=message.model_dump(exclude_none=True))
+                if response.status_code == 200:
+                    return response
+                response.raise_for_status()
+
+            response = await self.circuit_breaker.call_with_circuit_breaker(
+                self._retry_with_exponential_backoff,
+                _send_buttons,
+            )
+            logger.info(f"Interactive buttons sent to {to_number}")
+            return {"ok": True, "result": response.json()}
+
+        except Exception as e:
+            logger.error(f"Error sending interactive buttons to {to_number}: {e}")
+            return {"ok": False, "error": str(e)}
+
     async def get_media_url(self, media_id: str) -> Optional[str]:
         """Get media URL from WhatsApp API"""
         try:

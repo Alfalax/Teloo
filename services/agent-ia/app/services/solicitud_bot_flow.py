@@ -10,7 +10,7 @@ import logging
 import json
 import re
 import httpx
-from typing import Any, Callable, Awaitable, Dict, Optional
+from typing import Any, Callable, Awaitable, Dict, List, Optional
 
 from app.core.redis import redis_manager
 from app.services.solicitud_service import limpiar_ciudad
@@ -75,6 +75,7 @@ async def run_solicitud_flow(
     ciudad_invalida_key: str,
     send_fn: Callable[[str], Awaitable[None]],
     settings,
+    send_buttons_fn: Optional[Callable[[str, List[Dict[str, str]]], Awaitable[None]]] = None,
 ) -> Dict[str, Any]:
     """
     Core conversation flow for solicitud creation.
@@ -85,6 +86,9 @@ async def run_solicitud_flow(
         ciudad_invalida_key: Redis key tracking invalid city attempts
         send_fn: async callable(text: str) — platform-specific send function
         settings: App settings instance
+        send_buttons_fn: optional async callable(body_text, buttons) — sends interactive
+            buttons (WhatsApp only). When provided, confirmation uses buttons instead of
+            "Respondé SÍ" plain-text instructions.
     """
     try:
         existing_draft = await redis_manager.get_json(draft_key)
@@ -96,10 +100,10 @@ async def run_solicitud_flow(
                 existing_draft.pop("_status", None)
                 existing_draft.pop("_last_bot_message", None)
                 return await _validate_and_confirm(
-                    existing_draft, draft_key, ciudad_invalida_key, send_fn, settings
+                    existing_draft, draft_key, ciudad_invalida_key, send_fn, settings, send_buttons_fn
                 )
             return await _handle_draft_intent(
-                message_content, existing_draft, draft_key, ciudad_invalida_key, send_fn, settings
+                message_content, existing_draft, draft_key, ciudad_invalida_key, send_fn, settings, send_buttons_fn
             )
 
         extracted = await _extract_data(message_content, None, draft_key, send_fn, settings)
@@ -109,7 +113,7 @@ async def run_solicitud_flow(
         extracted.pop("_status", None)
         extracted.pop("_last_bot_message", None)
         return await _validate_and_confirm(
-            extracted, draft_key, ciudad_invalida_key, send_fn, settings
+            extracted, draft_key, ciudad_invalida_key, send_fn, settings, send_buttons_fn
         )
 
     except (json.JSONDecodeError, ValueError) as e:
@@ -195,6 +199,7 @@ async def _handle_draft_intent(
     ciudad_invalida_key: str,
     send_fn: Callable[[str], Awaitable[None]],
     settings,
+    send_buttons_fn: Optional[Callable[[str, List[Dict[str, str]]], Awaitable[None]]] = None,
 ) -> Dict[str, Any]:
     draft_context = {
         "cliente": existing_draft.get("cliente", {}),
@@ -294,11 +299,21 @@ async def _handle_draft_intent(
             f"📍 Ciudad: {existing_draft['cliente']['ciudad']}\n\n"
             f"🚗 Vehículo: {vehiculo.get('marca','')} {vehiculo.get('linea','')} {vehiculo.get('anio','')}\n\n"
             + format_repuestos_list(existing_draft["repuestos"])
-            + "\n¿Está todo correcto o necesitás ajustar algo?"
         )
         existing_draft["_last_bot_message"] = msg
         await redis_manager.set_json(draft_key, existing_draft, ttl=DRAFT_TTL)
         await send_fn(msg)
+        if send_buttons_fn:
+            await send_buttons_fn(
+                "¿Está todo correcto?",
+                [
+                    {"id": "confirm_yes", "title": "Confirmar"},
+                    {"id": "confirm_edit", "title": "Corregir algo"},
+                    {"id": "confirm_cancel", "title": "Cancelar"},
+                ],
+            )
+        else:
+            await send_fn("\n¿Está todo correcto o necesitás ajustar algo?")
         return {"success": True, "action": "question_answered"}
 
     # --- CORRECT ---
@@ -328,7 +343,7 @@ async def _handle_draft_intent(
             existing_draft["repuestos"] = updated["repuestos"]
 
         return await _validate_and_confirm(
-            existing_draft, draft_key, ciudad_invalida_key, send_fn, settings
+            existing_draft, draft_key, ciudad_invalida_key, send_fn, settings, send_buttons_fn
         )
 
     # Unknown intent — treat as data and re-extract
@@ -337,7 +352,7 @@ async def _handle_draft_intent(
         return {"success": False, "error": "extraction_failed"}
     extracted.pop("_status", None)
     extracted.pop("_last_bot_message", None)
-    return await _validate_and_confirm(extracted, draft_key, ciudad_invalida_key, send_fn, settings)
+    return await _validate_and_confirm(extracted, draft_key, ciudad_invalida_key, send_fn, settings, send_buttons_fn)
 
 
 # ---------------------------------------------------------------------------
@@ -431,6 +446,7 @@ async def _validate_and_confirm(
     ciudad_invalida_key: str,
     send_fn: Callable[[str], Awaitable[None]],
     settings,
+    send_buttons_fn: Optional[Callable[[str, List[Dict[str, str]]], Awaitable[None]]] = None,
 ) -> Dict[str, Any]:
     vehiculo = extracted_data.get("vehiculo", {})
     cliente = extracted_data.get("cliente", {})
@@ -515,7 +531,7 @@ async def _validate_and_confirm(
 
         telefono_display = cliente["telefono"].replace(" ", "").replace("-", "").replace("(", "").replace(")", "")
 
-        confirmation_msg = (
+        summary_msg = (
             "📋 Perfecto, aquí está el resumen:\n\n"
             f"👤 Cliente: {cliente['nombre']}\n"
             f"📞 Teléfono: {telefono_display}\n"
@@ -523,13 +539,25 @@ async def _validate_and_confirm(
             f"🚗 Vehículo: {vehiculo.get('marca','')} {vehiculo.get('linea','')} {vehiculo.get('anio','')}\n\n"
             "🔧 Repuestos:\n"
             + format_repuestos_list(extracted_data["repuestos"]).rstrip("\n")
-            + "\n\n¿Todo está bien? Respondé *SÍ* para confirmar o decime qué querés corregir."
         )
 
         extracted_data["_status"] = "pending_confirmation"
-        extracted_data["_last_bot_message"] = confirmation_msg
+        extracted_data["_last_bot_message"] = summary_msg
         await redis_manager.set_json(draft_key, extracted_data, ttl=DRAFT_TTL)
-        await send_fn(confirmation_msg)
+
+        if send_buttons_fn:
+            await send_fn(summary_msg)
+            await send_buttons_fn(
+                "¿Todo está correcto?",
+                [
+                    {"id": "confirm_yes", "title": "Confirmar"},
+                    {"id": "confirm_edit", "title": "Corregir algo"},
+                    {"id": "confirm_cancel", "title": "Cancelar"},
+                ],
+            )
+        else:
+            await send_fn(summary_msg + "\n\n¿Todo está bien? Respondé *SÍ* para confirmar o decime qué querés corregir.")
+
         return {"success": True, "action": "confirmation_requested"}
 
     # City not found

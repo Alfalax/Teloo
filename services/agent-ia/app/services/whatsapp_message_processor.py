@@ -354,12 +354,16 @@ class WhatsAppMessageProcessor:
             async def send_fn(msg: str) -> None:
                 await whatsapp_service.send_text_message(phone, msg)
 
+            async def send_buttons_fn(body_text: str, buttons: list) -> None:
+                await whatsapp_service.send_interactive_buttons(phone, body_text, buttons)
+
             return await run_solicitud_flow(
                 message_content=message_content,
                 draft_key=draft_key,
                 ciudad_invalida_key=f"ciudad_invalida:whatsapp:{phone}",
                 send_fn=send_fn,
                 settings=settings,
+                send_buttons_fn=send_buttons_fn,
             )
 
         except Exception as e:

@@ -72,10 +72,21 @@ class ResultsService:
             # Determine message type and format message
             message = await self._format_result_message(solicitud, adjudicaciones)
             
-            # Send message to client
-            success = await whatsapp_service.send_text_message(client_phone, message)
-            
-            if success:
+            # Send text result message
+            send_result = await whatsapp_service.send_text_message(client_phone, message)
+
+            # Send interactive buttons so the user can respond with one tap
+            await whatsapp_service.send_interactive_buttons(
+                client_phone,
+                "¿Qué querés hacer?",
+                [
+                    {"id": "offer_accept", "title": "Aceptar"},
+                    {"id": "offer_reject", "title": "Rechazar"},
+                    {"id": "offer_details", "title": "Ver detalles"},
+                ],
+            )
+
+            if send_result:
                 logger.info(f"Evaluation results sent successfully to {client_phone}")
                 return {
                     "success": True,

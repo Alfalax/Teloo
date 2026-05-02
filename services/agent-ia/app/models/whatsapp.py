@@ -25,6 +25,7 @@ class WhatsAppMessage(BaseModel):
     document: Optional[Dict[str, str]] = None
     video: Optional[Dict[str, str]] = None
     voice: Optional[Dict[str, str]] = None
+    interactive: Optional[Dict[str, Any]] = None
     context: Optional[Dict[str, Any]] = None
 
 
@@ -81,6 +82,7 @@ class WhatsAppOutgoingMessage(BaseModel):
     type: str = "text"
     text: Optional[Dict[str, str]] = None
     template: Optional[Dict[str, Any]] = None
+    interactive: Optional[Dict[str, Any]] = None
 
 
 class RateLimitInfo(BaseModel):
