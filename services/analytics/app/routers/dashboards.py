@@ -17,7 +17,12 @@ async def verify_analytics_api_key(
 ) -> None:
     """Validates X-API-Key against ANALYTICS_API_KEY env var."""
     if not settings.ANALYTICS_API_KEY:
-        return  # Key not configured — allow (dev fallback)
+        if settings.ENVIRONMENT == "production":
+            raise HTTPException(
+                status_code=503,
+                detail="Analytics service not configured — contact system administrator"
+            )
+        return  # dev/staging fallback only
     if x_api_key != settings.ANALYTICS_API_KEY:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,

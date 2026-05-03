@@ -101,14 +101,20 @@ async def whatsapp_webhook(
         # Get raw body for signature verification
         body = await request.body()
 
-        # Signature verification is MANDATORY — whatsapp_webhook_secret must be set in production
+        # Signature verification — fail-closed in production, warn-only in dev
         if settings.whatsapp_webhook_secret:
             signature = request.headers.get("X-Hub-Signature-256", "")
             if not whatsapp_service.verify_webhook_signature(body, signature):
                 logger.error("Invalid webhook signature — request rejected")
                 raise HTTPException(status_code=403, detail="Invalid signature")
+        elif settings.environment == "production":
+            logger.error("WHATSAPP_WEBHOOK_SECRET not configured in production — rejecting request")
+            raise HTTPException(
+                status_code=503,
+                detail="Webhook endpoint misconfigured — contact system administrator"
+            )
         else:
-            logger.warning("WHATSAPP_WEBHOOK_SECRET not set — signature verification skipped")
+            logger.warning("WHATSAPP_WEBHOOK_SECRET not set — signature verification skipped (non-production)")
         
         # Log webhook received
         client_ip = get_client_ip(request)

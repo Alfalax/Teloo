@@ -124,7 +124,12 @@ _INTERNAL_API_KEY = settings.internal_api_key
 def _require_internal_key(request: Request) -> None:
     """Validates X-Internal-API-Key for sensitive internal endpoints."""
     if not _INTERNAL_API_KEY:
-        return  # Key not configured — allow (dev fallback; warn on startup)
+        if settings.environment == "production":
+            raise HTTPException(
+                status_code=503,
+                detail="Endpoint not configured — contact system administrator"
+            )
+        return  # dev/staging fallback only
     provided = request.headers.get("X-Internal-API-Key", "")
     if provided != _INTERNAL_API_KEY:
         raise HTTPException(status_code=401, detail="Missing or invalid X-Internal-API-Key")
@@ -292,15 +297,18 @@ async def startup_event():
             log_level=log_level
         )
         
-        # Warn about missing security configuration
+        # Security configuration validation
+        is_prod = settings.environment == "production"
+        _log = logger.error if is_prod else logger.warning
+
         if not settings.internal_api_key:
-            logger.warning("INTERNAL_API_KEY not set — /health and /metrics are unprotected")
+            _log("INTERNAL_API_KEY not set — /health and /metrics will return 503 in production")
         if settings.trusted_proxy_hosts == "*":
-            logger.warning("TRUSTED_PROXY_HOSTS is '*' — IP spoofing risk in production")
+            _log("TRUSTED_PROXY_HOSTS is '*' — X-Forwarded-For spoofing possible in production")
         if not settings.agent_ia_api_key:
-            logger.warning("AGENT_IA_API_KEY not set — service authentication disabled")
+            _log("AGENT_IA_API_KEY not set — service-to-service auth disabled")
         if not settings.analytics_api_key:
-            logger.warning("ANALYTICS_API_KEY not set — analytics auth disabled")
+            _log("ANALYTICS_API_KEY not set — analytics dashboards will return 503 in production")
 
         # Initialize database with default data
         from services.init_service import InitService

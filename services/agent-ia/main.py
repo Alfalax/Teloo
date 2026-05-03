@@ -70,6 +70,15 @@ async def lifespan(app: FastAPI):
         else:
             logger.info("Telegram service disabled or token not configured")
         
+        # Security configuration validation
+        is_prod = settings.environment == "production"
+        _log = logger.error if is_prod else logger.warning
+
+        if not settings.whatsapp_webhook_secret:
+            _log("WHATSAPP_WEBHOOK_SECRET not set — webhook will return 503 in production")
+        if not settings.service_api_key:
+            _log("SERVICE_API_KEY not set — /v1/results will return 503 in production")
+
         logger.info("Agent IA Service started successfully")
         yield
         

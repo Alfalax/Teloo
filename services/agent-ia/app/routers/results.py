@@ -19,7 +19,12 @@ async def verify_core_api_key(
 ) -> None:
     """Validates that requests to results endpoints come from core-api."""
     if not settings.service_api_key:
-        return  # Key not configured — allow (dev fallback)
+        if settings.environment == "production":
+            raise HTTPException(
+                status_code=503,
+                detail="Service not configured — contact system administrator"
+            )
+        return  # dev/staging fallback only
     if x_service_name != "core-api" or x_service_api_key != settings.service_api_key:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
