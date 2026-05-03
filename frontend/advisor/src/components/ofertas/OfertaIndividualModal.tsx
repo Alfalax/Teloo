@@ -64,6 +64,9 @@ export default function OfertaIndividualModal({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [validationErrors, setValidationErrors] = useState<Record<string, string>>({});
+  const [pendingConfirm, setPendingConfirm] = useState(false);
+
+  const hasExistingOffer = Boolean((solicitud as any).mi_oferta);
 
   // Preload values from existing offer or initialize empty
   useEffect(() => {
@@ -113,6 +116,7 @@ export default function OfertaIndividualModal({
       
       setError(null);
       setValidationErrors({});
+      setPendingConfirm(false);
     }
   }, [open, solicitud]);
 
@@ -167,6 +171,11 @@ export default function OfertaIndividualModal({
 
   const handleSubmit = async () => {
     if (!validateForm()) {
+      return;
+    }
+
+    if (hasExistingOffer && !pendingConfirm) {
+      setPendingConfirm(true);
       return;
     }
 
@@ -507,16 +516,35 @@ export default function OfertaIndividualModal({
           )}
         </div>
 
+        {pendingConfirm && (
+          <div className="px-1 pb-2">
+            <div className="flex items-start gap-2 p-3 rounded-md border border-amber-300 bg-amber-50 dark:bg-amber-950 dark:border-amber-700 text-amber-800 dark:text-amber-200 text-sm">
+              <AlertCircle className="h-4 w-4 mt-0.5 flex-shrink-0" />
+              <p>Ya tenés una oferta enviada para esta solicitud. <strong>¿Confirmar actualización?</strong> La oferta anterior será reemplazada.</p>
+            </div>
+          </div>
+        )}
         <DialogFooter>
-          <Button variant="outline" onClick={onClose} disabled={isSubmitting}>
-            Cancelar
+          <Button
+            variant="outline"
+            onClick={() => {
+              if (pendingConfirm) {
+                setPendingConfirm(false);
+              } else {
+                onClose();
+              }
+            }}
+            disabled={isSubmitting}
+          >
+            {pendingConfirm ? 'Volver' : 'Cancelar'}
           </Button>
-          <Button 
-            onClick={handleSubmit} 
+          <Button
+            onClick={handleSubmit}
             disabled={isSubmitting || !puedeOfertar}
             title={!puedeOfertar ? 'No se pueden enviar ofertas en solicitudes evaluadas' : ''}
+            variant={pendingConfirm ? 'destructive' : 'default'}
           >
-            {isSubmitting ? 'Enviando...' : 'Enviar Oferta'}
+            {isSubmitting ? 'Enviando...' : pendingConfirm ? 'Sí, actualizar oferta' : hasExistingOffer ? 'Actualizar Oferta' : 'Enviar Oferta'}
           </Button>
         </DialogFooter>
       </DialogContent>

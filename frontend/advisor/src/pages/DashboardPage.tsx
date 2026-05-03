@@ -7,14 +7,9 @@ import { AsesorKPIs } from '@/types/kpi';
 import { SolicitudConOferta } from '@/types/solicitud';
 
 export default function DashboardPage() {
-  const [kpis, setKpis] = useState<AsesorKPIs>({
-    repuestos_adjudicados: 0,
-    monto_total_ganado: 0,
-    pendientes_por_oferta: 0,
-    tasa_conversion: 0,
-    tasa_oferta: 0,
-  });
+  const [kpis, setKpis] = useState<AsesorKPIs | null>(null);
   const [isLoadingKPIs, setIsLoadingKPIs] = useState(true);
+  const [kpiError, setKpiError] = useState(false);
   const [selectedSolicitud, setSelectedSolicitud] = useState<SolicitudConOferta | null>(null);
   const [showOfertaModal, setShowOfertaModal] = useState(false);
   const [showVerOfertaModal, setShowVerOfertaModal] = useState(false);
@@ -27,19 +22,13 @@ export default function DashboardPage() {
   const loadKPIs = async () => {
     try {
       setIsLoadingKPIs(true);
+      setKpiError(false);
       const { solicitudesService } = await import('@/services/solicitudes');
       const data = await solicitudesService.getMetrics();
       setKpis(data);
     } catch (error) {
       console.error('Error loading KPIs:', error);
-      // Fallback to zeros if error
-      setKpis({
-        repuestos_adjudicados: 0,
-        monto_total_ganado: 0,
-        pendientes_por_oferta: 0,
-        tasa_conversion: 0,
-        tasa_oferta: 0,
-      });
+      setKpiError(true);
     } finally {
       setIsLoadingKPIs(false);
     }
@@ -64,7 +53,7 @@ export default function DashboardPage() {
         </p>
       </div>
 
-      <KPIDashboard kpis={kpis} isLoading={isLoadingKPIs} />
+      <KPIDashboard kpis={kpis} isLoading={isLoadingKPIs} hasError={kpiError} onRetry={loadKPIs} />
 
       {/* Solicitudes Unificadas con filtros */}
       <SolicitudesUnificadas

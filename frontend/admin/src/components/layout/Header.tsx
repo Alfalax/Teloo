@@ -59,7 +59,8 @@ export function Header({ sidebarCollapsed: _ }: HeaderProps) {
           size="icon"
           onClick={toggleDarkMode}
           className="h-9 w-9 text-white"
-          title="Modo oscuro"
+          title={darkMode ? 'Cambiar a modo claro' : 'Cambiar a modo oscuro'}
+          aria-label={darkMode ? 'Cambiar a modo claro' : 'Cambiar a modo oscuro'}
         >
           {darkMode ? (
             <Sun className="h-4 w-4" />
@@ -68,7 +69,7 @@ export function Header({ sidebarCollapsed: _ }: HeaderProps) {
           )}
         </Button>
 
-        <Button variant="ghost" size="icon" className="h-9 w-9 relative text-white" title="Notificaciones">
+        <Button variant="ghost" size="icon" className="h-9 w-9 relative text-white" title="Notificaciones" aria-label="Notificaciones">
           <Bell className="h-4 w-4" />
           <span className="absolute -top-1 -right-1 h-3 w-3 bg-destructive rounded-full text-xs flex items-center justify-center text-destructive-foreground">
             3

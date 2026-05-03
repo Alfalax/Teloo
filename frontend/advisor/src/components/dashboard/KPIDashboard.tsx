@@ -1,14 +1,49 @@
-import { TrendingUp, Package, DollarSign, Target } from 'lucide-react';
+import { TrendingUp, Package, DollarSign, Target, AlertCircle, RefreshCw } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
 import { AsesorKPIs } from '@/types/kpi';
 import { formatCurrency } from '@/lib/utils';
 
 interface KPIDashboardProps {
-  kpis: AsesorKPIs;
+  kpis: AsesorKPIs | null;
   isLoading?: boolean;
+  hasError?: boolean;
+  onRetry?: () => void;
 }
 
-export default function KPIDashboard({ kpis, isLoading }: KPIDashboardProps) {
+export default function KPIDashboard({ kpis, isLoading, hasError, onRetry }: KPIDashboardProps) {
+  if (isLoading) {
+    return (
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-5">
+        {[1, 2, 3, 4, 5].map((i) => (
+          <Card key={i}>
+            <CardContent className="p-6">
+              <div className="animate-pulse space-y-3">
+                <div className="h-4 bg-muted rounded w-1/2"></div>
+                <div className="h-8 bg-muted rounded w-3/4"></div>
+              </div>
+            </CardContent>
+          </Card>
+        ))}
+      </div>
+    );
+  }
+
+  if (hasError || !kpis) {
+    return (
+      <div className="flex items-center gap-3 p-4 rounded-lg border border-destructive/30 bg-destructive/5 text-destructive">
+        <AlertCircle className="h-5 w-5 flex-shrink-0" />
+        <span className="text-sm font-medium">No se pudieron cargar los indicadores</span>
+        {onRetry && (
+          <Button variant="ghost" size="sm" onClick={onRetry} className="ml-auto gap-1.5 text-destructive hover:text-destructive">
+            <RefreshCw className="h-3.5 w-3.5" />
+            Reintentar
+          </Button>
+        )}
+      </div>
+    );
+  }
+
   const kpiCards = [
     {
       title: 'Repuestos Asignados',
@@ -39,23 +74,6 @@ export default function KPIDashboard({ kpis, isLoading }: KPIDashboardProps) {
       fg: 'text-secondary-foreground',
     },
   ];
-
-  if (isLoading) {
-    return (
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-5">
-        {[1, 2, 3, 4, 5].map((i) => (
-          <Card key={i}>
-            <CardContent className="p-6">
-              <div className="animate-pulse space-y-3">
-                <div className="h-4 bg-muted rounded w-1/2"></div>
-                <div className="h-8 bg-muted rounded w-3/4"></div>
-              </div>
-            </CardContent>
-          </Card>
-        ))}
-      </div>
-    );
-  }
 
   return (
     <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
