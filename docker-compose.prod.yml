@@ -98,6 +98,8 @@ services:
       - BACKEND_CORS_ORIGINS=${BACKEND_CORS_ORIGINS}
       - AGENT_IA_API_KEY=${AGENT_IA_API_KEY}
       - ANALYTICS_API_KEY=${ANALYTICS_API_KEY}
+      # Required: protects /health and /metrics from public access
+      - INTERNAL_API_KEY=${INTERNAL_API_KEY}
     expose:
       - "8000"
     depends_on:
@@ -110,7 +112,8 @@ services:
     networks:
       - teloo-network
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      # Use /health/live (no auth) — /health requires INTERNAL_API_KEY
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health/live"]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -128,6 +131,8 @@ services:
       - REDIS_URL=redis://redis:6379
       - ENVIRONMENT=production
       - BACKEND_CORS_ORIGINS=${BACKEND_CORS_ORIGINS}
+      # Required: protects /v1/dashboards/* from public access
+      - ANALYTICS_API_KEY=${ANALYTICS_API_KEY}
     expose:
       - "8000"
     depends_on:
@@ -157,6 +162,22 @@ services:
       - CORE_API_URL=http://core-api:8000
       - REDIS_URL=redis://redis:6379
       - ENVIRONMENT=production
+      # Required: service-to-service auth for /v1/results — must match AGENT_IA_API_KEY in core-api
+      - SERVICE_API_KEY=${AGENT_IA_API_KEY}
+      # Required: WhatsApp webhook HMAC verification — rejects all webhooks in production if absent
+      - WHATSAPP_WEBHOOK_SECRET=${WHATSAPP_WEBHOOK_SECRET}
+      # WhatsApp API credentials
+      - WHATSAPP_ACCESS_TOKEN=${WHATSAPP_ACCESS_TOKEN}
+      - WHATSAPP_PHONE_NUMBER_ID=${WHATSAPP_PHONE_NUMBER_ID}
+      - WHATSAPP_VERIFY_TOKEN=${WHATSAPP_VERIFY_TOKEN}
+      # LLM provider keys
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
+      # Telegram (optional — only needed if Telegram bot is enabled)
+      - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN}
+      - TELEGRAM_MODE=${TELEGRAM_MODE:-webhook}
+      - TELEGRAM_WEBHOOK_URL=${TELEGRAM_WEBHOOK_URL}
+      - TELEGRAM_WEBHOOK_SECRET=${TELEGRAM_WEBHOOK_SECRET}
     expose:
       - "8000"
     depends_on:

@@ -103,6 +103,7 @@ docker-compose -f docker-compose.prod.yml -f docker-compose.secrets.yml up -d
 | `JWT_SECRET_KEY` | JWT signing key | `<64-char-random>` |
 | `AGENT_IA_API_KEY` | Agent IA auth | `<32-char-random>` |
 | `ANALYTICS_API_KEY` | Analytics auth | `<32-char-random>` |
+| `INTERNAL_API_KEY` | Protects /health and /metrics from public access | `<32-char-random>` |
 | `MINIO_ENDPOINT` | MinIO endpoint | `minio:9000` |
 | `MINIO_SECRET_KEY` | MinIO secret | `<48-char-random>` |
 
@@ -124,6 +125,9 @@ docker-compose -f docker-compose.prod.yml -f docker-compose.secrets.yml up -d
 | `SERVICE_API_KEY` | Service auth key | `<32-char-random>` |
 | `REDIS_URL` | Redis connection | `redis://redis:6379` |
 | `WHATSAPP_ACCESS_TOKEN` | WhatsApp token | `<meta-token>` |
+| `WHATSAPP_WEBHOOK_SECRET` | HMAC secret for webhook signature verification | `<32-char-random>` |
+| `WHATSAPP_PHONE_NUMBER_ID` | WhatsApp Business phone number ID | `<meta-phone-id>` |
+| `WHATSAPP_VERIFY_TOKEN` | Webhook verification token (Meta dashboard) | `<custom-token>` |
 | `OPENAI_API_KEY` | OpenAI key | `<openai-key>` |
 
 ### LLM Providers
@@ -143,6 +147,7 @@ docker-compose -f docker-compose.prod.yml -f docker-compose.secrets.yml up -d
 |----------|-------------|
 | `DATABASE_URL` | PostgreSQL connection (read replica) |
 | `REDIS_URL` | Redis connection |
+| `ANALYTICS_API_KEY` | Protects /v1/dashboards/* from public access |
 
 ### Optional
 
