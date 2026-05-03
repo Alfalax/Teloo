@@ -1,10 +1,13 @@
 import { io, Socket } from 'socket.io-client';
 
 const REALTIME_URL = import.meta.env.VITE_REALTIME_URL || 'http://localhost:8003';
+const REALTIME_ENABLED = import.meta.env.VITE_REALTIME_ENABLED === 'true';
 
 let socket: Socket | null = null;
 
 export function getSocket(): Socket | null {
+  if (!REALTIME_ENABLED) return null;
+
   if (!socket) {
     const token = localStorage.getItem('access_token');
     socket = io(REALTIME_URL, {
@@ -13,10 +16,6 @@ export function getSocket(): Socket | null {
       reconnectionAttempts: 3,
       reconnectionDelay: 3000,
       timeout: 5000,
-    });
-
-    socket.on('connect_error', () => {
-      // Silently give up after exhausting reconnection attempts
     });
 
     socket.on('reconnect_failed', () => {
