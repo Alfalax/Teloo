@@ -7,10 +7,12 @@ import VerOfertaModal from '@/components/ofertas/VerOfertaModal';
 import { SolicitudConOferta } from '@/types/solicitud';
 import { solicitudesService } from '@/services/solicitudes';
 import { queryKeys } from '@/lib/queryKeys';
+import { useRealtimeSolicitudes } from '@/hooks/useRealtimeSolicitudes';
 
 export default function DashboardPage() {
   const queryClient = useQueryClient();
   const [selectedSolicitud, setSelectedSolicitud] = useState<SolicitudConOferta | null>(null);
+  useRealtimeSolicitudes();
   const [showOfertaModal, setShowOfertaModal] = useState(false);
   const [showVerOfertaModal, setShowVerOfertaModal] = useState(false);
 

@@ -1,10 +1,12 @@
-import { Bell, LogOut, User, Search } from 'lucide-react';
+import { Bell, LogOut, User, Search, Moon, Sun } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
+import { useTheme } from '@/contexts/ThemeContext';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 
 export default function Header() {
   const { user, logout } = useAuth();
+  const { theme, toggleTheme } = useTheme();
 
   const handleLogout = async () => {
     try {
@@ -36,6 +38,16 @@ export default function Header() {
               aria-label="Buscar"
             />
           </div>
+
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={toggleTheme}
+            className="text-white"
+            aria-label={theme === 'dark' ? 'Cambiar a modo claro' : 'Cambiar a modo oscuro'}
+          >
+            {theme === 'dark' ? <Sun className="h-5 w-5" /> : <Moon className="h-5 w-5" />}
+          </Button>
 
           <Button variant="ghost" size="icon" className="relative text-white" aria-label="Notificaciones">
             <Bell className="h-5 w-5" aria-hidden="true" />

@@ -1,5 +1,5 @@
-import { useState } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
+import { useTheme } from '@/contexts/ThemeContext';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import {
@@ -25,7 +25,8 @@ interface HeaderProps {
 
 export function Header({ sidebarCollapsed: _ }: HeaderProps) {
   const { user, logout } = useAuth();
-  const [darkMode, setDarkMode] = useState(false);
+  const { theme, toggleTheme } = useTheme();
+  const darkMode = theme === 'dark';
 
   const handleLogout = async () => {
     try {
@@ -33,11 +34,6 @@ export function Header({ sidebarCollapsed: _ }: HeaderProps) {
     } catch (error) {
       console.error('Logout error:', error);
     }
-  };
-
-  const toggleDarkMode = () => {
-    setDarkMode(!darkMode);
-    document.documentElement.classList.toggle('dark');
   };
 
   return (
@@ -57,7 +53,7 @@ export function Header({ sidebarCollapsed: _ }: HeaderProps) {
         <Button
           variant="ghost"
           size="icon"
-          onClick={toggleDarkMode}
+          onClick={toggleTheme}
           className="h-9 w-9 text-white"
           title={darkMode ? 'Cambiar a modo claro' : 'Cambiar a modo oscuro'}
           aria-label={darkMode ? 'Cambiar a modo claro' : 'Cambiar a modo oscuro'}
