@@ -28,6 +28,7 @@ from services.scheduler_service import scheduler_service
 from utils.logger import init_logger, get_logger
 from middleware.correlation_middleware import CorrelationMiddleware
 from middleware.metrics_middleware import MetricsMiddleware
+from middleware.rate_limiter import init_redis_rate_limiter
 
 # Load environment variables
 load_dotenv()
@@ -40,12 +41,14 @@ logger = get_logger()
 environment = settings.environment
 
 # Create FastAPI app
+_is_prod = settings.environment == "production"
+
 app = FastAPI(
     title="TeLOO V3 Core API",
     description="Motor central del sistema - gestión de solicitudes, ofertas, evaluación y escalamiento",
     version="3.0.0",
-    docs_url="/docs",
-    redoc_url="/redoc"
+    docs_url=None if _is_prod else "/docs",
+    redoc_url=None if _is_prod else "/redoc"
 )
 
 # CORS - Explicit origin whitelist (no substring matching)
@@ -301,6 +304,11 @@ async def startup_event():
         is_prod = settings.environment == "production"
         _log = logger.error if is_prod else logger.warning
 
+        if not settings.jwt_secret_key:
+            if is_prod:
+                raise RuntimeError("JWT_SECRET_KEY is required in production — set the env var and restart")
+            logger.warning("JWT_SECRET_KEY not set — auth tokens will use an empty secret (dev only)")
+
         if not settings.internal_api_key:
             _log("INTERNAL_API_KEY not set — /health and /metrics will return 503 in production")
         if settings.trusted_proxy_hosts == "*":
@@ -309,6 +317,10 @@ async def startup_event():
             _log("AGENT_IA_API_KEY not set — service-to-service auth disabled")
         if not settings.analytics_api_key:
             _log("ANALYTICS_API_KEY not set — analytics dashboards will return 503 in production")
+
+        # Initialize Redis rate limiter (must happen before first request)
+        init_redis_rate_limiter(settings.redis_url)
+        logger.info("Redis rate limiter initialized")
 
         # Initialize database with default data
         from services.init_service import InitService

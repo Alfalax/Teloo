@@ -56,8 +56,8 @@ app = FastAPI(
     title="TeLOO V3 Files Service",
     description="Gestión de archivos Excel con validación, antivirus y almacenamiento en MinIO",
     version="3.0.0",
-    docs_url="/docs",
-    redoc_url="/redoc",
+    docs_url=None if settings.environment == "production" else "/docs",
+    redoc_url=None if settings.environment == "production" else "/redoc",
     lifespan=lifespan
 )
 

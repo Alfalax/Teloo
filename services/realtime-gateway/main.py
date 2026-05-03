@@ -64,8 +64,8 @@ app = FastAPI(
     title="TeLOO V3 Realtime Gateway",
     description="Comunicación WebSocket en tiempo real con Socket.IO y Redis",
     version="3.0.0",
-    docs_url="/docs",
-    redoc_url="/redoc",
+    docs_url=None if settings.environment == "production" else "/docs",
+    redoc_url=None if settings.environment == "production" else "/redoc",
     lifespan=lifespan
 )
 

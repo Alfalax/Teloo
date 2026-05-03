@@ -4,7 +4,6 @@ Replaces scattered os.getenv() calls across the codebase.
 """
 
 import os
-from typing import Optional
 from pydantic_settings import BaseSettings
 
 
@@ -21,7 +20,7 @@ class Settings(BaseSettings):
     redis_url: str = "redis://localhost:6379"
 
     # JWT
-    jwt_secret_key: Optional[str] = None
+    jwt_secret_key: str = ""
     jwt_algorithm: str = "HS256"
     jwt_access_token_expire_minutes: int = 10
     jwt_refresh_token_expire_days: int = 7

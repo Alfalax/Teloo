@@ -15,6 +15,29 @@ from models.user import Usuario
 
 logger = logging.getLogger(__name__)
 
+_SPECIAL_CHARS = set('!@#$%^&*()_+-=[]{}|;:,.<>?')
+
+
+def _validate_password_strength(password: str) -> None:
+    """Raises HTTPException 400 if password doesn't meet minimum policy."""
+    errors = []
+    if len(password) < 8:
+        errors.append("al menos 8 caracteres")
+    if not any(c.isupper() for c in password):
+        errors.append("al menos una mayúscula")
+    if not any(c.islower() for c in password):
+        errors.append("al menos una minúscula")
+    if not any(c.isdigit() for c in password):
+        errors.append("al menos un número")
+    if not any(c in _SPECIAL_CHARS for c in password):
+        errors.append("al menos un carácter especial (!@#$%^&*...)")
+    if errors:
+        raise HTTPException(
+            status_code=400,
+            detail=f"La contraseña debe tener: {', '.join(errors)}"
+        )
+
+
 # Helper function for admin user dependency
 async def get_current_admin_user(current_user: Usuario = Depends(get_current_active_user)) -> Usuario:
     """Get current admin user with proper validation"""
@@ -535,6 +558,8 @@ async def create_usuario(
         if not password_final:
             password_final = secrets.token_urlsafe(12)
             password_generada = True
+        else:
+            _validate_password_strength(password_final)
 
         # Mapeo de roles para robustez (soporta español e inglés)
         rol_input = usuario_data.get('rol', 'CLIENT')
@@ -656,6 +681,7 @@ async def update_usuario(
         if 'estado' in usuario_data:
             usuario.estado = EstadoUsuario(usuario_data['estado'])
         if 'password' in usuario_data:
+            _validate_password_strength(usuario_data['password'])
             from services.auth_service import AuthService
             usuario.password_hash = AuthService.get_password_hash(usuario_data['password'])
         

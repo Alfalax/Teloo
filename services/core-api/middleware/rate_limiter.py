@@ -1,96 +1,55 @@
 """
-Rate Limiting Middleware
-Protege los endpoints de abuso mediante límites de peticiones
+Rate Limiting Middleware — Redis-backed sliding window.
+Falls back to fail-open only when Redis is not yet initialized (dev startup).
 """
 
 import time
-from fastapi import HTTPException, status, Request
-from typing import Dict, Tuple
 import logging
+import redis.asyncio as aioredis
+from fastapi import HTTPException, status, Request
 
 logger = logging.getLogger(__name__)
 
+_redis_client: aioredis.Redis | None = None
 
-class InMemoryRateLimiter:
-    """
-    Rate limiter simple en memoria
-    Para producción con múltiples instancias, usar Redis
-    """
-    
-    def __init__(self):
-        # {key: (count, window_start_time)}
-        self.requests: Dict[str, Tuple[int, float]] = {}
-        self.window_seconds = 60  # Ventana de 1 minuto
-        self.max_requests = 60  # 60 peticiones por minuto
-    
-    def is_allowed(self, key: str) -> bool:
-        """
-        Verifica si una petición está permitida
-        
-        Args:
-            key: Identificador único (IP, service_name, etc.)
-            
-        Returns:
-            bool: True si está permitida, False si excede el límite
-        """
-        current_time = time.time()
-        
-        # Limpiar entradas antiguas
-        self._cleanup_old_entries(current_time)
-        
-        # Obtener contador actual
-        if key not in self.requests:
-            self.requests[key] = (1, current_time)
-            return True
-        
-        count, window_start = self.requests[key]
-        
-        # Si estamos en la misma ventana
-        if current_time - window_start < self.window_seconds:
-            if count >= self.max_requests:
-                logger.warning(f"Rate limit exceeded for: {key}")
+
+def init_redis_rate_limiter(redis_url: str) -> None:
+    global _redis_client
+    _redis_client = aioredis.from_url(redis_url, decode_responses=True)
+
+
+class RedisRateLimiter:
+    def __init__(self, max_requests: int, window_seconds: int = 60):
+        self.max_requests = max_requests
+        self.window_seconds = window_seconds
+
+    async def is_allowed(self, key: str) -> bool:
+        if _redis_client is None:
+            return True  # Redis not initialized — fail open (dev only, before startup completes)
+        now = int(time.time())
+        window_key = f"rl:{key}:{now // self.window_seconds}"
+        try:
+            pipe = _redis_client.pipeline()
+            pipe.incr(window_key)
+            pipe.expire(window_key, self.window_seconds * 2)
+            results = await pipe.execute()
+            count = results[0]
+            if count > self.max_requests:
+                logger.warning("Rate limit exceeded for %s (%d/%d)", key, count, self.max_requests)
                 return False
-            
-            self.requests[key] = (count + 1, window_start)
             return True
-        
-        # Nueva ventana
-        self.requests[key] = (1, current_time)
-        return True
-    
-    def _cleanup_old_entries(self, current_time: float):
-        """Limpia entradas antiguas para liberar memoria"""
-        keys_to_delete = [
-            key for key, (_, window_start) in self.requests.items()
-            if current_time - window_start > self.window_seconds * 2
-        ]
-        for key in keys_to_delete:
-            del self.requests[key]
+        except Exception as exc:
+            logger.error("Rate limiter Redis error: %s — failing open", exc)
+            return True  # Don't block traffic on Redis failure; alert via logs
 
 
-# Instancia global del rate limiter
-rate_limiter = InMemoryRateLimiter()
-
-# Stricter limiter for auth endpoints — 10 attempts per minute per IP
-_login_rate_limiter = InMemoryRateLimiter()
-_login_rate_limiter.max_requests = 10
+rate_limiter = RedisRateLimiter(max_requests=60, window_seconds=60)
+_login_rate_limiter = RedisRateLimiter(max_requests=10, window_seconds=60)
 
 
 async def check_rate_limit(request: Request, identifier: str = None):
-    """
-    Middleware para verificar rate limiting
-    
-    Args:
-        request: Request de FastAPI
-        identifier: Identificador personalizado (opcional, usa IP por defecto)
-        
-    Raises:
-        HTTPException: Si se excede el límite de peticiones
-    """
-    # Usar identificador personalizado o IP del cliente
     key = identifier or request.client.host
-    
-    if not rate_limiter.is_allowed(key):
+    if not await rate_limiter.is_allowed(key):
         raise HTTPException(
             status_code=status.HTTP_429_TOO_MANY_REQUESTS,
             detail="Rate limit exceeded. Please try again later.",
@@ -99,9 +58,8 @@ async def check_rate_limit(request: Request, identifier: str = None):
 
 
 async def check_login_rate_limit(request: Request):
-    """Stricter rate limit for login endpoint — 10 attempts per minute per IP."""
     key = f"login:{request.client.host}"
-    if not _login_rate_limiter.is_allowed(key):
+    if not await _login_rate_limiter.is_allowed(key):
         raise HTTPException(
             status_code=status.HTTP_429_TOO_MANY_REQUESTS,
             detail="Too many login attempts. Please try again in a minute.",

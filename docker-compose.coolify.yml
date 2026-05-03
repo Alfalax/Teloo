@@ -28,7 +28,7 @@ services:
     environment:
       POSTGRES_DB: teloo_production
       POSTGRES_USER: teloo_admin
-      POSTGRES_PASSWORD: Teloo2025.
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
       TZ: America/Bogota
       PGTZ: UTC
     volumes:
@@ -63,7 +63,7 @@ services:
       dockerfile: Dockerfile
     container_name: teloo-core-api
     environment:
-      - DATABASE_URL=postgres://teloo_admin:Teloo2025.@postgres:5432/teloo_production
+      - DATABASE_URL=postgres://teloo_admin:${POSTGRES_PASSWORD}@postgres:5432/teloo_production
       - REDIS_URL=redis://redis:6379
       - JWT_SECRET_KEY=${JWT_SECRET_KEY}
       - ENVIRONMENT=production
@@ -93,7 +93,7 @@ services:
       dockerfile: Dockerfile
     container_name: teloo-analytics
     environment:
-      - DATABASE_URL=postgres://teloo_admin:Teloo2025.@postgres:5432/teloo_production
+      - DATABASE_URL=postgres://teloo_admin:${POSTGRES_PASSWORD}@postgres:5432/teloo_production
       - REDIS_URL=redis://redis:6379
       - ENVIRONMENT=production
       - BACKEND_CORS_ORIGINS=${BACKEND_CORS_ORIGINS}

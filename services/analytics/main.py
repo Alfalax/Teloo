@@ -89,8 +89,8 @@ app = FastAPI(
     title="TeLOO V3 Analytics",
     description="Métricas, dashboards y reportes del sistema con 34 KPIs",
     version="3.0.0",
-    docs_url="/docs",
-    redoc_url="/redoc",
+    docs_url=None if os.getenv("ENVIRONMENT") == "production" else "/docs",
+    redoc_url=None if os.getenv("ENVIRONMENT") == "production" else "/redoc",
     lifespan=lifespan
 )
 
