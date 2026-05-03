@@ -18,6 +18,7 @@ export default function DashboardPage() {
   const [selectedSolicitud, setSelectedSolicitud] = useState<SolicitudConOferta | null>(null);
   const [showOfertaModal, setShowOfertaModal] = useState(false);
   const [showVerOfertaModal, setShowVerOfertaModal] = useState(false);
+  const [solicitudesRefreshKey, setSolicitudesRefreshKey] = useState(0);
 
   useEffect(() => {
     loadKPIs();
@@ -66,7 +67,8 @@ export default function DashboardPage() {
       <KPIDashboard kpis={kpis} isLoading={isLoadingKPIs} />
 
       {/* Solicitudes Unificadas con filtros */}
-      <SolicitudesUnificadas 
+      <SolicitudesUnificadas
+        key={solicitudesRefreshKey}
         onHacerOferta={handleHacerOferta}
         onVerOferta={handleVerOferta}
       />
@@ -81,8 +83,10 @@ export default function DashboardPage() {
             setSelectedSolicitud(null);
           }}
           onSuccess={() => {
-            // Refresh solicitudes list
-            window.location.reload();
+            setShowOfertaModal(false);
+            setSelectedSolicitud(null);
+            loadKPIs();
+            setSolicitudesRefreshKey((k) => k + 1);
           }}
         />
       )}

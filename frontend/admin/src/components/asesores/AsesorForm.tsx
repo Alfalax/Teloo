@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useToast } from '@/contexts/ToastContext';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -35,6 +36,7 @@ export function AsesorForm({
   asesor,
   isLoading = false,
 }: AsesorFormProps) {
+  const { toast } = useToast();
   const [formData, setFormData] = useState<AsesorCreate>({
     nombre: '',
     apellido: '',
@@ -215,11 +217,13 @@ export function AsesorForm({
         await onSubmit(formData);
       }
       setServerError('');
+      toast(isEditing ? 'Asesor actualizado' : 'Asesor creado', { variant: 'success' });
       onClose();
     } catch (error: any) {
       console.error('Error submitting form:', error);
       const errorMessage = error.message || error.response?.data?.detail || 'Error al guardar el asesor';
       setServerError(errorMessage);
+      toast('Error al guardar el asesor', { description: errorMessage, variant: 'error' });
     }
   };
 

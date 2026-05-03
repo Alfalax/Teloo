@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { Car, AlertCircle, Download, Upload } from 'lucide-react';
+import { useToast } from '@/contexts/ToastContext';
 import { useConfiguracion } from '@/hooks/useConfiguracion';
 import {
   Dialog,
@@ -40,6 +41,7 @@ export default function OfertaIndividualModal({
   onClose,
   onSuccess,
 }: OfertaIndividualModalProps) {
+  const { toast } = useToast();
   // Load configuration parameters
   const { getMetadata } = useConfiguracion([
     'precio_minimo_oferta',
@@ -192,10 +194,13 @@ export default function OfertaIndividualModal({
       };
 
       await ofertasService.createOferta(ofertaData);
+      toast('Oferta enviada exitosamente', { variant: 'success' });
       onSuccess();
       onClose();
     } catch (err: any) {
-      setError(err.response?.data?.detail || 'Error al crear la oferta');
+      const errorMsg = err.response?.data?.detail || 'Error al crear la oferta';
+      setError(errorMsg);
+      toast('Error al enviar la oferta', { description: errorMsg, variant: 'error' });
       console.error('Error creating oferta:', err);
     } finally {
       setIsSubmitting(false);

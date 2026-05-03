@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useReducer, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { AuthState, User, LoginRequest } from '@/types/auth';
 import { authService } from '@/services/auth';
 
@@ -66,6 +67,7 @@ function authReducer(state: AuthState, action: AuthAction): AuthState {
 }
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
+  const navigate = useNavigate();
   const [state, dispatch] = useReducer(authReducer, initialState);
 
   // Initialize auth state from localStorage
@@ -115,8 +117,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const customEvent = event as CustomEvent;
       console.log('Auth logout event received:', customEvent.detail);
       dispatch({ type: 'CLEAR_AUTH' });
-      // Force navigation to login
-      window.location.href = '/login';
+      navigate('/login');
     };
 
     window.addEventListener('auth:logout', handleAuthLogout);
