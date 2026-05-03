@@ -310,7 +310,20 @@ export default function SolicitudesUnificadas({ onHacerOferta, onVerOferta }: Pr
                       <Badge variant="outline">Nivel {solicitud.nivel_actual}</Badge>
                     </TableCell>
                     <TableCell>
-                      <Badge variant={tiempoRestante < 4 ? 'destructive' : 'warning'}>{tiempoRestante}h</Badge>
+                      {(() => {
+                        const minutos = solicitud.tiempo_restante_minutos || tiempoRestante * 60;
+                        const total = solicitud.tiempo_total_nivel_minutos || 1440;
+                        const pct = Math.min(100, Math.max(0, (minutos / total) * 100));
+                        const color = pct >= 70 ? '#22c55e' : pct >= 40 ? '#eab308' : '#ef4444';
+                        return (
+                          <div className="flex flex-col gap-1 min-w-[80px]">
+                            <span className="text-xs font-medium" style={{ color }}>{tiempoRestante}h</span>
+                            <div className="w-full h-1.5 bg-gray-100 dark:bg-gray-800 rounded-full overflow-hidden">
+                              <div className="h-full rounded-full transition-all" style={{ width: `${pct}%`, backgroundColor: color }} />
+                            </div>
+                          </div>
+                        );
+                      })()}
                     </TableCell>
                     <TableCell className="text-right">
                       {tieneOferta ? (

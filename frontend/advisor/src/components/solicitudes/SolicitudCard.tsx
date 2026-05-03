@@ -72,6 +72,24 @@ export default function SolicitudCard({ solicitud, onHacerOferta, onVerOferta }:
                 {repuestos.length} repuesto{repuestos.length !== 1 ? 's' : ''}
               </div>
             </div>
+            {solicitudActiva && tiempoRestanteMinutos > 0 && (
+              <div className="pt-1">
+                <div className="w-full h-1.5 bg-gray-100 dark:bg-gray-800 rounded-full overflow-hidden">
+                  <div
+                    className="h-full rounded-full transition-all duration-300"
+                    style={{
+                      width: `${Math.min(100, Math.max(0, porcentajeTiempo))}%`,
+                      backgroundColor:
+                        porcentajeTiempo >= 70
+                          ? '#22c55e'
+                          : porcentajeTiempo >= 40
+                          ? '#eab308'
+                          : '#ef4444',
+                    }}
+                  />
+                </div>
+              </div>
+            )}
           </div>
         </div>
       </CardHeader>
