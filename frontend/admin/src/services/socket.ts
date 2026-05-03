@@ -4,14 +4,24 @@ const REALTIME_URL = import.meta.env.VITE_REALTIME_URL || 'http://localhost:8003
 
 let socket: Socket | null = null;
 
-export function getSocket(): Socket {
+export function getSocket(): Socket | null {
   if (!socket) {
     const token = localStorage.getItem('access_token');
     socket = io(REALTIME_URL, {
       auth: { token },
       transports: ['websocket', 'polling'],
-      reconnectionAttempts: 5,
-      reconnectionDelay: 2000,
+      reconnectionAttempts: 3,
+      reconnectionDelay: 3000,
+      timeout: 5000,
+    });
+
+    socket.on('connect_error', () => {
+      // Silently give up after exhausting reconnection attempts
+    });
+
+    socket.on('reconnect_failed', () => {
+      socket?.disconnect();
+      socket = null;
     });
   }
   return socket;

@@ -3,13 +3,10 @@ import { useQueryClient } from '@tanstack/react-query';
 import { getSocket, disconnectSocket } from '@/services/socket';
 import { queryKeys } from '@/lib/queryKeys';
 
-const SOLICITUD_EVENTS = [
+const EVENTS = [
   'solicitud_created',
   'solicitud_oleada',
   'solicitud_updated',
-];
-
-const OFERTA_EVENTS = [
   'oferta_created',
   'oferta_updated',
   'oferta_accepted',
@@ -21,19 +18,16 @@ export function useRealtimeSolicitudes() {
 
   useEffect(() => {
     const socket = getSocket();
+    if (!socket) return;
 
     const invalidate = () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.solicitudes.all });
     };
 
-    [...SOLICITUD_EVENTS, ...OFERTA_EVENTS].forEach(event => {
-      socket.on(event, invalidate);
-    });
+    EVENTS.forEach(event => socket.on(event, invalidate));
 
     return () => {
-      [...SOLICITUD_EVENTS, ...OFERTA_EVENTS].forEach(event => {
-        socket.off(event, invalidate);
-      });
+      EVENTS.forEach(event => socket.off(event, invalidate));
     };
   }, [queryClient]);
 }

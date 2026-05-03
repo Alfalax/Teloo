@@ -21,6 +21,7 @@ export function useRealtimeAdmin() {
 
   useEffect(() => {
     const socket = getSocket();
+    if (!socket) return;
 
     const invalidateSolicitudes = () => {
       queryClient.invalidateQueries({ queryKey: ['solicitudes'] });
