@@ -1,4 +1,6 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { queryKeys } from '@/lib/queryKeys';
 import { Button } from '@/components/ui/button';
 import { KPICard } from '@/components/dashboard/KPICard';
 import { AsesoresTable } from '@/components/asesores/AsesoresTable';
@@ -19,10 +21,8 @@ import { asesoresService } from '@/services/asesores';
 import { Asesor, AsesorCreate, AsesorUpdate, AsesoresKPIs } from '@/types/asesores';
 
 export function AsesoresPage() {
-  const [asesores, setAsesores] = useState<Asesor[]>([]);
-  const [kpis, setKpis] = useState<AsesoresKPIs | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
-  const [isLoadingKPIs, setIsLoadingKPIs] = useState(true);
+  const queryClient = useQueryClient();
+
   const [showCreateForm, setShowCreateForm] = useState(false);
   const [showEditForm, setShowEditForm] = useState(false);
   const [showImportDialog, setShowImportDialog] = useState(false);
@@ -33,7 +33,6 @@ export function AsesoresPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
-  const [totalPages, setTotalPages] = useState(1);
   const [filters, setFilters] = useState({
     search: '',
     estado: '',
@@ -41,47 +40,31 @@ export function AsesoresPage() {
     departamento: '',
   });
 
-  const loadAsesores = useCallback(async (page: number = 1) => {
-    setIsLoading(true);
-    try {
-      const response = await asesoresService.getAsesores(
-        page,
-        50, // limit
+  const { data: asesoresData, isLoading } = useQuery({
+    queryKey: queryKeys.asesores.list(filters, currentPage),
+    queryFn: () =>
+      asesoresService.getAsesores(
+        currentPage,
+        50,
         filters.search || undefined,
         filters.estado || undefined,
         filters.ciudad || undefined,
         filters.departamento || undefined
-      );
-      
-      setAsesores(response.data);
-      setTotalPages(Math.ceil(response.total / 50));
-      setCurrentPage(page);
-    } catch (error) {
-      console.error('Error loading asesores:', error);
-    } finally {
-      setIsLoading(false);
-    }
-  }, [filters]);
+      ),
+    placeholderData: (prev) => prev,
+  });
 
-  const loadKPIs = useCallback(async () => {
-    setIsLoadingKPIs(true);
-    try {
-      const kpisData = await asesoresService.getAsesoresKPIs();
-      setKpis(kpisData);
-    } catch (error) {
-      console.error('Error loading KPIs:', error);
-    } finally {
-      setIsLoadingKPIs(false);
-    }
-  }, []);
+  const { data: kpis, isLoading: isLoadingKPIs } = useQuery({
+    queryKey: queryKeys.asesores.kpis(),
+    queryFn: () => asesoresService.getAsesoresKPIs(),
+    staleTime: 2 * 60 * 1000,
+  });
 
-  useEffect(() => {
-    loadAsesores(1);
-  }, [loadAsesores]);
+  const asesores: Asesor[] = asesoresData?.data ?? [];
+  const totalPages = Math.ceil((asesoresData?.total ?? 0) / 50);
 
-  useEffect(() => {
-    loadKPIs();
-  }, [loadKPIs]);
+  const invalidateAsesores = () =>
+    queryClient.invalidateQueries({ queryKey: queryKeys.asesores.all });
 
   const handleFiltersChange = (newFilters: typeof filters) => {
     setFilters(newFilters);
@@ -92,8 +75,7 @@ export function AsesoresPage() {
     setIsSubmitting(true);
     try {
       await asesoresService.createAsesor(data as AsesorCreate);
-      await loadAsesores(currentPage);
-      await loadKPIs();
+      invalidateAsesores();
       setShowCreateForm(false);
     } catch (error: any) {
       console.error('Error creating asesor:', error);
@@ -105,11 +87,10 @@ export function AsesoresPage() {
 
   const handleEditAsesor = async (data: AsesorCreate | AsesorUpdate) => {
     if (!selectedAsesor) return;
-    
     setIsSubmitting(true);
     try {
       await asesoresService.updateAsesor(selectedAsesor.id, data as AsesorUpdate);
-      await loadAsesores(currentPage);
+      invalidateAsesores();
       setShowEditForm(false);
       setSelectedAsesor(null);
     } catch (error: any) {
@@ -123,8 +104,7 @@ export function AsesoresPage() {
   const handleUpdateEstado = async (id: string, estado: 'ACTIVO' | 'INACTIVO' | 'SUSPENDIDO') => {
     try {
       await asesoresService.updateAsesorEstado(id, estado);
-      await loadAsesores(currentPage);
-      await loadKPIs();
+      invalidateAsesores();
     } catch (error) {
       console.error('Error updating asesor estado:', error);
       alert('Error al actualizar el estado del asesor');
@@ -133,12 +113,10 @@ export function AsesoresPage() {
 
   const handleDeleteAsesor = async () => {
     if (!asesorToDelete) return;
-    
     setIsDeleting(true);
     try {
       await asesoresService.deleteAsesor(asesorToDelete);
-      await loadAsesores(currentPage);
-      await loadKPIs();
+      invalidateAsesores();
       setShowDeleteDialog(false);
       setAsesorToDelete(null);
     } catch (error: any) {
@@ -162,8 +140,7 @@ export function AsesoresPage() {
   };
 
   const handleBulkAction = async () => {
-    await loadAsesores(currentPage);
-    await loadKPIs();
+    invalidateAsesores();
     setSelectedAsesores([]);
   };
 
@@ -190,9 +167,8 @@ export function AsesoresPage() {
     }
   };
 
-  const handleImportComplete = async () => {
-    await loadAsesores(currentPage);
-    await loadKPIs();
+  const handleImportComplete = () => {
+    invalidateAsesores();
   };
 
   const openEditForm = (asesor: Asesor) => {
@@ -315,7 +291,7 @@ export function AsesoresPage() {
         <div className="flex items-center justify-center gap-2">
           <Button
             variant="outline"
-            onClick={() => loadAsesores(currentPage - 1)}
+            onClick={() => setCurrentPage(p => p - 1)}
             disabled={currentPage === 1 || isLoading}
           >
             Anterior
@@ -325,7 +301,7 @@ export function AsesoresPage() {
           </span>
           <Button
             variant="outline"
-            onClick={() => loadAsesores(currentPage + 1)}
+            onClick={() => setCurrentPage(p => p + 1)}
             disabled={currentPage === totalPages || isLoading}
           >
             Siguiente

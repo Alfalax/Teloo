@@ -1,38 +1,29 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import KPIDashboard from '@/components/dashboard/KPIDashboard';
 import SolicitudesUnificadas from '@/components/solicitudes/SolicitudesUnificadas';
 import OfertaIndividualModal from '@/components/ofertas/OfertaIndividualModal';
 import VerOfertaModal from '@/components/ofertas/VerOfertaModal';
-import { AsesorKPIs } from '@/types/kpi';
 import { SolicitudConOferta } from '@/types/solicitud';
+import { solicitudesService } from '@/services/solicitudes';
+import { queryKeys } from '@/lib/queryKeys';
 
 export default function DashboardPage() {
-  const [kpis, setKpis] = useState<AsesorKPIs | null>(null);
-  const [isLoadingKPIs, setIsLoadingKPIs] = useState(true);
-  const [kpiError, setKpiError] = useState(false);
+  const queryClient = useQueryClient();
   const [selectedSolicitud, setSelectedSolicitud] = useState<SolicitudConOferta | null>(null);
   const [showOfertaModal, setShowOfertaModal] = useState(false);
   const [showVerOfertaModal, setShowVerOfertaModal] = useState(false);
-  const [solicitudesRefreshKey, setSolicitudesRefreshKey] = useState(0);
 
-  useEffect(() => {
-    loadKPIs();
-  }, []);
-
-  const loadKPIs = async () => {
-    try {
-      setIsLoadingKPIs(true);
-      setKpiError(false);
-      const { solicitudesService } = await import('@/services/solicitudes');
-      const data = await solicitudesService.getMetrics();
-      setKpis(data);
-    } catch (error) {
-      console.error('Error loading KPIs:', error);
-      setKpiError(true);
-    } finally {
-      setIsLoadingKPIs(false);
-    }
-  };
+  const {
+    data: kpis = null,
+    isLoading: isLoadingKPIs,
+    isError: kpiError,
+    refetch: retryKpis,
+  } = useQuery({
+    queryKey: queryKeys.solicitudes.metrics(),
+    queryFn: () => solicitudesService.getMetrics(),
+    staleTime: 2 * 60 * 1000,
+  });
 
   const handleHacerOferta = (solicitud: SolicitudConOferta) => {
     setSelectedSolicitud(solicitud);
@@ -44,25 +35,24 @@ export default function DashboardPage() {
     setShowVerOfertaModal(true);
   };
 
+  const handleOfertaSuccess = () => {
+    setShowOfertaModal(false);
+    setSelectedSolicitud(null);
+    queryClient.invalidateQueries({ queryKey: queryKeys.solicitudes.mis() });
+    queryClient.invalidateQueries({ queryKey: queryKeys.solicitudes.metrics() });
+  };
+
   return (
     <div className="space-y-6">
       <div>
         <h2 className="text-3xl font-bold tracking-tight">Dashboard</h2>
-        <p className="text-muted-foreground">
-          Gestiona tus ofertas y solicitudes
-        </p>
+        <p className="text-muted-foreground">Gestiona tus ofertas y solicitudes</p>
       </div>
 
-      <KPIDashboard kpis={kpis} isLoading={isLoadingKPIs} hasError={kpiError} onRetry={loadKPIs} />
+      <KPIDashboard kpis={kpis} isLoading={isLoadingKPIs} hasError={kpiError} onRetry={retryKpis} />
 
-      {/* Solicitudes Unificadas con filtros */}
-      <SolicitudesUnificadas
-        key={solicitudesRefreshKey}
-        onHacerOferta={handleHacerOferta}
-        onVerOferta={handleVerOferta}
-      />
+      <SolicitudesUnificadas onHacerOferta={handleHacerOferta} onVerOferta={handleVerOferta} />
 
-      {/* Oferta Individual Modal */}
       {selectedSolicitud && (
         <OfertaIndividualModal
           solicitud={selectedSolicitud}
@@ -71,16 +61,10 @@ export default function DashboardPage() {
             setShowOfertaModal(false);
             setSelectedSolicitud(null);
           }}
-          onSuccess={() => {
-            setShowOfertaModal(false);
-            setSelectedSolicitud(null);
-            loadKPIs();
-            setSolicitudesRefreshKey((k) => k + 1);
-          }}
+          onSuccess={handleOfertaSuccess}
         />
       )}
 
-      {/* Ver Oferta Modal */}
       <VerOfertaModal
         open={showVerOfertaModal}
         onClose={() => {

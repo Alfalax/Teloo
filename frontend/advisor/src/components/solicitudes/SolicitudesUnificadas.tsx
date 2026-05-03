@@ -1,5 +1,6 @@
 // Componente unificado de solicitudes
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useMemo } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { Package, LayoutGrid, Table as TableIcon, Filter } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -16,6 +17,7 @@ import {
 import SolicitudCard from './SolicitudCard';
 import { SolicitudConOferta, EstadoOfertaAsesor } from '@/types/solicitud';
 import { solicitudesService } from '@/services/solicitudes';
+import { queryKeys } from '@/lib/queryKeys';
 
 type FiltroTipo = 'todas' | 'activas' | 'finalizadas';
 type VistaTipo = 'cards' | 'table';
@@ -99,31 +101,20 @@ function obtenerConfigBadge(estado: EstadoOfertaAsesor) {
 }
 
 export default function SolicitudesUnificadas({ onHacerOferta, onVerOferta }: Props) {
-  const [solicitudes, setSolicitudes] = useState<SolicitudConOferta[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
   const [filtroActivo, setFiltroActivo] = useState<FiltroTipo>('todas');
   const [vistaActiva, setVistaActiva] = useState<VistaTipo>('cards');
 
-  useEffect(() => {
-    loadSolicitudes();
-  }, []);
-
-  const loadSolicitudes = async () => {
-    try {
-      setIsLoading(true);
-      setError(null);
-      const data = await solicitudesService.getMisSolicitudes();
-      console.log('📊 Solicitudes recibidas del backend:', data.length);
-      console.log('📋 Datos:', data);
-      setSolicitudes(data);
-    } catch (err: any) {
-      setError(err.response?.data?.detail || 'Error al cargar solicitudes');
-      console.error('❌ Error loading solicitudes:', err);
-    } finally {
-      setIsLoading(false);
-    }
-  };
+  const {
+    data: solicitudes = [],
+    isLoading,
+    isError,
+    error,
+    refetch,
+  } = useQuery({
+    queryKey: queryKeys.solicitudes.mis(),
+    queryFn: () => solicitudesService.getMisSolicitudes(),
+    staleTime: 30 * 1000,
+  });
 
   const solicitudesProcesadas = useMemo(() => {
     return solicitudes
@@ -192,14 +183,16 @@ export default function SolicitudesUnificadas({ onHacerOferta, onVerOferta }: Pr
     );
   }
 
-  if (error) {
+  if (isError) {
     return (
       <Card>
         <CardContent className="p-6">
           <div className="rounded-lg border border-destructive/50 bg-destructive/10 p-8 text-center">
             <p className="text-destructive font-medium mb-2">Error al cargar solicitudes</p>
-            <p className="text-sm text-muted-foreground mb-4">{error}</p>
-            <Button onClick={loadSolicitudes} variant="outline">Reintentar</Button>
+            <p className="text-sm text-muted-foreground mb-4">
+              {(error as any)?.response?.data?.detail || 'Error al cargar solicitudes'}
+            </p>
+            <Button onClick={() => refetch()} variant="outline">Reintentar</Button>
           </div>
         </CardContent>
       </Card>
