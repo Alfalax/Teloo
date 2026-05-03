@@ -13,11 +13,31 @@ import uuid
 correlation_id_var: ContextVar[Optional[str]] = ContextVar('correlation_id', default=None)
 
 
+_SENSITIVE_KEYS = frozenset({
+    'password', 'passwd', 'password_hash', 'token', 'access_token',
+    'refresh_token', 'authorization', 'secret', 'api_key', 'apikey',
+    'key', 'credential', 'credentials', 'jwt', 'pgpassword',
+    'x-service-api-key', 'x-internal-api-key',
+})
+
+
+def _sanitize(value: Any) -> Any:
+    """Recursively redact values whose keys are considered sensitive."""
+    if isinstance(value, dict):
+        return {
+            k: '[REDACTED]' if k.lower() in _SENSITIVE_KEYS else _sanitize(v)
+            for k, v in value.items()
+        }
+    if isinstance(value, list):
+        return [_sanitize(item) for item in value]
+    return value
+
+
 class JSONFormatter(logging.Formatter):
     """
     Formateador JSON para logs estructurados
     """
-    
+
     def format(self, record: logging.LogRecord) -> str:
         log_data = {
             'timestamp': datetime.utcnow().isoformat() + 'Z',
@@ -28,20 +48,20 @@ class JSONFormatter(logging.Formatter):
             'function': record.funcName,
             'line': record.lineno,
         }
-        
+
         # Agregar correlation ID si existe
         correlation_id = correlation_id_var.get()
         if correlation_id:
             log_data['correlation_id'] = correlation_id
-        
+
         # Agregar campos extra
         if hasattr(record, 'extra_fields'):
-            log_data.update(record.extra_fields)
-        
+            log_data.update(_sanitize(record.extra_fields))
+
         # Agregar exception info si existe
         if record.exc_info:
             log_data['exception'] = self.formatException(record.exc_info)
-        
+
         return json.dumps(log_data, ensure_ascii=False)
 
 
