@@ -68,6 +68,54 @@ class TelegramService:
             logger.error(f"Error sending Telegram message: {e}")
             return {"ok": False, "error": str(e)}
     
+    async def send_message_with_keyboard(
+        self,
+        chat_id: str,
+        text: str,
+        buttons: list[list[str]],
+        parse_mode: str = "Markdown",
+    ) -> Dict[str, Any]:
+        """Send a message with a persistent ReplyKeyboardMarkup.
+
+        buttons is a list of rows, each row a list of button labels.
+        Example: [["❌ Cancelar", "🔄 Reiniciar"]]
+        """
+        keyboard = {
+            "keyboard": [[{"text": btn} for btn in row] for row in buttons],
+            "resize_keyboard": True,
+            "one_time_keyboard": True,
+        }
+        try:
+            response = await self.client.post(
+                f"{self.base_url}/sendMessage",
+                json={
+                    "chat_id": chat_id,
+                    "text": text,
+                    "parse_mode": parse_mode,
+                    "reply_markup": keyboard,
+                },
+            )
+            return response.json()
+        except Exception as e:
+            logger.error(f"Error sending keyboard message: {e}")
+            return {"ok": False, "error": str(e)}
+
+    async def remove_keyboard(self, chat_id: str, text: str = "​") -> Dict[str, Any]:
+        """Remove the persistent keyboard by sending a RemoveKeyboard markup."""
+        try:
+            response = await self.client.post(
+                f"{self.base_url}/sendMessage",
+                json={
+                    "chat_id": chat_id,
+                    "text": text,
+                    "reply_markup": {"remove_keyboard": True},
+                },
+            )
+            return response.json()
+        except Exception as e:
+            logger.error(f"Error removing keyboard: {e}")
+            return {"ok": False, "error": str(e)}
+
     async def send_photo(
         self,
         chat_id: str,

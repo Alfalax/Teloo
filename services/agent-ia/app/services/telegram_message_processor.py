@@ -416,25 +416,24 @@ class TelegramMessageProcessor:
                     await telegram_service.send_message(telegram_message.chat_id, welcome)
                     return {"success": True, "action": "welcome_sent"}
 
-                elif comando in ["/reiniciar", "/cancelar", "/empezar", "/nuevo"]:
+                elif comando in [
+                    "/reiniciar", "/cancelar", "/empezar", "/nuevo",
+                    "cancelar", "reiniciar", "cancelar solicitud", "quiero cancelar",
+                    "empezar de nuevo", "❌ cancelar", "🔄 reiniciar",
+                ]:
                     draft_key = f"solicitud_draft:{telegram_message.chat_id}"
                     await redis_manager.delete(draft_key)
-                    
-                    help_msg = "🔄 Conversación reiniciada.\n\n"
-                    help_msg += "Envíame la información de tu solicitud:\n"
-                    help_msg += "• Puedes enviar un audio\n"
-                    help_msg += "• O un mensaje de texto con:\n"
-                    help_msg += "  - Tu nombre y teléfono\n"
-                    help_msg += "  - Repuestos que necesitas\n"
-                    help_msg += "  - Marca, modelo y año del vehículo\n"
-                    help_msg += "  - Tu ciudad"
-                    
-                    await telegram_service.send_message(telegram_message.chat_id, help_msg)
-                    
-                    return {
-                        "success": True,
-                        "action": "conversation_restarted"
-                    }
+                    await telegram_service.remove_keyboard(
+                        telegram_message.chat_id,
+                        "🔄 Conversación reiniciada.\n\n"
+                        "Envíame la información de tu solicitud:\n"
+                        "• Podés enviar un audio o un mensaje de texto con:\n"
+                        "  - Tu nombre y teléfono\n"
+                        "  - Repuestos que necesitás\n"
+                        "  - Marca, modelo y año del vehículo\n"
+                        "  - Tu ciudad",
+                    )
+                    return {"success": True, "action": "conversation_restarted"}
                 
                 # /ayuda - Mostrar comandos disponibles
                 elif comando in ["/ayuda", "/help", "/comandos"]:
@@ -567,13 +566,34 @@ class TelegramMessageProcessor:
                         logger.error(f"Error processing Excel file: {e}")
                 
                 # Delegate the full conversation flow to the shared module
-                return await run_solicitud_flow(
+                result = await run_solicitud_flow(
                     message_content=message_content,
                     draft_key=draft_key,
                     ciudad_invalida_key=ciudad_invalida_key,
                     send_fn=send_fn,
                     settings=settings,
                 )
+
+                # When the bot is waiting for user input, show a persistent keyboard
+                # so the user can cancel/restart without typing commands
+                WAITING_ACTIONS = {
+                    "info_requested",
+                    "invalid_phone_detected",
+                    "ciudad_validation_pending",
+                    "year_requested",
+                    "question_answered",
+                    "correction_requested",
+                }
+                if result.get("action") in WAITING_ACTIONS:
+                    await telegram_service.send_message_with_keyboard(
+                        telegram_message.chat_id,
+                        "💡 También podés:",
+                        [["❌ Cancelar", "🔄 Reiniciar"]],
+                    )
+                elif result.get("action") in ("solicitud_created", "cancelled"):
+                    await telegram_service.remove_keyboard(telegram_message.chat_id)
+
+                return result
 
                 # NOTE: everything below this line is unreachable — kept temporarily
                 # until the shared flow has been verified in production.

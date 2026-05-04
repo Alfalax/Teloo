@@ -40,8 +40,9 @@ INTENCIONES:
             "aprobado", "listo", "dale", "de acuerdo", "excelente", "genial", "bien", "muy bien"
   NO ES CONFIRMACIÓN: "serían las 2" (menciona cantidad), "sí, pero..." (tiene corrección)
 
-- "reject": Usuario rechaza TODO y quiere empezar de nuevo (SOLO rechazos totales y explícitos).
-  Ejemplos: "no, todo mal", "empecemos de nuevo", "borra todo", "cancela todo"
+- "reject": Usuario quiere cancelar o empezar de nuevo.
+  Ejemplos: "cancelar", "cancelar solicitud", "quiero cancelar", "no quiero", "salir",
+            "reiniciar", "empezar de nuevo", "borra todo", "cancela todo", "no, todo mal"
   NO ES RECHAZO: "no" (solo), "no, es la izquierda" (es corrección)
 
 - "question": Usuario hace una pregunta o pide aclaración.

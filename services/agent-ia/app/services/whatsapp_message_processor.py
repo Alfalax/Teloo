@@ -157,13 +157,9 @@ class WhatsAppMessageProcessor:
             
             # Handle based on interpreted intent
             if interpretation and interpretation.get('intent') == 'cancel':
-                # User wants to cancel current operation
                 await context_mgr.clear_pending_action(user_id)
-                
-                # Clear draft from Redis
-                from app.core.redis import redis_manager
-                draft_key = f"solicitud_draft:{whatsapp_message.from_number}"
-                await redis_manager.delete(draft_key)
+                await redis_manager.delete(f"solicitud_draft:whatsapp:{whatsapp_message.from_number}")
+                await redis_manager.delete(f"ciudad_invalida:whatsapp:{whatsapp_message.from_number}")
                 
                 await whatsapp_service.send_text_message(
                     whatsapp_message.from_number,
@@ -394,7 +390,7 @@ class WhatsAppMessageProcessor:
             async def send_buttons_fn(body_text: str, buttons: list) -> None:
                 await whatsapp_service.send_interactive_buttons(phone, body_text, buttons)
 
-            return await run_solicitud_flow(
+            result = await run_solicitud_flow(
                 message_content=message_content,
                 draft_key=draft_key,
                 ciudad_invalida_key=f"ciudad_invalida:whatsapp:{phone}",
@@ -402,6 +398,24 @@ class WhatsAppMessageProcessor:
                 settings=settings,
                 send_buttons_fn=send_buttons_fn,
             )
+
+            # When the bot is waiting for user input, offer a cancel button
+            WAITING_ACTIONS = {
+                "info_requested",
+                "invalid_phone_detected",
+                "ciudad_validation_pending",
+                "year_requested",
+            }
+            if result.get("action") in WAITING_ACTIONS:
+                await send_buttons_fn(
+                    "¿Querés cancelar la solicitud?",
+                    [
+                        {"id": "cancel_solicitud", "title": "Cancelar"},
+                        {"id": "restart_solicitud", "title": "Empezar de nuevo"},
+                    ],
+                )
+
+            return result
 
         except Exception as e:
             logger.error(f"Error handling WhatsApp solicitud message: {e}")
