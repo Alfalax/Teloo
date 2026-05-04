@@ -14,6 +14,7 @@ from app.services.whatsapp_service import whatsapp_service
 from app.services.conversation_service import conversation_service
 from app.services.context_manager import get_context_manager
 from app.models.whatsapp import ProcessedMessage
+from app.services.bot_prompts import ERR_TECHNICAL, ERR_AUDIO_TRANSCRIPTION, MSG_CANCELLED
 import httpx
 import os
 
@@ -130,7 +131,7 @@ class WhatsAppMessageProcessor:
                 else:
                     await whatsapp_service.send_text_message(
                         whatsapp_message.from_number,
-                        "🎤 Recibí tu audio pero no pude transcribirlo. ¿Podés escribirme el mensaje?"
+                        ERR_AUDIO_TRANSCRIPTION,
                     )
                     return {"success": False, "action": "audio_transcription_failed"}
 
@@ -166,7 +167,7 @@ class WhatsAppMessageProcessor:
                 
                 await whatsapp_service.send_text_message(
                     whatsapp_message.from_number,
-                    "✅ Entendido, he cancelado todo.\n\nSi cambias de opinión y necesitas repuestos, solo escríbeme. ¡Estoy aquí para ayudarte!"
+                    MSG_CANCELLED,
                 )
                 return {"success": True, "action": "cancelled"}
             
@@ -406,7 +407,7 @@ class WhatsAppMessageProcessor:
             logger.error(f"Error handling WhatsApp solicitud message: {e}")
             await whatsapp_service.send_text_message(
                 whatsapp_message.from_number,
-                "Lo siento, hubo un problema técnico. Por favor intentá de nuevo en unos minutos.",
+                ERR_TECHNICAL,
             )
             return {"success": False, "error": str(e)}
 

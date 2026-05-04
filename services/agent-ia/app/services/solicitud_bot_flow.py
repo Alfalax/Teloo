@@ -14,6 +14,11 @@ from typing import Any, Callable, Awaitable, Dict, List, Optional
 
 from app.core.redis import redis_manager
 from app.services.solicitud_service import limpiar_ciudad
+from app.services.bot_prompts import (
+    INTENT_SYSTEM_PROMPT,
+    EXTRACTION_SYSTEM_PROMPT,
+    ERR_PROCESS_MSG,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -141,56 +146,6 @@ async def run_solicitud_flow(
 # Intent analysis (existing draft)
 # ---------------------------------------------------------------------------
 
-_INTENT_SYSTEM_PROMPT = """Analiza el mensaje del usuario y determina su intención. Responde SOLO con un JSON válido.
-
-DATOS ACTUALES:
-{draft_context}
-
-ÚLTIMO REPUESTO AGREGADO:
-{last_repuesto}
-
-ÚLTIMO MENSAJE DEL BOT:
-{last_bot_message}
-
-CONTEXTO: Si el usuario menciona cantidades ("las 2", "son 3") después de una pregunta sobre cantidades,
-actualiza la cantidad del ÚLTIMO REPUESTO AGREGADO.
-
-FORMATO DE RESPUESTA:
-{
-  "intent": "confirm" | "reject" | "correct" | "question",
-  "answer": "respuesta a la pregunta (solo si intent es question)",
-  "updated_data": {
-    "cliente": {"nombre": "...", "telefono": "...", "ciudad": "..."},
-    "vehiculo": {"marca": "...", "linea": "...", "anio": "..."},
-    "repuestos": [{"nombre": "...", "cantidad": 1}]
-  }
-}
-
-INTENCIONES:
-- "confirm": Usuario confirma que todo está bien SIN mencionar cambios.
-  Ejemplos: "sí", "ok", "perfecto", "todo bien", "correcto", "así está", "confirmar", "adelante",
-            "aprobado", "listo", "dale", "de acuerdo", "excelente", "genial", "bien", "muy bien"
-  NO ES CONFIRMACIÓN: "serían las 2" (menciona cantidad), "sí, pero..." (tiene corrección)
-
-- "reject": Usuario rechaza TODO y quiere empezar de nuevo (SOLO rechazos totales y explícitos).
-  Ejemplos: "no, todo mal", "empecemos de nuevo", "borra todo", "cancela todo"
-  NO ES RECHAZO: "no" (solo), "no, es la izquierda" (es corrección)
-
-- "question": Usuario hace una pregunta o pide aclaración.
-  Ejemplos: "¿las pastillas vienen 1 o el par?", "¿cuánto demora?", "¿puedo agregar más?"
-  Responde la pregunta en "answer" y mantén los datos sin cambios.
-
-- "correct": Usuario quiere corregir o agregar algo específico.
-  Ejemplos: "el teléfono es 3006515619", "agrega pastillas traseras", "el año es 2019"
-
-REGLAS:
-1. Si el mensaje tiene "?" o palabras como "viene", "vienen", "puedo", "cómo", "cuánto" → "question"
-2. Si menciona números/cantidades → "correct", NO "confirm"
-3. Si dice "no" pero está corrigiendo algo → "correct", NO "reject"
-4. Solo usa "reject" si quiere borrar TODO y empezar de nuevo
-5. Para "correct": copia TODOS los datos actuales a updated_data y modifica solo los mencionados
-6. Si dice "agregar" o "también necesito", AGREGA el repuesto a la lista existente"""
-
 
 async def _handle_draft_intent(
     message_content: str,
@@ -213,42 +168,24 @@ async def _handle_draft_intent(
         else "Ninguno"
     )
 
-    system_prompt = _INTENT_SYSTEM_PROMPT.format(
+    system_prompt = INTENT_SYSTEM_PROMPT.format(
         draft_context=json.dumps(draft_context, ensure_ascii=False),
         last_repuesto=last_repuesto,
         last_bot_message=last_bot_message,
     )
 
-    try:
-        async with httpx.AsyncClient(timeout=15.0) as client:
-            resp = await client.post(
-                "https://api.openai.com/v1/chat/completions",
-                headers={"Authorization": f"Bearer {settings.openai_api_key}"},
-                json={
-                    "model": "gpt-4o-mini",
-                    "messages": [
-                        {"role": "system", "content": system_prompt},
-                        {"role": "user", "content": message_content},
-                    ],
-                    "temperature": 0.1,
-                },
-            )
-    except Exception as e:
-        logger.error(f"Error calling OpenAI for intent: {e}")
-        # Fail-open: treat as correction attempt
+    from app.services.llm.openai_adapter import openai_adapter
+    raw = await openai_adapter.chat_complete(system_prompt, message_content, timeout=15.0)
+
+    if raw is None:
+        logger.error("OpenAI intent returned None — failing open as correction attempt")
         existing_draft["_status"] = "correcting"
         await redis_manager.set_json(draft_key, existing_draft, ttl=DRAFT_TTL)
         return {"success": False, "error": "openai_unavailable"}
 
-    if resp.status_code != 200:
-        logger.error(f"OpenAI intent returned {resp.status_code}")
-        existing_draft["_status"] = "correcting"
-        await redis_manager.set_json(draft_key, existing_draft, ttl=DRAFT_TTL)
-        return {"success": False, "error": f"openai_status_{resp.status_code}"}
-
     try:
-        intent_data = json.loads(resp.json()["choices"][0]["message"]["content"])
-    except (json.JSONDecodeError, KeyError) as e:
+        intent_data = json.loads(raw)
+    except json.JSONDecodeError as e:
         logger.error(f"Failed to parse intent JSON: {e}")
         existing_draft["_status"] = "correcting"
         await redis_manager.set_json(draft_key, existing_draft, ttl=DRAFT_TTL)
@@ -359,30 +296,6 @@ async def _handle_draft_intent(
 # Data extraction (no draft)
 # ---------------------------------------------------------------------------
 
-_EXTRACTION_SYSTEM_PROMPT = """Extrae información del mensaje y responde SOLO con JSON válido (sin markdown):
-{
-  "repuestos": [{"nombre": "kit de arrastre", "cantidad": 1}],
-  "vehiculo": {"marca": "", "linea": "", "anio": ""},
-  "cliente": {"telefono": "", "nombre": "", "ciudad": ""}
-}
-
-REGLAS CRÍTICAS:
-- Extrae SOLO la información que el usuario menciona explícitamente
-- NO inventes ni asumas datos que no están en el mensaje
-- Si el usuario NO menciona marca/modelo/año del vehículo, dejá esos campos vacíos ""
-- Si el usuario NO menciona nombre/teléfono/ciudad, dejá esos campos vacíos ""
-- Extrae TODOS los repuestos mencionados
-- TELÉFONO: Los números colombianos tienen 10 dígitos y empiezan con 3.
-  Si ves números separados, únelos (ej: "300 65 15 619" → "3006515619")
-- Respondé SOLO el JSON, sin texto adicional
-
-EJEMPLOS:
-Mensaje: "necesito kit de arrastre y filtro de aire"
-→ {"repuestos": [...], "vehiculo": {"marca": "", "linea": "", "anio": ""}, "cliente": {"telefono": "", "nombre": "", "ciudad": ""}}
-
-Mensaje: "para una Yamaha FZ 2.0 del 2018"
-→ {"repuestos": [], "vehiculo": {"marca": "Yamaha", "linea": "FZ 2.0", "anio": "2018"}, "cliente": {"telefono": "", "nombre": "", "ciudad": ""}}"""
-
 
 async def _extract_data(
     message_content: str,
@@ -391,31 +304,20 @@ async def _extract_data(
     send_fn: Callable[[str], Awaitable[None]],
     settings,
 ) -> Optional[dict]:
+    from app.services.llm.openai_adapter import openai_adapter
+    raw = await openai_adapter.chat_complete(EXTRACTION_SYSTEM_PROMPT, message_content, timeout=30.0)
+
+    if raw is None:
+        logger.error("OpenAI extraction returned None")
+        await send_fn(ERR_PROCESS_MSG)
+        return None
+
     try:
-        async with httpx.AsyncClient(timeout=30.0) as client:
-            resp = await client.post(
-                "https://api.openai.com/v1/chat/completions",
-                headers={"Authorization": f"Bearer {settings.openai_api_key}"},
-                json={
-                    "model": "gpt-4o-mini",
-                    "messages": [
-                        {"role": "system", "content": _EXTRACTION_SYSTEM_PROMPT},
-                        {"role": "user", "content": message_content},
-                    ],
-                    "temperature": 0.3,
-                },
-            )
-    except Exception as e:
-        logger.error(f"Error calling OpenAI for extraction: {e}")
-        await send_fn("❌ Error al procesar tu mensaje. Por favor intentá de nuevo en unos momentos.")
+        extracted = json.loads(raw)
+    except json.JSONDecodeError as e:
+        logger.error(f"Failed to parse extraction JSON: {e} — raw: {raw[:200]}")
+        await send_fn(ERR_PROCESS_MSG)
         return None
-
-    if resp.status_code != 200:
-        logger.error(f"OpenAI extraction returned {resp.status_code}")
-        await send_fn("❌ Error al procesar tu mensaje. Por favor intentá de nuevo en unos momentos.")
-        return None
-
-    extracted = json.loads(resp.json()["choices"][0]["message"]["content"])
 
     if existing_draft:
         # Merge: only fill empty fields in the existing draft

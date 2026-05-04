@@ -323,6 +323,41 @@ Devuelve SOLO un JSON válido con esta estructura:
         else:
             return 5
     
+    async def chat_complete(
+        self,
+        system_prompt: str,
+        user_message: str,
+        model: str = "gpt-4o-mini",
+        timeout: float = 20.0,
+    ) -> Optional[str]:
+        """
+        Generic chat completion helper for internal bot logic.
+        Returns the assistant message text, or None on failure.
+        """
+        try:
+            resp = await self.client.post(
+                f"{self.api_url}/chat/completions",
+                json={
+                    "model": model,
+                    "messages": [
+                        {"role": "system", "content": system_prompt},
+                        {"role": "user", "content": user_message},
+                    ],
+                    "temperature": 0.1,
+                },
+                timeout=timeout,
+            )
+            if resp.status_code == 200:
+                return resp.json()["choices"][0]["message"]["content"]
+            logger.error(f"OpenAI chat_complete HTTP {resp.status_code}: {resp.text[:200]}")
+            return None
+        except Exception as e:
+            logger.error(f"OpenAI chat_complete error: {e}")
+            return None
+
     async def close(self):
         """Close HTTP client"""
         await self.client.aclose()
+
+
+openai_adapter = OpenAIAdapter()
