@@ -119,9 +119,7 @@ export function DashboardPage() {
       <div className="space-y-6">
         <div>
           <h1 className="text-3xl font-bold tracking-tight">Dashboard Principal</h1>
-          <p className="text-muted-foreground">
-            Resumen general del marketplace TeLOO
-          </p>
+          <p className="text-muted-foreground">Resumen general del marketplace TeLOO</p>
         </div>
         
         <Card>
@@ -150,24 +148,24 @@ export function DashboardPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between rounded-xl bg-gradient-to-r from-accent to-secondary p-4 text-white shadow-sm">
+      <div className="flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-bold tracking-tight">Dashboard Principal</h1>
-          <p className="text-white/80">
-            Resumen general del marketplace TeLOO - {format(new Date(periodo.inicio), 'MMMM yyyy', { locale: es })}
+          <p className="text-muted-foreground">
+            Resumen general del marketplace TeLOO — {format(new Date(periodo.inicio), 'MMMM yyyy', { locale: es })}
           </p>
         </div>
         <div className="flex gap-2">
           <Button
             onClick={() => refetchDashboard()}
             disabled={isLoading}
-            variant="ghost"
-            className="flex items-center gap-2 border border-white/30 text-white hover:bg-white/10"
+            variant="outline"
+            className="flex items-center gap-2"
           >
             <RefreshCw className={`h-4 w-4 ${isLoading ? 'animate-spin' : ''}`} />
             Actualizar
           </Button>
-          <Button onClick={handleExportDashboard} variant="ghost" className="flex items-center gap-2 border border-white/30 text-white hover:bg-white/10">
+          <Button onClick={handleExportDashboard} variant="outline" className="flex items-center gap-2">
             <Download className="h-4 w-4" />
             Exportar
           </Button>
