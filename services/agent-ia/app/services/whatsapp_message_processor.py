@@ -85,19 +85,55 @@ class WhatsAppMessageProcessor:
         except Exception as e:
             logger.error(f"Error processing queued WhatsApp messages: {e}")
     
+    async def _transcribe_whatsapp_audio(self, whatsapp_message: ProcessedMessage) -> Optional[str]:
+        """Download and transcribe a WhatsApp voice/audio message using Whisper."""
+        media_id = whatsapp_message.media_url  # stored as media_id at ingest time
+        if not media_id:
+            return None
+        try:
+            media_url = await whatsapp_service.get_media_url(media_id)
+            if not media_url:
+                logger.warning(f"Could not resolve media URL for id {media_id}")
+                return None
+            audio_bytes = await whatsapp_service.download_media(media_url)
+            if not audio_bytes:
+                logger.warning(f"Empty audio download for {media_id}")
+                return None
+            from app.services.llm.whisper_adapter import whisper_adapter
+            transcription = await whisper_adapter._call_whisper_api(audio_bytes)
+            if transcription:
+                logger.info(f"WhatsApp audio transcribed ({len(audio_bytes)} bytes): {transcription[:80]}...")
+            return transcription
+        except Exception as e:
+            logger.error(f"Error transcribing WhatsApp audio: {e}")
+            return None
+
     async def process_message(self, whatsapp_message: ProcessedMessage) -> Dict[str, Any]:
         """
         Process a single WhatsApp message with context-aware interpretation
-        
+
         Args:
             whatsapp_message: Processed WhatsApp message
-            
+
         Returns:
             Dict with processing result
         """
         try:
             logger.info(f"Processing WhatsApp message {whatsapp_message.message_id} from {whatsapp_message.from_number}")
-            
+
+            # Transcribe audio/voice before any intent detection
+            if whatsapp_message.media_type in ("voice", "audio") and whatsapp_message.media_url:
+                transcription = await self._transcribe_whatsapp_audio(whatsapp_message)
+                if transcription:
+                    whatsapp_message.text_content = transcription
+                    whatsapp_message.media_url = None  # avoid re-processing
+                else:
+                    await whatsapp_service.send_text_message(
+                        whatsapp_message.from_number,
+                        "🎤 Recibí tu audio pero no pude transcribirlo. ¿Podés escribirme el mensaje?"
+                    )
+                    return {"success": False, "action": "audio_transcription_failed"}
+
             # Use phone number as unique identifier
             user_id = whatsapp_message.from_number
             phone_number = whatsapp_message.from_number
@@ -139,8 +175,8 @@ class WhatsAppMessageProcessor:
                 return await self._handle_evaluation_response(whatsapp_message, conversation)
             
             elif interpretation and interpretation.get('intent') == 'correct_data':
-                # User is correcting data in draft
-                return await self._handle_data_correction(whatsapp_message, conversation, interpretation, user_id)
+                # Route through solicitud flow — the LLM handles corrections naturally
+                return await self._handle_solicitud_message(whatsapp_message, conversation)
             
             # Check if this is a response to an evaluation result (fallback)
             elif whatsapp_message.text_content and await self._is_evaluation_response(whatsapp_message.text_content, conversation):

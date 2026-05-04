@@ -401,7 +401,22 @@ class TelegramMessageProcessor:
                 # --- COMANDOS ESPECIALES ---
                 comando = message_content.strip().lower()
 
-                if comando in ["/reiniciar", "/cancelar", "/empezar", "/nuevo"]:
+                if comando in ["/start", "/inicio"]:
+                    welcome = (
+                        "👋 ¡Hola! Soy el asistente de *TeLOO*.\n\n"
+                        "Te ayudo a conseguir los mejores repuestos para tu vehículo al mejor precio.\n\n"
+                        "Para crear tu solicitud, contame:\n"
+                        "🔧 ¿Qué repuestos necesitás?\n"
+                        "🚗 Marca, modelo y año de tu vehículo\n"
+                        "📍 Tu ciudad\n"
+                        "👤 Tu nombre y teléfono\n\n"
+                        "Podés enviarme un *mensaje de voz* o texto. ¡Como prefieras! 😊\n\n"
+                        "💡 Tip: si en algún momento querés empezar de nuevo, escribí /reiniciar"
+                    )
+                    await telegram_service.send_message(telegram_message.chat_id, welcome)
+                    return {"success": True, "action": "welcome_sent"}
+
+                elif comando in ["/reiniciar", "/cancelar", "/empezar", "/nuevo"]:
                     draft_key = f"solicitud_draft:{telegram_message.chat_id}"
                     await redis_manager.delete(draft_key)
                     
