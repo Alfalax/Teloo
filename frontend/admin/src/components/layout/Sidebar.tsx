@@ -19,12 +19,12 @@ interface SidebarProps {
 }
 
 const navigation = [
-  { name: 'Inicio',        href: '/',             icon: Home },
-  { name: 'Solicitudes',   href: '/solicitudes',  icon: FileText },
-  { name: 'Asesores',      href: '/asesores',     icon: Users },
-  { name: 'Reportes',      href: '/reportes',     icon: BarChart3 },
-  { name: 'PQR',           href: '/pqr',          icon: MessageSquare },
-  { name: 'Configuración', href: '/configuracion', icon: Settings },
+  { name: 'Inicio',        href: '/app',                icon: Home },
+  { name: 'Solicitudes',   href: '/app/solicitudes',    icon: FileText },
+  { name: 'Asesores',      href: '/app/asesores',       icon: Users },
+  { name: 'Reportes',      href: '/app/reportes',       icon: BarChart3 },
+  { name: 'PQR',           href: '/app/pqr',            icon: MessageSquare },
+  { name: 'Configuración', href: '/app/configuracion',  icon: Settings },
 ];
 
 export function Sidebar({ collapsed, onToggle }: SidebarProps) {
@@ -80,7 +80,7 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
           <NavLink
             key={item.name}
             to={item.href}
-            end={item.href === '/'}
+            end={item.href === '/app'}
             className={({ isActive }) =>
               cn(
                 'flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors',

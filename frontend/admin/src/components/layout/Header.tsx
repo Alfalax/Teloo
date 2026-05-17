@@ -25,12 +25,12 @@ interface HeaderProps {
 }
 
 const PAGE_TITLES: Record<string, string> = {
-  '/': 'Dashboard',
-  '/solicitudes': 'Solicitudes',
-  '/asesores': 'Asesores',
-  '/reportes': 'Reportes',
-  '/pqr': 'PQR',
-  '/configuracion': 'Configuración',
+  '/app': 'Dashboard',
+  '/app/solicitudes': 'Solicitudes',
+  '/app/asesores': 'Asesores',
+  '/app/reportes': 'Reportes',
+  '/app/pqr': 'PQR',
+  '/app/configuracion': 'Configuración',
 };
 
 export function Header({ sidebarCollapsed: _ }: HeaderProps) {

@@ -9,6 +9,7 @@ import { ProtectedRoute } from '@/components/ProtectedRoute';
 import { Layout } from '@/components/layout/Layout';
 
 // Lazy load pages
+const LandingPage = lazy(() => import('@/pages/LandingPage').then(module => ({ default: module.LandingPage })));
 const LoginPage = lazy(() => import('@/pages/LoginPage').then(module => ({ default: module.LoginPage })));
 const DashboardPage = lazy(() => import('@/pages/DashboardPage').then(module => ({ default: module.DashboardPage })));
 const SolicitudesPage = lazy(() => import('@/pages/SolicitudesPage')); // Default export
@@ -45,11 +46,12 @@ function App() {
             <Suspense fallback={<PageLoader />}>
               <Routes>
               {/* Public routes */}
+              <Route path="/" element={<LandingPage />} />
               <Route path="/login" element={<LoginPage />} />
 
               {/* Protected routes */}
               <Route
-                path="/"
+                path="/app"
                 element={
                   <ProtectedRoute requiredRoles={['ADMIN', 'ANALYST', 'SUPPORT']}>
                     <Layout />
