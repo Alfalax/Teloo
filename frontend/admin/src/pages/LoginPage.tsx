@@ -63,15 +63,15 @@ export function LoginPage() {
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-r from-accent to-secondary px-4">
       <Card className="w-full max-w-md">
         <CardHeader className="text-center">
-          <div className="mx-auto mb-4 flex items-center justify-center">
+          <div className="mx-auto mb-4 flex items-center justify-center min-h-[64px]">
             {logoUrl ? (
               <img
                 src={logoUrl}
                 alt={nombreEmpresa}
-                className="h-16 w-auto max-w-[180px] object-contain"
+                style={{ maxHeight: '80px', maxWidth: '220px', width: 'auto', height: 'auto' }}
               />
             ) : (
-              <div className="h-12 w-12 rounded-xl bg-primary flex items-center justify-center shadow-sm">
+              <div className="h-14 w-14 rounded-xl bg-primary flex items-center justify-center shadow-sm">
                 <span className="text-2xl font-bold text-primary-foreground">T</span>
               </div>
             )}

@@ -1,14 +1,28 @@
+import { useState, useEffect } from 'react';
 import { Bell, LogOut, User, Search, Moon, Sun } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useTheme } from '@/contexts/ThemeContext';
-import { useBranding } from '@/contexts/BrandingContext';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+
+import axios from '@/lib/axios';
 
 export default function Header() {
   const { user, logout } = useAuth();
   const { theme, toggleTheme } = useTheme();
-  const { logoUrl, nombreEmpresa } = useBranding();
+  const [logoUrl, setLogoUrl] = useState<string | null>(null);
+  const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+
+  useEffect(() => {
+    axios.get('/v1/configuracion/branding')
+      .then((res) => {
+        const url = res.data?.data?.logo_url;
+        if (url) {
+          setLogoUrl(url.startsWith('http') ? url : `${API_BASE}${url}`);
+        }
+      })
+      .catch(() => {});
+  }, []);
 
   const handleLogout = async () => {
     try {
@@ -25,8 +39,8 @@ export default function Header() {
           {logoUrl ? (
             <img
               src={logoUrl}
-              alt={nombreEmpresa}
-              className="h-8 w-auto max-w-[120px] object-contain"
+              alt="Logo"
+              style={{ maxHeight: '36px', maxWidth: '120px', width: 'auto', height: 'auto' }}
             />
           ) : (
             <div className="h-9 w-9 rounded-xl bg-primary flex items-center justify-center shadow-sm">
@@ -34,7 +48,7 @@ export default function Header() {
             </div>
           )}
           <div>
-            <h1 className="text-lg font-semibold text-white">{nombreEmpresa} Asesor</h1>
+            <h1 className="text-lg font-semibold text-white">TeLOO Asesor</h1>
             <p className="text-xs text-white/80">Portal de Asesores</p>
           </div>
         </div>
