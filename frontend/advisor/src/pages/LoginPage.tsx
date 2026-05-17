@@ -64,7 +64,7 @@ export default function LoginPage() {
                 <img
                   src={logoUrl}
                   alt={nombreEmpresa}
-                  style={{ height: '120px', width: 'auto', maxWidth: '380px', objectFit: 'contain', display: 'block' }}
+                  style={{ height: '200px', width: 'auto', maxWidth: '400px', objectFit: 'contain', display: 'block' }}
                 />
               ) : (
                 <div className="h-12 w-12 rounded-full bg-primary flex items-center justify-center">

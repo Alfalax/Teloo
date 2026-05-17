@@ -34,13 +34,13 @@ export default function Header() {
 
   return (
     <header className="sticky top-0 z-50 w-full border-b bg-gradient-to-r from-accent to-secondary">
-      <div className="container flex h-16 items-center justify-between px-4">
+      <div className="container flex h-20 items-center justify-between px-4">
         <div className="flex items-center gap-3">
           {logoUrl ? (
             <img
               src={logoUrl}
               alt="Logo"
-              style={{ height: '52px', width: 'auto', objectFit: 'contain', display: 'block' }}
+              style={{ height: '72px', width: 'auto', objectFit: 'contain', display: 'block' }}
             />
           ) : (
             <div className="h-9 w-9 rounded-xl bg-primary flex items-center justify-center shadow-sm">
