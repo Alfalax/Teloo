@@ -17,7 +17,6 @@ export function Layout() {
       />
       <div className="flex-1 flex flex-col bg-slate-50 min-w-0">
         <Header sidebarCollapsed={sidebarCollapsed} />
-        <Breadcrumbs />
         <main className="flex-1 p-6 overflow-auto">
           <Outlet />
         </main>
