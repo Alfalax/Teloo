@@ -22,7 +22,7 @@ export function Breadcrumbs() {
   }));
 
   return (
-    <nav aria-label="Breadcrumb" className="flex items-center gap-1 text-sm text-muted-foreground px-6 py-2 border-b bg-background/50">
+    <nav aria-label="Breadcrumb" className="flex items-center gap-1 text-sm text-muted-foreground px-6 py-2 bg-slate-50 border-b border-slate-200/70">
       <Link to="/" className="flex items-center gap-1 hover:text-foreground transition-colors">
         <Home className="h-3.5 w-3.5" />
         <span>Inicio</span>

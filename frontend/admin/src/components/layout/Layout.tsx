@@ -10,22 +10,14 @@ export function Layout() {
   useRealtimeAdmin();
 
   return (
-    <div className="min-h-screen bg-background flex">
-      {/* Sidebar */}
+    <div className="min-h-screen flex">
       <Sidebar
         collapsed={sidebarCollapsed}
         onToggle={() => setSidebarCollapsed(!sidebarCollapsed)}
       />
-
-      {/* Main content */}
-      <div className="flex-1 flex flex-col">
-        {/* Header */}
+      <div className="flex-1 flex flex-col bg-slate-50 min-w-0">
         <Header sidebarCollapsed={sidebarCollapsed} />
-
-        {/* Breadcrumbs */}
         <Breadcrumbs />
-
-        {/* Page content */}
         <main className="flex-1 p-6 overflow-auto">
           <Outlet />
         </main>

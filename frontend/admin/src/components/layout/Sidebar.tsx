@@ -19,42 +19,12 @@ interface SidebarProps {
 }
 
 const navigation = [
-  {
-    name: 'Inicio',
-    href: '/',
-    icon: Home,
-    description: 'Dashboard principal',
-  },
-  {
-    name: 'Solicitudes',
-    href: '/solicitudes',
-    icon: FileText,
-    description: 'Gestión de solicitudes',
-  },
-  {
-    name: 'Asesores',
-    href: '/asesores',
-    icon: Users,
-    description: 'Gestión de asesores',
-  },
-  {
-    name: 'Reportes',
-    href: '/reportes',
-    icon: BarChart3,
-    description: 'Analytics y métricas',
-  },
-  {
-    name: 'PQR',
-    href: '/pqr',
-    icon: MessageSquare,
-    description: 'Atención al cliente',
-  },
-  {
-    name: 'Configuración',
-    href: '/configuracion',
-    icon: Settings,
-    description: 'Parámetros del sistema',
-  },
+  { name: 'Inicio',        href: '/',             icon: Home },
+  { name: 'Solicitudes',   href: '/solicitudes',  icon: FileText },
+  { name: 'Asesores',      href: '/asesores',     icon: Users },
+  { name: 'Reportes',      href: '/reportes',     icon: BarChart3 },
+  { name: 'PQR',           href: '/pqr',          icon: MessageSquare },
+  { name: 'Configuración', href: '/configuracion', icon: Settings },
 ];
 
 export function Sidebar({ collapsed, onToggle }: SidebarProps) {
@@ -73,82 +43,60 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
   return (
     <div
       className={cn(
-        'relative flex flex-col bg-card border-r border-border transition-all duration-300',
+        'relative flex flex-col bg-slate-900 border-r border-slate-800 transition-all duration-300',
         collapsed ? 'w-16' : 'w-64'
       )}
     >
-      {/* Header */}
-      <div className="flex items-center justify-between p-4 border-b border-border">
+      {/* Logo + toggle */}
+      <div className={cn(
+        'flex items-center px-4 py-5',
+        collapsed ? 'justify-center' : 'justify-between'
+      )}>
         {!collapsed && (
-          <div className="flex items-center gap-3 min-w-0">
+          <div className="min-w-0 flex-1">
             {logoUrl ? (
               <img
                 src={logoUrl}
                 alt="Logo"
-                style={{ width: '185px', height: 'auto', display: 'block' }}
+                style={{ width: '160px', height: 'auto', display: 'block' }}
               />
             ) : (
-              <>
-                <div className="h-9 w-9 rounded-xl bg-primary flex items-center justify-center shadow-sm flex-shrink-0">
-                  <span className="text-sm font-bold text-primary-foreground">T</span>
-                </div>
-                <span className="font-bold text-lg">TeLOO</span>
-              </>
+              <span className="font-bold text-lg text-white">TeLOO</span>
             )}
           </div>
         )}
         <button
           onClick={onToggle}
-          className="p-1.5 rounded-md hover:bg-accent hover:text-accent-foreground transition-colors"
+          className="p-1.5 rounded-md text-slate-400 hover:text-white hover:bg-slate-800 transition-colors flex-shrink-0"
           aria-label={collapsed ? 'Expandir menú' : 'Colapsar menú'}
         >
-          {collapsed ? (
-            <ChevronRight className="h-4 w-4" />
-          ) : (
-            <ChevronLeft className="h-4 w-4" />
-          )}
+          {collapsed ? <ChevronRight className="h-4 w-4" /> : <ChevronLeft className="h-4 w-4" />}
         </button>
       </div>
 
       {/* Navigation */}
-      <nav className="flex-1 p-4 space-y-2">
+      <nav className="flex-1 px-3 pb-4 space-y-1">
         {navigation.map((item) => (
           <NavLink
             key={item.name}
             to={item.href}
+            end={item.href === '/'}
             className={({ isActive }) =>
               cn(
-                'flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium transition-colors',
-                'hover:bg-accent hover:text-accent-foreground',
+                'flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors',
+                collapsed && 'justify-center',
                 isActive
-                  ? 'bg-primary text-primary-foreground shadow-sm'
-                  : 'text-muted-foreground'
+                  ? 'bg-slate-800 text-white'
+                  : 'text-slate-400 hover:text-white hover:bg-slate-800/60'
               )
             }
             title={collapsed ? item.name : undefined}
           >
-            <div className="h-8 w-8 rounded-xl bg-primary/10 flex items-center justify-center">
-              <item.icon className="h-4 w-4 text-primary" />
-            </div>
-            {!collapsed && (
-              <div className="flex flex-col">
-                <span>{item.name}</span>
-                <span className="text-xs opacity-70">{item.description}</span>
-              </div>
-            )}
+            <item.icon className="h-4 w-4 flex-shrink-0" />
+            {!collapsed && <span>{item.name}</span>}
           </NavLink>
         ))}
       </nav>
-
-      {/* Footer */}
-      <div className="p-4 border-t border-border">
-        {!collapsed && (
-          <div className="text-xs text-muted-foreground">
-            <p>TeLOO V3</p>
-            <p>Marketplace Inteligente</p>
-          </div>
-        )}
-      </div>
     </div>
   );
 }

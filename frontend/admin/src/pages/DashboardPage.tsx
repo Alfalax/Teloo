@@ -34,14 +34,14 @@ const MetricRow: React.FC<MetricRowProps> = ({ label, value, status, unit }) => 
   };
 
   return (
-    <div className="flex justify-between items-center py-3 border-b border-gray-100 last:border-b-0">
+    <div className="flex justify-between items-center py-2.5 px-2 rounded-lg hover:bg-muted/50 transition-colors">
       <div className="flex items-center gap-2">
         {getStatusIcon()}
-        <span className="font-medium text-gray-700">{label}</span>
+        <span className="text-sm font-medium text-foreground">{label}</span>
       </div>
       <div className="flex items-center gap-1">
-        <span className="font-semibold text-gray-900">{value}</span>
-        {unit && <span className="text-sm text-gray-500">{unit}</span>}
+        <span className="text-sm font-semibold text-foreground">{value}</span>
+        {unit && <span className="text-xs text-muted-foreground">{unit}</span>}
       </div>
     </div>
   );
@@ -242,7 +242,7 @@ export function DashboardPage() {
 
       {/* Charts Section */}
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-7">
-        <Card className="col-span-4">
+        <Card className="col-span-4 bg-white shadow-sm border-0">
           <CardHeader>
             <CardTitle>Solicitudes del Mes</CardTitle>
             <CardDescription>
@@ -283,7 +283,7 @@ export function DashboardPage() {
       </div>
 
       {/* Salud del Sistema */}
-      <Card>
+      <Card className="bg-white shadow-sm border-0">
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Activity className="h-5 w-5 text-green-600" />
@@ -297,7 +297,7 @@ export function DashboardPage() {
           {saludLoading ? (
             <div className="space-y-3">
               {[...Array(5)].map((_, i) => (
-                <div key={i} className="h-4 bg-gray-200 animate-pulse rounded"></div>
+                <div key={i} className="h-4 bg-muted animate-pulse rounded"></div>
               ))}
             </div>
           ) : (

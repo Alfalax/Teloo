@@ -61,22 +61,22 @@ export function KPICard({
   }
 
   return (
-    <Card className="shadow-sm">
+    <Card className="bg-white shadow-sm hover:shadow-md transition-shadow border-0">
       <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-        <CardTitle className="text-sm font-medium">{title}</CardTitle>
+        <CardTitle className="text-sm font-medium text-muted-foreground">{title}</CardTitle>
         {Icon && (
-          <div className="p-2 rounded-xl bg-secondary">
-            <Icon className="h-4 w-4 text-secondary-foreground" />
+          <div className="p-2 rounded-xl bg-primary/10">
+            <Icon className="h-4 w-4 text-primary" />
           </div>
         )}
       </CardHeader>
       <CardContent>
-        <div className="text-3xl font-bold">{value}</div>
+        <div className="text-2xl font-bold tracking-tight">{value}</div>
         {(change !== undefined || description) && (
-          <p className="text-xs text-muted-foreground flex items-center gap-1">
+          <p className="text-xs text-muted-foreground flex items-center gap-1 mt-1">
             {change !== undefined && (
               <>
-                <span className={cn('flex items-center gap-1', getTrendColor())}>
+                <span className={cn('flex items-center gap-1 font-medium', getTrendColor())}>
                   {getTrendIcon()}
                   {change > 0 ? '+' : ''}
                   {change.toFixed(1)}%

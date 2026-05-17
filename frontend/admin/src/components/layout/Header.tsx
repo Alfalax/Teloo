@@ -1,3 +1,4 @@
+import { useLocation } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { useTheme } from '@/contexts/ThemeContext';
 import { Button } from '@/components/ui/button';
@@ -23,10 +24,21 @@ interface HeaderProps {
   sidebarCollapsed: boolean;
 }
 
+const PAGE_TITLES: Record<string, string> = {
+  '/': 'Dashboard',
+  '/solicitudes': 'Solicitudes',
+  '/asesores': 'Asesores',
+  '/reportes': 'Reportes',
+  '/pqr': 'PQR',
+  '/configuracion': 'Configuración',
+};
+
 export function Header({ sidebarCollapsed: _ }: HeaderProps) {
   const { user, logout } = useAuth();
   const { theme, toggleTheme } = useTheme();
+  const { pathname } = useLocation();
   const darkMode = theme === 'dark';
+  const pageTitle = PAGE_TITLES[pathname] ?? 'Panel Administrativo';
 
   const handleLogout = async () => {
     try {
@@ -39,7 +51,7 @@ export function Header({ sidebarCollapsed: _ }: HeaderProps) {
   return (
     <header className="sticky top-0 z-50 w-full border-b flex items-center justify-between px-6 py-4 bg-gradient-to-r from-accent to-secondary text-white">
       <div className="flex items-center gap-3">
-        <h1 className="text-xl font-semibold">Panel Administrativo</h1>
+        <h1 className="text-xl font-semibold">{pageTitle}</h1>
       </div>
 
       <div className="flex items-center gap-4">
