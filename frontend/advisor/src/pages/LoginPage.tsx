@@ -4,6 +4,7 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { useAuth } from '@/contexts/AuthContext';
+import { useBranding } from '@/contexts/BrandingContext';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -18,6 +19,7 @@ type LoginFormData = z.infer<typeof loginSchema>;
 
 export default function LoginPage() {
   const { login, isAuthenticated, isLoading } = useAuth();
+  const { logoUrl, nombreEmpresa } = useBranding();
   const location = useLocation();
   const [showPassword, setShowPassword] = useState(false);
   const [loginError, setLoginError] = useState<string | null>(null);
@@ -57,8 +59,12 @@ export default function LoginPage() {
       <Card className="w-full max-w-md">
         <CardHeader className="space-y-1">
           <div className="flex items-center justify-center mb-4">
-            <div className="h-12 w-12 rounded-full bg-primary flex items-center justify-center">
-              <span className="text-2xl font-bold text-primary-foreground">T</span>
+            <div className="h-14 w-14 rounded-full bg-primary flex items-center justify-center overflow-hidden">
+              {logoUrl ? (
+                <img src={logoUrl} alt={nombreEmpresa} className="h-full w-full object-contain p-1" />
+              ) : (
+                <span className="text-2xl font-bold text-primary-foreground">T</span>
+              )}
             </div>
           </div>
           <CardTitle className="text-2xl text-center">Portal de Asesores</CardTitle>

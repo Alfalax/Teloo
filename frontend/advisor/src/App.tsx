@@ -3,6 +3,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { AuthProvider } from '@/contexts/AuthContext';
 import { ToastContextProvider } from '@/contexts/ToastContext';
 import { ThemeProvider } from '@/contexts/ThemeContext';
+import { BrandingProvider } from '@/contexts/BrandingContext';
 import ProtectedRoute from '@/components/auth/ProtectedRoute';
 import MainLayout from '@/components/layout/MainLayout';
 import LoginPage from '@/pages/LoginPage';
@@ -21,6 +22,7 @@ function App() {
   return (
     <QueryClientProvider client={queryClient}>
       <ThemeProvider>
+      <BrandingProvider>
       <BrowserRouter>
         <AuthProvider>
           <ToastContextProvider>
@@ -41,6 +43,7 @@ function App() {
           </ToastContextProvider>
         </AuthProvider>
       </BrowserRouter>
+      </BrandingProvider>
       </ThemeProvider>
     </QueryClientProvider>
   );
