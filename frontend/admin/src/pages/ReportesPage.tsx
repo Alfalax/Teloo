@@ -98,7 +98,7 @@ export function ReportesPage() {
   return (
     <div className="p-6 space-y-6">
       <div className="flex justify-between items-center">
-        <h1 className="text-3xl font-bold">Reportes y Analytics</h1>
+        <p className="text-sm text-muted-foreground">Métricas y analytics del marketplace</p>
         <div className="flex gap-2">
           <Button onClick={() => handleExportData('csv')} variant="outline" className="flex items-center gap-2">
             <Download className="h-4 w-4" />

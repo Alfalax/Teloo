@@ -24,12 +24,7 @@ export function ConfiguracionPage() {
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight">Configuración</h1>
-          <p className="text-muted-foreground">
-            Gestión de parámetros del sistema, usuarios y permisos
-          </p>
-        </div>
+        <p className="text-sm text-muted-foreground">Gestión de parámetros del sistema, usuarios y permisos</p>
         
         <div className="flex items-center gap-2">
           {summary && (

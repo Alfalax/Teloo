@@ -168,12 +168,7 @@ export function PQRPage() {
     <div className="space-y-6">
       {/* Header */}
       <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight">PQR - Atención al Cliente</h1>
-          <p className="text-muted-foreground">
-            Gestión de Peticiones, Quejas y Reclamos
-          </p>
-        </div>
+        <p className="text-sm text-muted-foreground">Gestión de Peticiones, Quejas y Reclamos</p>
         
         <div className="flex items-center gap-2">
           <Button

@@ -185,12 +185,7 @@ export function AsesoresPage() {
     <div className="space-y-6">
       {/* Header */}
       <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight">Gestión de Asesores</h1>
-          <p className="text-muted-foreground">
-            Administrar asesores y proveedores del marketplace
-          </p>
-        </div>
+        <p className="text-sm text-muted-foreground">Administrar asesores y proveedores del marketplace</p>
         
         <div className="flex items-center gap-2">
           <Button

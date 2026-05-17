@@ -117,10 +117,7 @@ export function DashboardPage() {
   if (hasError) {
     return (
       <div className="space-y-6">
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight">Dashboard Principal</h1>
-          <p className="text-muted-foreground">Resumen general del marketplace TeLOO</p>
-        </div>
+        <p className="text-sm text-muted-foreground">Resumen general del marketplace TeLOO</p>
         
         <Card>
           <CardContent className="flex items-center justify-center py-8">
@@ -149,12 +146,9 @@ export function DashboardPage() {
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight">Dashboard Principal</h1>
-          <p className="text-muted-foreground">
-            Resumen general del marketplace TeLOO — {format(new Date(periodo.inicio), 'MMMM yyyy', { locale: es })}
-          </p>
-        </div>
+        <p className="text-sm text-muted-foreground">
+          Resumen general — {format(new Date(periodo.inicio), 'MMMM yyyy', { locale: es })}
+        </p>
         <div className="flex gap-2">
           <Button
             onClick={() => refetchDashboard()}

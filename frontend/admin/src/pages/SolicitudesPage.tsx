@@ -101,12 +101,7 @@ export default function SolicitudesPage() {
     <div className="p-6 space-y-6">
       {/* Header */}
       <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold">Solicitudes</h1>
-          <p className="text-muted-foreground">
-            Gestión y seguimiento de solicitudes de repuestos
-          </p>
-        </div>
+        <p className="text-sm text-muted-foreground">Gestión y seguimiento de solicitudes de repuestos</p>
         <Button onClick={() => setShowCreateDialog(true)}>
           <Plus className="h-4 w-4 mr-2" />
           Nueva Solicitud
