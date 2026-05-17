@@ -3,11 +3,12 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { AlertCircle, Settings, Users, Shield, RotateCcw } from 'lucide-react';
+import { AlertCircle, Settings, Users, Shield, RotateCcw, Palette } from 'lucide-react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { ConfiguracionSistema } from '@/components/configuracion/ConfiguracionSistema';
 import { GestionUsuarios } from '@/components/configuracion/GestionUsuarios';
 import { GestionRoles } from '@/components/configuracion/GestionRoles';
+import { BrandingForm } from '@/components/configuracion/BrandingForm';
 import { useConfiguracion } from '@/hooks/useConfiguracion';
 
 export function ConfiguracionPage() {
@@ -79,7 +80,7 @@ export function ConfiguracionPage() {
       )}
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-        <TabsList className="grid w-full grid-cols-3">
+        <TabsList className="grid w-full grid-cols-4">
           <TabsTrigger value="sistema" className="flex items-center gap-2">
             <Settings className="h-4 w-4" />
             Parámetros del Sistema
@@ -91,6 +92,10 @@ export function ConfiguracionPage() {
           <TabsTrigger value="roles" className="flex items-center gap-2">
             <Shield className="h-4 w-4" />
             Roles y Permisos
+          </TabsTrigger>
+          <TabsTrigger value="branding" className="flex items-center gap-2">
+            <Palette className="h-4 w-4" />
+            Marca
           </TabsTrigger>
         </TabsList>
 
@@ -134,6 +139,10 @@ export function ConfiguracionPage() {
               <GestionRoles />
             </CardContent>
           </Card>
+        </TabsContent>
+
+        <TabsContent value="branding" className="space-y-6">
+          <BrandingForm />
         </TabsContent>
       </Tabs>
     </div>

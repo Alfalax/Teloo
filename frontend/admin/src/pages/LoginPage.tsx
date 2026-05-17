@@ -4,6 +4,7 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { useAuth } from '@/contexts/AuthContext';
+import { useBranding } from '@/contexts/BrandingContext';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -18,6 +19,7 @@ type LoginFormData = z.infer<typeof loginSchema>;
 
 export function LoginPage() {
   const { login, isAuthenticated, isLoading } = useAuth();
+  const { logoUrl, nombreEmpresa } = useBranding();
   const location = useLocation();
   const [showPassword, setShowPassword] = useState(false);
   const [loginError, setLoginError] = useState<string | null>(null);
@@ -61,10 +63,14 @@ export function LoginPage() {
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-r from-accent to-secondary px-4">
       <Card className="w-full max-w-md">
         <CardHeader className="text-center">
-          <div className="mx-auto mb-4 h-12 w-12 rounded-xl bg-primary flex items-center justify-center shadow-sm">
-            <span className="text-lg font-bold text-primary-foreground">T</span>
+          <div className="mx-auto mb-4 h-16 w-16 rounded-xl bg-primary flex items-center justify-center shadow-sm overflow-hidden">
+            {logoUrl ? (
+              <img src={logoUrl} alt={nombreEmpresa} className="h-full w-full object-contain p-1" />
+            ) : (
+              <span className="text-2xl font-bold text-primary-foreground">T</span>
+            )}
           </div>
-          <CardTitle className="text-2xl font-bold">TeLOO Admin</CardTitle>
+          <CardTitle className="text-2xl font-bold">{nombreEmpresa} Admin</CardTitle>
           <CardDescription>
             Ingresa tus credenciales para acceder al panel administrativo
           </CardDescription>
