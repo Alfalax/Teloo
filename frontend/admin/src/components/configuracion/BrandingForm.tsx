@@ -199,12 +199,12 @@ export function BrandingForm() {
 
           <div className="flex items-center gap-6">
             <div className="flex-shrink-0">
-              <div className="w-32 h-32 border-2 border-dashed border-gray-300 rounded-lg flex items-center justify-center bg-gray-50">
+              <div className="w-48 h-24 border-2 border-dashed border-gray-300 rounded-lg flex items-center justify-center bg-gray-50">
                 {previewLogo || currentLogo ? (
                   <img
                     src={previewLogo || currentLogo}
                     alt="Logo preview"
-                    className="max-w-full max-h-full object-contain p-2"
+                    style={{ height: '72px', width: 'auto', maxWidth: '176px', objectFit: 'contain' }}
                   />
                 ) : (
                   <ImageIcon className="h-12 w-12 text-gray-400" />
