@@ -58,7 +58,7 @@ export function Header({ sidebarCollapsed: _ }: HeaderProps) {
           <img
             src={logoUrl}
             alt="Logo"
-            style={{ maxHeight: '36px', maxWidth: '120px', width: 'auto', height: 'auto' }}
+            style={{ height: '40px', width: 'auto', display: 'block' }}
           />
         ) : (
           <div className="h-9 w-9 rounded-xl bg-primary flex items-center justify-center shadow-sm">
