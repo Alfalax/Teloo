@@ -1,3 +1,4 @@
+import { useState, useEffect } from 'react';
 import { NavLink } from 'react-router-dom';
 import { cn } from '@/lib/utils.ts';
 import {
@@ -10,6 +11,7 @@ import {
   ChevronLeft,
   ChevronRight,
 } from 'lucide-react';
+import axios from '@/lib/axios';
 
 interface SidebarProps {
   collapsed: boolean;
@@ -56,6 +58,18 @@ const navigation = [
 ];
 
 export function Sidebar({ collapsed, onToggle }: SidebarProps) {
+  const [logoUrl, setLogoUrl] = useState<string | null>(null);
+  const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+
+  useEffect(() => {
+    axios.get('/v1/configuracion/branding')
+      .then((res) => {
+        const url = res.data?.data?.logo_url;
+        if (url) setLogoUrl(url.startsWith('http') ? url : `${API_BASE}${url}`);
+      })
+      .catch(() => {});
+  }, []);
+
   return (
     <div
       className={cn(
@@ -66,11 +80,21 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
       {/* Header */}
       <div className="flex items-center justify-between p-4 border-b border-border">
         {!collapsed && (
-          <div className="flex items-center gap-3">
-            <div className="h-9 w-9 rounded-xl bg-primary flex items-center justify-center shadow-sm">
-              <span className="text-sm font-bold text-primary-foreground">T</span>
-            </div>
-            <span className="font-bold text-lg">TeLOO</span>
+          <div className="flex items-center gap-3 min-w-0">
+            {logoUrl ? (
+              <img
+                src={logoUrl}
+                alt="Logo"
+                style={{ maxHeight: '40px', width: 'auto', maxWidth: '150px', display: 'block' }}
+              />
+            ) : (
+              <>
+                <div className="h-9 w-9 rounded-xl bg-primary flex items-center justify-center shadow-sm flex-shrink-0">
+                  <span className="text-sm font-bold text-primary-foreground">T</span>
+                </div>
+                <span className="font-bold text-lg">TeLOO</span>
+              </>
+            )}
           </div>
         )}
         <button

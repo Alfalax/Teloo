@@ -1,9 +1,7 @@
-import { useState, useEffect } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useTheme } from '@/contexts/ThemeContext';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import axios from '@/lib/axios';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -29,19 +27,6 @@ export function Header({ sidebarCollapsed: _ }: HeaderProps) {
   const { user, logout } = useAuth();
   const { theme, toggleTheme } = useTheme();
   const darkMode = theme === 'dark';
-  const [logoUrl, setLogoUrl] = useState<string | null>(null);
-  const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:8000';
-
-  useEffect(() => {
-    axios.get('/v1/configuracion/branding')
-      .then((res) => {
-        const url = res.data?.data?.logo_url;
-        if (url) {
-          setLogoUrl(url.startsWith('http') ? url : `${API_BASE}${url}`);
-        }
-      })
-      .catch(() => {});
-  }, []);
 
   const handleLogout = async () => {
     try {
@@ -54,17 +39,6 @@ export function Header({ sidebarCollapsed: _ }: HeaderProps) {
   return (
     <header className="sticky top-0 z-50 w-full border-b flex items-center justify-between px-6 py-4 bg-gradient-to-r from-accent to-secondary text-white">
       <div className="flex items-center gap-3">
-        {logoUrl ? (
-          <img
-            src={logoUrl}
-            alt="Logo"
-            style={{ height: '40px', width: 'auto', display: 'block' }}
-          />
-        ) : (
-          <div className="h-9 w-9 rounded-xl bg-primary flex items-center justify-center shadow-sm">
-            <span className="text-lg font-bold text-primary-foreground">T</span>
-          </div>
-        )}
         <h1 className="text-xl font-semibold">Panel Administrativo</h1>
       </div>
 
