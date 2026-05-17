@@ -63,11 +63,17 @@ export function LoginPage() {
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-r from-accent to-secondary px-4">
       <Card className="w-full max-w-md">
         <CardHeader className="text-center">
-          <div className="mx-auto mb-4 h-16 w-16 rounded-xl bg-primary flex items-center justify-center shadow-sm overflow-hidden">
+          <div className="mx-auto mb-4 flex items-center justify-center">
             {logoUrl ? (
-              <img src={logoUrl} alt={nombreEmpresa} className="h-full w-full object-contain p-1" />
+              <img
+                src={logoUrl}
+                alt={nombreEmpresa}
+                className="h-16 w-auto max-w-[180px] object-contain"
+              />
             ) : (
-              <span className="text-2xl font-bold text-primary-foreground">T</span>
+              <div className="h-12 w-12 rounded-xl bg-primary flex items-center justify-center shadow-sm">
+                <span className="text-2xl font-bold text-primary-foreground">T</span>
+              </div>
             )}
           </div>
           <CardTitle className="text-2xl font-bold">{nombreEmpresa} Admin</CardTitle>

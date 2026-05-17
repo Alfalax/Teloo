@@ -22,13 +22,17 @@ export default function Header() {
     <header className="sticky top-0 z-50 w-full border-b bg-gradient-to-r from-accent to-secondary">
       <div className="container flex h-16 items-center justify-between px-4">
         <div className="flex items-center gap-3">
-          <div className="h-9 w-9 rounded-xl bg-primary flex items-center justify-center shadow-sm overflow-hidden">
-            {logoUrl ? (
-              <img src={logoUrl} alt={nombreEmpresa} className="h-full w-full object-contain p-0.5" />
-            ) : (
+          {logoUrl ? (
+            <img
+              src={logoUrl}
+              alt={nombreEmpresa}
+              className="h-8 w-auto max-w-[120px] object-contain"
+            />
+          ) : (
+            <div className="h-9 w-9 rounded-xl bg-primary flex items-center justify-center shadow-sm">
               <span className="text-lg font-bold text-primary-foreground">T</span>
-            )}
-          </div>
+            </div>
+          )}
           <div>
             <h1 className="text-lg font-semibold text-white">{nombreEmpresa} Asesor</h1>
             <p className="text-xs text-white/80">Portal de Asesores</p>

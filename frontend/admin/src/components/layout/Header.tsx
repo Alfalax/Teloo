@@ -41,13 +41,17 @@ export function Header({ sidebarCollapsed: _ }: HeaderProps) {
   return (
     <header className="sticky top-0 z-50 w-full border-b flex items-center justify-between px-6 py-4 bg-gradient-to-r from-accent to-secondary text-white">
       <div className="flex items-center gap-3">
-        <div className="h-9 w-9 rounded-xl bg-primary flex items-center justify-center shadow-sm overflow-hidden">
-          {logoUrl ? (
-            <img src={logoUrl} alt={nombreEmpresa} className="h-full w-full object-contain p-0.5" />
-          ) : (
+        {logoUrl ? (
+          <img
+            src={logoUrl}
+            alt={nombreEmpresa}
+            className="h-8 w-auto max-w-[120px] object-contain"
+          />
+        ) : (
+          <div className="h-9 w-9 rounded-xl bg-primary flex items-center justify-center shadow-sm">
             <span className="text-lg font-bold text-primary-foreground">T</span>
-          )}
-        </div>
+          </div>
+        )}
         <h1 className="text-xl font-semibold">Panel Administrativo</h1>
       </div>
 
