@@ -41,7 +41,7 @@ export function LandingPage() {
 
       {/* Nav */}
       <nav className="absolute top-0 left-0 right-0 z-10 flex items-center justify-between px-8 py-5">
-        <img src={logo} alt="TeLOO" className="h-8 w-auto brightness-0 invert" />
+        <img src={logo} alt="TeLOO" className="h-12 w-auto brightness-0 invert" />
         <Button
           variant="ghost"
           className="text-white/80 hover:text-white hover:bg-white/10"
@@ -61,7 +61,7 @@ export function LandingPage() {
           <img
             src={logo}
             alt="TeLOO"
-            className="h-20 w-auto mx-auto brightness-0 invert drop-shadow-2xl"
+            className="h-32 w-auto mx-auto brightness-0 invert drop-shadow-2xl"
           />
 
           <div className="space-y-4">
@@ -173,7 +173,7 @@ export function LandingPage() {
 
       {/* Footer */}
       <footer className="bg-slate-950 py-6 px-8 flex items-center justify-between text-white/30 text-sm">
-        <img src={logo} alt="TeLOO" className="h-5 w-auto opacity-40 brightness-0 invert" />
+        <img src={logo} alt="TeLOO" className="h-7 w-auto opacity-40 brightness-0 invert" />
         <span>© {new Date().getFullYear()} TeLOO. Todos los derechos reservados.</span>
       </footer>
 
