@@ -35,22 +35,18 @@ export default function Header() {
   return (
     <header className="sticky top-0 z-50 w-full border-b bg-gradient-to-r from-accent to-secondary">
       <div className="container flex h-20 items-center justify-between px-4">
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-4">
           {logoUrl ? (
             <img
               src={logoUrl}
               alt="Logo"
-              style={{ height: '72px', width: 'auto', objectFit: 'contain', display: 'block' }}
+              style={{ height: '52px', width: 'auto', display: 'block' }}
             />
           ) : (
-            <div className="h-9 w-9 rounded-xl bg-primary flex items-center justify-center shadow-sm">
-              <span className="text-lg font-bold text-primary-foreground">T</span>
-            </div>
+            <span className="text-xl font-bold text-white">TeLOO</span>
           )}
-          <div>
-            <h1 className="text-lg font-semibold text-white">TeLOO Asesor</h1>
-            <p className="text-xs text-white/80">Portal de Asesores</p>
-          </div>
+          <div className="h-6 w-px bg-white/20" />
+          <p className="text-sm font-medium text-white/80">Portal de Asesores</p>
         </div>
 
         <div className="flex items-center gap-4">

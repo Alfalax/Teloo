@@ -14,9 +14,9 @@ interface KPIDashboardProps {
 export default function KPIDashboard({ kpis, isLoading, hasError, onRetry }: KPIDashboardProps) {
   if (isLoading) {
     return (
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-5">
-        {[1, 2, 3, 4, 5].map((i) => (
-          <Card key={i}>
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+        {[1, 2, 3, 4].map((i) => (
+          <Card key={i} className="bg-white border-0 shadow-sm">
             <CardContent className="p-6">
               <div className="animate-pulse space-y-3">
                 <div className="h-4 bg-muted rounded w-1/2"></div>
@@ -49,29 +49,21 @@ export default function KPIDashboard({ kpis, isLoading, hasError, onRetry }: KPI
       title: 'Repuestos Asignados',
       value: kpis.repuestos_adjudicados,
       icon: Package,
-      bg: 'bg-secondary',
-      fg: 'text-secondary-foreground',
     },
     {
       title: 'Monto Total Ganado',
       value: formatCurrency(kpis.monto_total_ganado),
       icon: DollarSign,
-      bg: 'bg-primary',
-      fg: 'text-primary-foreground',
     },
     {
       title: 'Pendientes por Oferta',
       value: kpis.pendientes_por_oferta,
       icon: TrendingUp,
-      bg: 'bg-accent',
-      fg: 'text-accent-foreground',
     },
     {
       title: 'Tasa de Conversión',
       value: `${kpis.tasa_conversion.toFixed(1)}%`,
       icon: Target,
-      bg: 'bg-secondary',
-      fg: 'text-secondary-foreground',
     },
   ];
 
@@ -80,15 +72,15 @@ export default function KPIDashboard({ kpis, isLoading, hasError, onRetry }: KPI
       {kpiCards.map((kpi) => {
         const Icon = kpi.icon;
         return (
-          <Card key={kpi.title} className="shadow-sm">
+          <Card key={kpi.title} className="bg-white border-0 shadow-sm hover:shadow-md transition-shadow">
             <CardContent className="p-6">
               <div className="flex items-center justify-between">
                 <div className="space-y-1">
                   <p className="text-sm font-medium text-muted-foreground">{kpi.title}</p>
-                  <p className="text-3xl font-bold">{kpi.value}</p>
+                  <p className="text-2xl font-bold tracking-tight">{kpi.value}</p>
                 </div>
-                <div className={`p-3 rounded-xl ${kpi.bg}`}>
-                  <Icon className={`h-6 w-6 ${kpi.fg}`} />
+                <div className="p-3 rounded-xl bg-primary/10">
+                  <Icon className="h-5 w-5 text-primary" />
                 </div>
               </div>
             </CardContent>
