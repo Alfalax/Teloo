@@ -85,7 +85,7 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
               <img
                 src={logoUrl}
                 alt="Logo"
-                style={{ maxHeight: '40px', width: 'auto', maxWidth: '150px', display: 'block' }}
+                style={{ maxHeight: '56px', width: 'auto', maxWidth: '180px', display: 'block' }}
               />
             ) : (
               <>
