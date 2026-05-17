@@ -1,6 +1,7 @@
 import { useNavigate } from 'react-router-dom';
 import { Package, Users, BarChart3, Zap, Shield, ArrowRight } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { useBranding } from '@/contexts/BrandingContext';
 
 const features = [
   {
@@ -32,13 +33,15 @@ const features = [
 
 export function LandingPage() {
   const navigate = useNavigate();
+  const { logoUrl } = useBranding();
+  const logo = logoUrl || '/Logo.png';
 
   return (
-    <div className="min-h-screen flex flex-col">
+    <div className="light min-h-screen flex flex-col">
 
       {/* Nav */}
       <nav className="absolute top-0 left-0 right-0 z-10 flex items-center justify-between px-8 py-5">
-        <img src="/Logo.png" alt="TeLOO" className="h-8 w-auto brightness-0 invert" />
+        <img src={logo} alt="TeLOO" className="h-8 w-auto brightness-0 invert" />
         <Button
           variant="ghost"
           className="text-white/80 hover:text-white hover:bg-white/10"
@@ -56,7 +59,7 @@ export function LandingPage() {
 
         <div className="relative max-w-3xl mx-auto space-y-8">
           <img
-            src="/Logo.png"
+            src={logo}
             alt="TeLOO"
             className="h-20 w-auto mx-auto brightness-0 invert drop-shadow-2xl"
           />
@@ -64,7 +67,7 @@ export function LandingPage() {
           <div className="space-y-4">
             <h1 className="text-4xl md:text-6xl font-bold text-white tracking-tight leading-tight">
               El Marketplace Inteligente<br />
-              <span className="bg-gradient-to-r from-primary to-cyan-400 bg-clip-text text-transparent">
+              <span className="text-white/90">
                 de Repuestos
               </span>
             </h1>
@@ -87,10 +90,12 @@ export function LandingPage() {
               size="lg"
               variant="outline"
               className="text-base px-8 gap-2 border-white/30 text-white bg-white/10 hover:bg-white/20 hover:text-white"
-              onClick={() => window.location.href = 'https://advisor.teloo.cloud/'}
+              asChild
             >
-              Portal de Asesores
-              <ArrowRight className="h-4 w-4" />
+              <a href="https://advisor.teloo.cloud/" target="_blank" rel="noopener noreferrer">
+                Portal de Asesores
+                <ArrowRight className="h-4 w-4" />
+              </a>
             </Button>
           </div>
         </div>
@@ -155,10 +160,12 @@ export function LandingPage() {
               size="lg"
               variant="outline"
               className="text-base px-8 gap-2 border-white/20 text-white bg-white/5 hover:bg-white/10 hover:text-white"
-              onClick={() => window.location.href = 'https://advisor.teloo.cloud/'}
+              asChild
             >
-              Acceso Asesor
-              <ArrowRight className="h-4 w-4" />
+              <a href="https://advisor.teloo.cloud/" target="_blank" rel="noopener noreferrer">
+                Acceso Asesor
+                <ArrowRight className="h-4 w-4" />
+              </a>
             </Button>
           </div>
         </div>
@@ -166,7 +173,7 @@ export function LandingPage() {
 
       {/* Footer */}
       <footer className="bg-slate-950 py-6 px-8 flex items-center justify-between text-white/30 text-sm">
-        <img src="/Logo.png" alt="TeLOO" className="h-5 w-auto opacity-40 brightness-0 invert" />
+        <img src={logo} alt="TeLOO" className="h-5 w-auto opacity-40 brightness-0 invert" />
         <span>© {new Date().getFullYear()} TeLOO. Todos los derechos reservados.</span>
       </footer>
 
