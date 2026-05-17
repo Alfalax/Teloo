@@ -59,12 +59,12 @@ export default function LoginPage() {
       <Card className="w-full max-w-md">
         <CardHeader className="space-y-1">
           <div className="flex items-center justify-center mb-4">
-            <div className="flex items-center justify-center min-h-[60px]">
+            <div className="flex items-center justify-center" style={{ height: '120px' }}>
               {logoUrl ? (
                 <img
                   src={logoUrl}
                   alt={nombreEmpresa}
-                  style={{ maxHeight: '130px', maxWidth: '320px', width: 'auto', height: 'auto' }}
+                  style={{ height: '100%', width: 'auto', maxWidth: '360px', objectFit: 'contain', display: 'block' }}
                 />
               ) : (
                 <div className="h-12 w-12 rounded-full bg-primary flex items-center justify-center">
