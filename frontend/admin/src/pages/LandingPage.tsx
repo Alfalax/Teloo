@@ -1,6 +1,6 @@
 import { useNavigate } from 'react-router-dom';
 import {
-  Package, Users, BarChart3, Zap, Shield, ArrowRight,
+  Package, Users, Zap, Shield, ArrowRight,
   MessageCircle, Car, CheckCircle2, Clock, UserCheck,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -23,12 +23,6 @@ const features = [
     title: 'Red de Asesores',
     description: 'Asesores certificados evalúan cada solicitud y ofrecen repuestos con garantía de calidad y respaldo.',
     color: '#00C2C0',
-  },
-  {
-    icon: BarChart3,
-    title: 'Analytics en Tiempo Real',
-    description: 'Métricas detalladas, reportes de conversión y salud del marketplace para tomar decisiones con datos.',
-    color: '#007BFF',
   },
   {
     icon: Zap,
@@ -93,24 +87,26 @@ export function LandingPage() {
       <nav className="fixed top-0 left-0 right-0 z-50 bg-white/95 backdrop-blur-md border-b border-[#8E8E8E]/10 px-6 py-4">
         <div className="max-w-7xl mx-auto flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <img src={logo} alt="TeLOO" className="h-12 w-auto object-contain" />
+            <img src={logo} alt="TeLOO" className="max-w-[220px] w-auto h-auto object-contain" />
             <span className="hidden md:inline-block px-2.5 py-0.5 text-xs font-semibold bg-[#E2FBE9] text-[#00D248] rounded-full border border-[#00D248]/20">
               Ecosistema Activo
             </span>
           </div>
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2">
             <Button
               variant="ghost"
               className="text-[#333333] hover:text-[#007BFF] font-medium"
-              onClick={() => navigate('/login')}
+              asChild
             >
-              Iniciar sesión
+              <a href="https://advisor.teloo.cloud/" target="_blank" rel="noopener noreferrer">
+                Soy Asesor
+              </a>
             </Button>
             <Button
               className="bg-[#00D248] text-white hover:bg-[#00D248]/90 font-semibold px-5 rounded-xl shadow-[0_4px_14px_rgba(0,210,72,0.3)]"
               onClick={() => navigate('/login')}
             >
-              Acceso Staff
+              Ingresar
             </Button>
           </div>
         </div>
@@ -444,19 +440,10 @@ export function LandingPage() {
           <p className="text-white/70 max-w-xl mx-auto text-base">
             Accedé al panel operativo asignado a tu rol.
           </p>
-          <div className="flex flex-col sm:flex-row gap-4 justify-center pt-2">
+          <div className="flex justify-center pt-2">
             <Button
               size="lg"
-              className="bg-[#00D248] text-white hover:bg-[#00D248]/95 text-base px-8 py-6 gap-2 rounded-2xl font-bold shadow-[0_8px_20px_rgba(0,210,72,0.3)]"
-              onClick={() => navigate('/login')}
-            >
-              Acceso Administrador
-              <ArrowRight className="h-4 w-4" />
-            </Button>
-            <Button
-              size="lg"
-              variant="outline"
-              className="border-white/20 text-white bg-white/5 hover:bg-white/10 hover:text-white text-base px-8 py-6 gap-2 rounded-2xl font-bold"
+              className="bg-[#00D248] text-white hover:bg-[#00D248]/95 text-base px-10 py-6 gap-2 rounded-2xl font-bold shadow-[0_8px_20px_rgba(0,210,72,0.3)]"
               asChild
             >
               <a href="https://advisor.teloo.cloud/" target="_blank" rel="noopener noreferrer">
