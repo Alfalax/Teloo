@@ -49,7 +49,7 @@ describe('LandingPage', () => {
       render(<TestWrapper><LandingPage /></TestWrapper>);
 
       const heading = screen.getByRole('heading', { level: 1 });
-      expect(heading).toHaveTextContent('El Marketplace Inteligente');
+      expect(heading).toHaveTextContent('Repuestos listos en');
     });
   });
 
