@@ -87,7 +87,12 @@ export function LandingPage() {
       <nav className="fixed top-0 left-0 right-0 z-50 h-16 bg-white/95 backdrop-blur-md border-b border-[#8E8E8E]/10">
         <div className="h-full max-w-7xl mx-auto flex items-center justify-between px-6">
           <div className="flex items-center gap-3">
-            <img src={logo} alt="TeLOO" className="h-10 w-auto object-contain" />
+            <img
+              src={logo}
+              alt="TeLOO"
+              className="h-10 w-auto object-contain"
+              onError={(e) => { (e.currentTarget as HTMLImageElement).src = '/Logo.png'; }}
+            />
             <span className="hidden md:inline-block px-2.5 py-0.5 text-xs font-semibold bg-[#E2FBE9] text-[#00D248] rounded-full border border-[#00D248]/20">
               Ecosistema Activo
             </span>
