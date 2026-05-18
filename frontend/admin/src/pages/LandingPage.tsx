@@ -61,7 +61,7 @@ export function LandingPage() {
           <img
             src={logo}
             alt="TeLOO"
-            className="h-32 w-auto mx-auto brightness-0 invert drop-shadow-2xl"
+            className="w-full max-w-[520px] h-auto mx-auto brightness-0 invert drop-shadow-2xl"
           />
 
           <div className="space-y-4">
