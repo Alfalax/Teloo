@@ -4,7 +4,6 @@ import {
   MessageCircle, Car, CheckCircle2, Clock, UserCheck,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { useBranding } from '@/contexts/BrandingContext';
 
 // Habilitar cuando se configure el número de WhatsApp
 const WHATSAPP_ENABLED = false;
@@ -77,8 +76,7 @@ const ADVISOR_BENEFITS = [
 
 export function LandingPage() {
   const navigate = useNavigate();
-  const { logoUrl } = useBranding();
-  const logo = logoUrl || '/Logo.png';
+  const logo = '/Logo.png';
 
   return (
     <div className="light bg-white text-[#4A4A4A] min-h-screen flex flex-col antialiased overflow-x-hidden">
@@ -87,12 +85,7 @@ export function LandingPage() {
       <nav className="fixed top-0 left-0 right-0 z-50 h-16 bg-white/95 backdrop-blur-md border-b border-[#8E8E8E]/10">
         <div className="h-full max-w-7xl mx-auto flex items-center justify-between px-6">
           <div className="flex items-center gap-3">
-            <img
-              src={logo}
-              alt="TeLOO"
-              className="h-10 w-auto object-contain"
-              onError={(e) => { (e.currentTarget as HTMLImageElement).src = '/Logo.png'; }}
-            />
+            <img src={logo} alt="TeLOO" className="h-12 w-auto object-contain" />
             <span className="hidden md:inline-block px-2.5 py-0.5 text-xs font-semibold bg-[#E2FBE9] text-[#00D248] rounded-full border border-[#00D248]/20">
               Ecosistema Activo
             </span>
