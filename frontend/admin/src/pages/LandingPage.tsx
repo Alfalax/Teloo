@@ -55,8 +55,8 @@ const HOW_IT_WORKS = [
   {
     step: '02',
     icon: Users,
-    title: 'Un asesor certificado te toma',
-    desc: 'Experto en tu marca recibe la solicitud y busca entre decenas de proveedores.',
+    title: 'Un asesor recibe tu solicitud',
+    desc: 'El sistema asigna automáticamente al asesor con mejor puntaje para tu marca y ciudad.',
     color: '#00C2C0',
   },
   {
@@ -75,10 +75,10 @@ const ADVISOR_REQUIREMENTS = [
 ];
 
 const ADVISOR_BENEFITS = [
-  'Acceso a la red de +500 proveedores verificados',
-  'Panel propio de gestión de solicitudes',
-  'Comisiones por cierre de cotizaciones',
-  'Soporte y capacitación continua',
+  'Recibís solicitudes calificadas directamente en tu panel',
+  'Panel propio de gestión de ofertas en tiempo real',
+  'Ingresos por cada cotización adjudicada',
+  'Soporte y capacitación continua del equipo TeLOO',
 ];
 
 export function LandingPage() {
@@ -131,12 +131,6 @@ export function LandingPage() {
               <span className="text-xs font-bold text-[#333333] uppercase tracking-wider">Marketplace Inteligente Autorizado</span>
             </div>
 
-            <img
-              src={logo}
-              alt="TeLOO"
-              className="max-w-[520px] w-full h-auto"
-            />
-
             <div className="space-y-4">
               <h1 className="text-4xl sm:text-5xl md:text-6xl font-extrabold text-[#333333] tracking-tight leading-[1.1]">
                 Repuestos listos en{' '}
@@ -145,8 +139,8 @@ export function LandingPage() {
                 </span>
               </h1>
               <p className="text-lg md:text-xl text-[#4A4A4A] max-w-2xl leading-relaxed">
-                Conectamos flotas, aseguradoras y talleres con asesores certificados y proveedores en minutos.
-                Cotizaciones precisas respaldadas con garantía real.
+                Conectamos flotas, aseguradoras y talleres con asesores certificados en minutos.
+                Cotizaciones precisas, adjudicación inteligente y garantía real.
               </p>
             </div>
 
@@ -180,7 +174,7 @@ export function LandingPage() {
               </div>
               <div>
                 <p className="text-3xl font-extrabold text-[#00D248]">+500</p>
-                <p className="text-xs text-[#8E8E8E] font-medium mt-1 uppercase tracking-wider">Proveedores Activos</p>
+                <p className="text-xs text-[#8E8E8E] font-medium mt-1 uppercase tracking-wider">Asesores Activos</p>
               </div>
               <div>
                 <p className="text-3xl font-extrabold text-[#F6888B]">99.4%</p>
@@ -219,7 +213,7 @@ export function LandingPage() {
                     </div>
                     <div>
                       <p className="text-xs text-[#8E8E8E] font-semibold">Asesor Asignado</p>
-                      <p className="text-sm font-bold text-[#333333]">Diego R. (Especialista Suspensión)</p>
+                      <p className="text-sm font-bold text-[#333333]">Autopartes del Norte</p>
                     </div>
                   </div>
                   <span className="text-[11px] bg-[#007BFF]/10 text-[#007BFF] px-2 py-0.5 rounded-md font-semibold">Conectado</span>
@@ -346,24 +340,24 @@ export function LandingPage() {
           </div>
           <div className="grid md:grid-cols-3 gap-8">
             <div className="bg-[#F5F5F5] p-6 rounded-2xl space-y-4">
-              <div className="text-xs font-bold text-[#007BFF] uppercase">1. Compradores</div>
+              <div className="text-xs font-bold text-[#007BFF] uppercase">Compradores</div>
               <h4 className="font-bold text-base text-[#333333]">Flotas, Aseguradoras y Talleres</h4>
               <p className="text-xs text-[#4A4A4A] leading-relaxed">
-                Ingresan sus solicitudes de repuestos y obtienen transparencia absoluta en precios con garantía real.
+                Solicitan repuestos por WhatsApp. Nuestro Agente IA procesa la solicitud y la distribuye automáticamente.
               </p>
             </div>
             <div className="bg-[#F5F5F5] p-6 rounded-2xl space-y-4 border-t-4 border-[#00C2C0]">
-              <div className="text-xs font-bold text-[#00C2C0] uppercase">2. Asesores TeLOO</div>
-              <h4 className="font-bold text-base text-[#333333]">Expertos de Marca</h4>
+              <div className="text-xs font-bold text-[#00C2C0] uppercase">Plataforma TeLOO</div>
+              <h4 className="font-bold text-base text-[#333333]">Motor de Asignación Inteligente</h4>
               <p className="text-xs text-[#4A4A4A] leading-relaxed">
-                Validan la solicitud, buscan la mejor combinación de precio y entrega entre decenas de proveedores autorizados.
+                Evalúa asesores por proximidad, desempeño y confianza. Notifica en oleadas y adjudica automáticamente la mejor oferta.
               </p>
             </div>
             <div className="bg-[#F5F5F5] p-6 rounded-2xl space-y-4">
-              <div className="text-xs font-bold text-[#00D248] uppercase">3. Proveedores</div>
-              <h4 className="font-bold text-base text-[#333333]">Importadores y Distribuidores</h4>
+              <div className="text-xs font-bold text-[#00D248] uppercase">Asesores</div>
+              <h4 className="font-bold text-base text-[#333333]">Tiendas y Distribuidoras de Repuestos</h4>
               <p className="text-xs text-[#4A4A4A] leading-relaxed">
-                Reciben solicitudes pre-calificadas listas para comprar, sin esfuerzo comercial adicional.
+                Reciben solicitudes calificadas en su panel, envían ofertas y compiten por adjudicaciones con precio, garantía y tiempo de entrega.
               </p>
             </div>
           </div>
