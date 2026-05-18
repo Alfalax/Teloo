@@ -84,7 +84,7 @@ export function LandingPage() {
     <div className="light bg-white text-[#4A4A4A] min-h-screen flex flex-col antialiased overflow-x-hidden">
 
       {/* ── NAV ── */}
-      <nav className="fixed top-0 left-0 right-0 z-50 h-20 bg-white/95 backdrop-blur-md border-b border-[#8E8E8E]/10">
+      <nav className="fixed top-0 left-0 right-0 z-50 h-14 bg-white/95 backdrop-blur-md border-b border-[#8E8E8E]/10">
         <div className="h-full max-w-7xl mx-auto flex items-center justify-between px-6">
           <div className="flex items-center gap-3">
             <img src={logo} alt="TeLOO" className="max-w-[200px] max-h-12 w-auto h-auto object-contain" />
@@ -113,7 +113,7 @@ export function LandingPage() {
       </nav>
 
       {/* Spacer para el nav fijo — altura exacta del nav */}
-      <div className="h-20" aria-hidden="true" />
+      <div className="h-14" aria-hidden="true" />
 
       {/* ── HERO ── */}
       <section className="relative pt-14 pb-24 md:pt-20 md:pb-32 px-6 overflow-hidden bg-gradient-to-b from-[#F5F5F5]/50 to-white">
