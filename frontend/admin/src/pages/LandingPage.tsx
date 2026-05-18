@@ -84,10 +84,10 @@ export function LandingPage() {
     <div className="light bg-white text-[#4A4A4A] min-h-screen flex flex-col antialiased overflow-x-hidden">
 
       {/* ── NAV ── */}
-      <nav className="fixed top-0 left-0 right-0 z-50 bg-white/95 backdrop-blur-md border-b border-[#8E8E8E]/10 px-6 py-4">
-        <div className="max-w-7xl mx-auto flex items-center justify-between">
+      <nav className="fixed top-0 left-0 right-0 z-50 h-20 bg-white/95 backdrop-blur-md border-b border-[#8E8E8E]/10">
+        <div className="h-full max-w-7xl mx-auto flex items-center justify-between px-6">
           <div className="flex items-center gap-3">
-            <img src={logo} alt="TeLOO" className="max-w-[220px] w-auto h-auto object-contain" />
+            <img src={logo} alt="TeLOO" className="max-w-[200px] max-h-12 w-auto h-auto object-contain" />
             <span className="hidden md:inline-block px-2.5 py-0.5 text-xs font-semibold bg-[#E2FBE9] text-[#00D248] rounded-full border border-[#00D248]/20">
               Ecosistema Activo
             </span>
@@ -112,8 +112,11 @@ export function LandingPage() {
         </div>
       </nav>
 
+      {/* Spacer para el nav fijo — altura exacta del nav */}
+      <div className="h-20" aria-hidden="true" />
+
       {/* ── HERO ── */}
-      <section className="relative pt-32 pb-24 md:pt-40 md:pb-32 px-6 overflow-hidden bg-gradient-to-b from-[#F5F5F5]/50 to-white">
+      <section className="relative pt-14 pb-24 md:pt-20 md:pb-32 px-6 overflow-hidden bg-gradient-to-b from-[#F5F5F5]/50 to-white">
         <div className="absolute top-20 left-1/4 w-[250px] h-[250px] bg-[#00C2C0]/10 rounded-full blur-[100px] pointer-events-none" />
         <div className="absolute top-40 right-1/4 w-[300px] h-[300px] bg-[#007BFF]/10 rounded-full blur-[120px] pointer-events-none" />
         <div className="absolute inset-0 bg-[linear-gradient(to_right,#8E8E8E_1px,transparent_1px),linear-gradient(to_bottom,#8E8E8E_1px,transparent_1px)] bg-[size:4rem_4rem] [mask-image:radial-gradient(ellipse_60%_50%_at_50%_50%,#000_70%,transparent_100%)] opacity-[0.03] pointer-events-none" />
