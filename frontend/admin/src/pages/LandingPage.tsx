@@ -86,9 +86,6 @@ export function LandingPage() {
         <div className="h-full max-w-7xl mx-auto flex items-center justify-between px-6">
           <div className="flex items-center gap-3">
             <img src={logo} alt="TeLOO" className="h-12 w-auto object-contain" />
-            <span className="hidden md:inline-block px-2.5 py-0.5 text-xs font-semibold bg-[#E2FBE9] text-[#00D248] rounded-full border border-[#00D248]/20">
-              Ecosistema Activo
-            </span>
           </div>
           <div className="flex items-center gap-2">
             <Button
