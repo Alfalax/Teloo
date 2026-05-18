@@ -93,7 +93,7 @@ export function LandingPage() {
       <nav className="fixed top-0 left-0 right-0 z-50 bg-white/95 backdrop-blur-md border-b border-[#8E8E8E]/10 px-6 py-4">
         <div className="max-w-7xl mx-auto flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <img src={logo} alt="TeLOO" className="h-9 w-auto object-contain" />
+            <img src={logo} alt="TeLOO" className="h-12 w-auto object-contain" />
             <span className="hidden md:inline-block px-2.5 py-0.5 text-xs font-semibold bg-[#E2FBE9] text-[#00D248] rounded-full border border-[#00D248]/20">
               Ecosistema Activo
             </span>
@@ -130,6 +130,12 @@ export function LandingPage() {
               <span className="flex h-2 w-2 rounded-full bg-[#00D248] animate-pulse" />
               <span className="text-xs font-bold text-[#333333] uppercase tracking-wider">Marketplace Inteligente Autorizado</span>
             </div>
+
+            <img
+              src={logo}
+              alt="TeLOO"
+              className="max-w-[520px] w-full h-auto"
+            />
 
             <div className="space-y-4">
               <h1 className="text-4xl sm:text-5xl md:text-6xl font-extrabold text-[#333333] tracking-tight leading-[1.1]">
