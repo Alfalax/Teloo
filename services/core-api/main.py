@@ -39,6 +39,7 @@ from config import settings
 init_logger("core-api", settings.log_level)
 logger = get_logger()
 environment = settings.environment
+log_level = settings.log_level
 
 # Create FastAPI app
 _is_prod = settings.environment == "production"
