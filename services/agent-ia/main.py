@@ -41,9 +41,13 @@ async def lifespan(app: FastAPI):
         # Start client notification listener in background
         import asyncio
         from app.services.client_notification_listener import client_notification_listener
-        
+        from app.services.whatsapp_message_processor import whatsapp_message_processor
+
         listener_task = asyncio.create_task(client_notification_listener.start_listening())
         logger.info("Client notification listener started")
+
+        whatsapp_task = asyncio.create_task(whatsapp_message_processor.process_queued_messages())
+        logger.info("WhatsApp message processor started")
         
         # Start Telegram Service
         telegram_task = None
@@ -94,6 +98,14 @@ async def lifespan(app: FastAPI):
             listener_task.cancel()
             try:
                 await listener_task
+            except asyncio.CancelledError:
+                pass
+
+        # Cancel WhatsApp processor task
+        if 'whatsapp_task' in locals():
+            whatsapp_task.cancel()
+            try:
+                await whatsapp_task
             except asyncio.CancelledError:
                 pass
         
