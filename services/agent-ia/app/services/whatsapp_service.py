@@ -240,7 +240,7 @@ class WhatsAppService:
                 if response.status_code == 200:
                     return response
                 else:
-                    # Raise HTTPStatusError for retry logic
+                    logger.error(f"WhatsApp API error {response.status_code}: {response.text}")
                     response.raise_for_status()
             
             # Execute with circuit breaker and retry logic
