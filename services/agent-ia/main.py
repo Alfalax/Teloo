@@ -84,7 +84,7 @@ async def lifespan(app: FastAPI):
             _log("SERVICE_API_KEY not set — /v1/results will return 503 in production")
 
         token = settings.whatsapp_access_token or ""
-        logger.info(f"WhatsApp token loaded: {token[:10]}... (len={len(token)})")
+        logger.info(f"WhatsApp token loaded: {token[:15]}... (len={len(token)})")
         logger.info("Agent IA Service started successfully")
         yield
         
