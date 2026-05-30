@@ -29,7 +29,10 @@ class InitService:
             
             # Initialize configuration parameters
             await InitService._create_config_parameters()
-            
+
+            # Import DIVIPOLA geography data if table is empty
+            await InitService._import_divipola_if_empty()
+
             logger.info("✅ Database initialization completed successfully")
             
         except Exception as e:
@@ -133,3 +136,31 @@ class InitService:
         except Exception as e:
             logger.error(f"❌ Error creating config parameters: {e}")
             raise
+
+    @staticmethod
+    async def _import_divipola_if_empty():
+        """Import DIVIPOLA geography data if the municipios table is empty"""
+        from pathlib import Path
+        try:
+            from models.geografia import Municipio
+            count = await Municipio.all().count()
+            if count > 0:
+                logger.info(f"ℹ️ DIVIPOLA already loaded: {count} municipios")
+                return
+
+            excel_path = Path("/app/DIVIPOLA_Municipios.xlsx")
+            if not excel_path.exists():
+                logger.warning("⚠️ DIVIPOLA_Municipios.xlsx not found — skipping geography import")
+                return
+
+            logger.info("📂 Importing DIVIPOLA data from Excel...")
+            import sys
+            sys.path.append("/app")
+            from scripts.import_divipola import import_divipola_from_excel
+            success = await import_divipola_from_excel(str(excel_path))
+            if success:
+                logger.info("✅ DIVIPOLA import completed successfully")
+            else:
+                logger.error("❌ DIVIPOLA import failed")
+        except Exception as e:
+            logger.error(f"❌ Error importing DIVIPOLA: {e}")
