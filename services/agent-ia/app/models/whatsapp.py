@@ -19,12 +19,12 @@ class WhatsAppMessage(BaseModel):
     from_: str = Field(alias="from")
     timestamp: str
     type: str
-    text: Optional[Dict[str, str]] = None
-    image: Optional[Dict[str, str]] = None
-    audio: Optional[Dict[str, str]] = None
-    document: Optional[Dict[str, str]] = None
-    video: Optional[Dict[str, str]] = None
-    voice: Optional[Dict[str, str]] = None
+    text: Optional[Dict[str, Any]] = None
+    image: Optional[Dict[str, Any]] = None
+    audio: Optional[Dict[str, Any]] = None
+    document: Optional[Dict[str, Any]] = None
+    video: Optional[Dict[str, Any]] = None
+    voice: Optional[Dict[str, Any]] = None
     interactive: Optional[Dict[str, Any]] = None
     context: Optional[Dict[str, Any]] = None
 
