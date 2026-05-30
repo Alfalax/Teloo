@@ -12,7 +12,6 @@ services:
     depends_on:
       - core-api
       - analytics
-      - agent-ia
     networks:
       - teloo-network
     healthcheck:
@@ -82,40 +81,6 @@ services:
       - teloo-network
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 40s
-
-  # Agent IA Service
-  agent-ia:
-    build:
-      context: ./services/agent-ia
-      dockerfile: Dockerfile
-    container_name: teloo-agent-ia
-    environment:
-      - SERVICE_NAME=agent-ia
-      - CORE_API_URL=http://core-api:8000
-      - REDIS_URL=redis://redis:6379
-      - ENVIRONMENT=production
-      - SERVICE_API_KEY=${AGENT_IA_API_KEY}
-      - WHATSAPP_ACCESS_TOKEN=${WHATSAPP_ACCESS_TOKEN}
-      - WHATSAPP_PHONE_NUMBER_ID=${WHATSAPP_PHONE_NUMBER_ID}
-      - WHATSAPP_VERIFY_TOKEN=${WHATSAPP_VERIFY_TOKEN}
-      - WHATSAPP_WEBHOOK_SECRET=${WHATSAPP_WEBHOOK_SECRET}
-      - OPENAI_API_KEY=${OPENAI_API_KEY}
-      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
-    expose:
-      - "9003"
-    depends_on:
-      core-api:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
-    networks:
-      - teloo-network
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:9003/health"]
       interval: 30s
       timeout: 10s
       retries: 3
