@@ -3,7 +3,7 @@ Configuration settings for Agent IA Service
 """
 
 from pydantic_settings import BaseSettings
-from pydantic import field_validator
+from pydantic import field_validator, Field
 from typing import List, Optional
 import os
 
@@ -32,7 +32,7 @@ class Settings(BaseSettings):
     redis_pool_size: int = 10
     
     # WhatsApp Configuration
-    whatsapp_access_token: Optional[str] = None
+    whatsapp_access_token: Optional[str] = Field(None, alias="WA_ACCESS_TOKEN", validation_alias="WA_ACCESS_TOKEN")
     whatsapp_phone_number_id: Optional[str] = None
     whatsapp_verify_token: Optional[str] = None
     whatsapp_webhook_secret: Optional[str] = None
